@@ -6,6 +6,7 @@
   import { applyLook, defaultLook, PRESETS, wallpaperUrl, type PresetId } from "./lib/theme";
   import type { Activity, Progress } from "./lib/types";
   import Icon from "./components/Icon.svelte";
+  import Logo from "./components/Logo.svelte";
   import TopBar from "./components/TopBar.svelte";
   import Launcher, { type LauncherAction } from "./components/Launcher.svelte";
   import Library from "./pages/Library.svelte";
@@ -134,7 +135,7 @@
     <!-- Standalone Minecraft launcher window ("popped out"). -->
     <div class="window solo">
       <header class="solo-bar" data-tauri-drag-region>
-        <Icon name="cube" size={16} />
+        <Logo size={18} />
         <span class="solo-title" data-tauri-drag-region>{brandName} Minecraft</span>
         <div class="grow" data-tauri-drag-region></div>
         <button class="wc" onclick={() => win.minimize()} aria-label="Minimize"><Icon name="minimize" size={14} /></button>
@@ -154,10 +155,7 @@
     <nav class="rail" aria-label="Main">
       <div class="brand" data-tauri-drag-region>
         {#if !app.ui.bar.show}
-          <svg width="26" height="26" viewBox="0 0 64 64" aria-hidden="true">
-            <path d="M12 52V34a20 20 0 0 1 40 0v18h-7V34a13 13 0 0 0-26 0v18z" fill="var(--peach)" />
-            <circle cx="32" cy="38" r="4.5" fill="currentColor" />
-          </svg>
+          <Logo size={26} />
           <span>{brandName}</span>
         {:else}
           <span class="rail-title">{brandName}</span>

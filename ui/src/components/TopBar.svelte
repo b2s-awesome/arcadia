@@ -3,6 +3,7 @@
   import { api, win } from "../lib/api";
   import { app, type Page } from "../lib/state.svelte";
   import Icon from "./Icon.svelte";
+  import Logo from "./Logo.svelte";
 
   const pages: { id: Page; label: string }[] = [
     { id: "library", label: "Library" },
@@ -49,10 +50,7 @@
 
 <header class="bar style-{bar.style}" data-tauri-drag-region>
   <div class="island left">
-    <svg class="mark" width="18" height="18" viewBox="0 0 64 64" aria-hidden="true">
-      <path d="M12 52V34a20 20 0 0 1 40 0v18h-7V34a13 13 0 0 0-26 0v18z" fill="var(--peach)" />
-      <circle cx="32" cy="38" r="4.5" fill="currentColor" />
-    </svg>
+    <Logo size={18} />
     <span class="name">{app.ui.brand.name || "Arcadia"}</span>
     <div class="dots" role="tablist" aria-label="Pages">
       {#each pages as p}
