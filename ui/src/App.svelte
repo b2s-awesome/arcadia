@@ -7,6 +7,8 @@
   import type { Activity, Progress } from "./lib/types";
   import Icon from "./components/Icon.svelte";
   import Logo from "./components/Logo.svelte";
+  import AnimatedLogo from "./components/AnimatedLogo.svelte";
+  import { fade } from "svelte/transition";
   import TopBar from "./components/TopBar.svelte";
   import Launcher, { type LauncherAction } from "./components/Launcher.svelte";
   import Library from "./pages/Library.svelte";
@@ -92,6 +94,15 @@
       run: () => { app.ui.look = defaultLook(id); app.ui.applied = null; saveUi(); },
     })),
   ];
+
+  // Splash: plays the animated logo once at startup, after settings load.
+  let splash = $state(new URLSearchParams(location.search).get("splash") !== "0");
+  const reduced = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  $effect(() => {
+    if (!splash || !app.settings) return;
+    const t = setTimeout(() => (splash = false), reduced ? 500 : 1900);
+    return () => clearTimeout(t);
+  });
 
   onMount(() => {
     loadSettings();
@@ -220,6 +231,12 @@
   <Launcher {actions} />
   {/if}
 
+  {#if splash}
+    <div class="splash" out:fade={{ duration: reduced ? 0 : 350 }} aria-hidden="true">
+      {#if app.settings}<AnimatedLogo size={112} name={brandName} />{/if}
+    </div>
+  {/if}
+
   <div class="toasts" aria-live="polite">
     {#each app.toasts as t (t.id)}
       <div class="toast" class:error={t.tone === "error"}>{t.text}</div>
@@ -316,6 +333,12 @@
   .track { flex: 1; height: 6px; background: var(--sunk); border-radius: 6px; overflow: hidden; }
   .fill { height: 100%; background: var(--peach); transition: width 0.3s ease; }
 
+  .splash {
+    position: fixed; inset: 0; z-index: 80;
+    display: grid; place-items: center;
+    background: var(--desk);
+  }
+  :global(:root[data-scheme="dark"]) .splash, :global(:root[data-preset="obsidian"]) .splash { background: var(--ink); }
   .toasts { position: fixed; right: 1.5rem; bottom: 1.5rem; display: grid; gap: 0.5rem; z-index: 70; }
   .toast {
     background: var(--panel); backdrop-filter: blur(calc(var(--glass-blur) + 8px));
