@@ -1,0 +1,46 @@
+[package]
+name = "arcadia-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Arcadia core: game library scanners, Roblox bootstrapper and asset proxy"
+
+[dependencies]
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "time", "fs", "process"] }
+hyper = { version = "1", features = ["http1", "server", "client"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+bytes = "1"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+webpki-roots = "0.26"
+rustls-pemfile = "2"
+rcgen = { version = "0.13", default-features = false, features = ["ring", "pem", "x509-parser"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "gzip"] }
+futures-util = "0.3"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+md-5 = "0.10"
+flate2 = "1"
+dirs = "6"
+log = "0.4"
+time = { version = "0.3", features = ["formatting"] }
+url = "2"
+regex = "1"
+parking_lot = "0.12"
+uuid = { version = "1", features = ["v4"] }
+sha1 = "0.10"
+sha2 = "0.10"
+toml = "0.8"
+hex = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+keyring = { version = "3", features = ["windows-native"] }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_Security"] }
+
+[dev-dependencies]
+tempfile = "3"

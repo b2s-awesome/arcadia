@@ -1,0 +1,26 @@
+[package]
+name = "arcadia"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Arcadia — game hub and Roblox bootstrapper"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+arcadia-core = { path = "../crates/core" }
+tauri = { version = "2", features = ["tray-icon", "protocol-asset"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "time"] }
+anyhow = "1"
+log = "0.4"
+parking_lot = "0.12"
+
+[features]
+# `tauri build` enables this automatically; it serves the bundled UI
+# instead of the Vite dev server.
+custom-protocol = ["tauri/custom-protocol"]
