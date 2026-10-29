@@ -1,11 +1,14 @@
 //! Roblox bootstrapper: install/update, FastFlags, mods, proxy wiring, launch.
 
+pub mod accounts;
 pub mod activity;
 pub mod cache;
 pub mod deploy;
 pub mod fflags;
 pub mod flagcache;
+pub mod history;
 pub mod mods;
+pub mod web;
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
@@ -114,6 +117,7 @@ pub async fn launch(
     if let Some(font) = settings.roblox_custom_font.as_deref().filter(|f| !f.is_empty()) {
         extra = mods::custom_font_files(&dir, Path::new(font)).context("preparing custom font")?;
     }
+    extra.extend(settings.roblox_mod_studio.files().context("preparing mod studio files")?);
     if settings.roblox_apply_mods || !extra.is_empty() {
         let mods_dir = crate::paths::mods_dir();
         let mods_dir = settings.roblox_apply_mods.then_some(mods_dir.as_path());

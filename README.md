@@ -37,6 +37,26 @@ Pushing a tag like `v0.1.0` to GitHub runs `.github/workflows/release.yml`, whic
 - **Asset proxy:** turn on "Use the proxy when Roblox starts", add rules in a profile (paste asset IDs, pick Swap / Use a file / Remove), then launch Roblox from Arcadia. The cache is cleared on launch and exit so changes take effect. Profiles can be shared as JSON.
 - **Coming from Fleasion:** Import → "Import everything from Fleasion" brings over every config in `%LOCALAPPDATA%\FleasionNT\configs` as its own profile, keeping which ones were on. You can also open or paste a single Fleasion config. Swap, remove, local-file and CDN-link rules all carry over, with their folders; replacement files are copied into Arcadia's own folder. Asset-type wildcards (such as `"Image"`) aren't supported yet and are skipped.
 
+## Roblox+
+
+The Roblox page is a set of collapsible vertical tabs:
+
+- **Play:** pick who to play as, paste any game link or place ID, or jump back into a recent game.
+- **Accounts:** sign in on Roblox's own page in a private window. Arcadia only keeps each login in Windows Credential Manager, split across a few entries because one entry is too small for it. Logins are never written to a file or a log, and only ever sent to roblox.com. The starred default account is used by Play, join links from roblox.com and game shortcuts. Several accounts can run at once with *Multiple Roblox windows*.
+- **Games:**
+  - A library of every game you've played through Arcadia, with total playtime, sessions, favourites and desktop shortcuts.
+  - A day-by-day list of visits, showing server region and account. You can rejoin the exact server or copy a join link for it.
+- **Servers:** a game's public servers with player count and ping. *Find regions* asks Roblox for each server's address and looks up the city, which needs a signed-in account. You can then filter by region and join one.
+- **Rejoin & windows:** auto-rejoin after an idle kick or a lost connection. There is a countdown you can cancel, an option to go back to the same server, and it stops after five rejoins in half an hour.
+- **Client & updates:** pause updates on the current version, pick a channel, or reinstall.
+- **FastFlags:**
+  - Presets that only use flags on Roblox's allowlist.
+  - Profiles you can save and swap between.
+  - Your own flags, each one marked *ignored* when Roblox won't read it.
+- **Mods:**
+  - **Mod studio:** Arcadia-drawn cursor and shift-lock crosshair styles in any colour and size, or your own pictures, plus death sound and font. It has a live preview and presets.
+  - **Files & cache:** the mods folder and cache clearing.
+
 ## Minecraft launcher
 
 A Prism-style launcher built into Arcadia. Open it from the sidebar, or pop it out into its own window; **Accounts and setup** can add a desktop shortcut that opens only the launcher (`Arcadia.exe --minecraft`).
@@ -150,6 +170,7 @@ The CA is never added to the Windows certificate store.
 - Asset swaps are client-side; other players don't see them.
 - **Live FastFlags** (proxy route) bypass Roblox's local FastFlag allowlist. Roblox has said accounts doing this can be banned. They stay off until you accept that in the app.
 - Modifying the Roblox client may break Roblox's Terms of Use; use at your own risk.
+- Auto-rejoin only reconnects you. It doesn't move your character, so it isn't an anti-AFK tool, and some games still kick idle players by design.
 
 ## Status
 
@@ -165,7 +186,7 @@ Minecraft: an end-to-end test against fake Mojang, Fabric and Modrinth servers c
 
 Not in this version yet (planned):
 
-- Froststrap side: Discord Rich Presence, account manager, server region picker, game history, community mod downloads, custom bootstrapper themes, Studio support.
+- Froststrap side: Discord Rich Presence, community mod downloads, custom bootstrapper themes, Studio support.
 - Fleasion side: hold/edit/replay in the Inspector, cache viewer and asset browser, mesh/RBXM exports and converters, hosts-file mode, macOS and Linux (Sober).
 - Library: Xbox / Microsoft Store games, playtime tracking for non-Roblox games.
 

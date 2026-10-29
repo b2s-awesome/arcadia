@@ -97,6 +97,7 @@ dependencies = [
  "anyhow",
  "arcadia-audio",
  "arcadia-core",
+ "base64 0.22.1",
  "log",
  "parking_lot",
  "serde",
@@ -107,6 +108,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-single-instance",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

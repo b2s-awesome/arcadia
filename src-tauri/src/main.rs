@@ -4,12 +4,12 @@
 use arcadia_core::library::{self, Game, LaunchTarget};
 use arcadia_core::proxy::rules::{parse_ids, RuleConfig};
 use arcadia_core::proxy::{inspector, Proxy, ProxyConfig};
-use arcadia_core::roblox::{self, activity, cache, deploy, fflags, ProxyHook};
+use arcadia_core::roblox::{self, cache, deploy, fflags, ProxyHook};
 use arcadia_core::{paths, Settings};
 use parking_lot::Mutex;
 use serde::Serialize;
 use serde_json::{Map, Value};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -20,6 +20,7 @@ mod minecraft_cmds;
 mod lyrics_cmds;
 mod media_keys;
 mod music_cmds;
+mod roblox_cmds;
 mod streaming_cmds;
 
 pub(crate) struct AppState {
@@ -81,7 +82,7 @@ async fn launch_game(app: AppHandle, st: State<'_, AppState>, id: String) -> Res
     let game = st.games.lock().iter().find(|g| g.id == id).cloned();
     let game = game.ok_or("That game is no longer installed. Refresh the library.")?;
     if game.launch == LaunchTarget::Roblox {
-        return launch_roblox(app, None).await.map(|_| ());
+        return roblox_cmds::roblox_play(app, None, None, None).await.map(|_| ());
     }
     if game.launch == LaunchTarget::Minecraft {
         return minecraft_cmds::open_minecraft(&app, false);
@@ -228,7 +229,15 @@ async fn ensure_proxy(app: &AppHandle) -> anyhow::Result<ProxyHook> {
     Ok(ProxyHook { port: p.port, ca_pem: p.ca_pem(), intercept: p.intercept_switch() })
 }
 
-async fn launch_roblox(app: AppHandle, uri: Option<String>) -> Res<String> {
+pub(crate) async fn launch_roblox(app: AppHandle, uri: Option<String>) -> Res<String> {
+    let (uri, ctx) = match uri {
+        Some(u) => roblox_cmds::resolve_link(u).await,
+        None => (None, roblox_cmds::Ctx::default()),
+    };
+    launch_roblox_as(app, uri, ctx).await
+}
+
+pub(crate) async fn launch_roblox_as(app: AppHandle, uri: Option<String>, ctx: roblox_cmds::Ctx) -> Res<String> {
     let st = app.state::<AppState>();
     let settings = st.settings.lock().clone();
     // Roblox's own updater re-registers its protocol; take it back each launch.
@@ -268,28 +277,9 @@ async fn launch_roblox(app: AppHandle, uri: Option<String>) -> Res<String> {
         }
     }
 
-    // Follow the client log for "now playing".
-    let stop = Arc::new(AtomicBool::new(false));
-    let h = app.clone();
-    activity::watch(started, stop.clone(), move |a| {
-        let _ = h.emit("roblox-activity", a);
-    });
-
-    let sessions = st.sessions.clone();
-    sessions.fetch_add(1, Ordering::Relaxed);
-    let mut child = launched.child;
-    let h = app.clone();
+    // Follow the client: now playing, history, server region, rejoin.
     let clear_on_exit = hook.is_some() && settings.proxy_clear_cache_on_exit;
-    std::thread::spawn(move || {
-        let _ = child.wait();
-        stop.store(true, Ordering::Relaxed);
-        let left = sessions.fetch_sub(1, Ordering::Relaxed) - 1;
-        if left == 0 && clear_on_exit {
-            std::thread::sleep(std::time::Duration::from_millis(800));
-            cache::clear();
-        }
-        let _ = h.emit("roblox-exited", left);
-    });
+    roblox_cmds::follow(&app, started, launched.child, ctx, clear_on_exit);
 
     hide_for_game(&app, &settings);
     Ok(version)
@@ -474,6 +464,16 @@ fn handle_args(app: &AppHandle, args: &[String]) -> bool {
         }
         return true;
     }
+    if let Some((place, account)) = roblox_cmds::shortcut_args(args) {
+        let h = app.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = roblox_cmds::roblox_play(h.clone(), account, Some(place), None).await {
+                show_main(&h);
+                let _ = h.emit("roblox-error", e);
+            }
+        });
+        return true;
+    }
     if let Some(uri) = args.iter().skip(1).find(|a| roblox::is_roblox_uri(a)).cloned() {
         let h = app.clone();
         tauri::async_runtime::spawn(async move {
@@ -540,7 +540,7 @@ fn main() {
                     "roblox" => {
                         let h = app.clone();
                         tauri::async_runtime::spawn(async move {
-                            if let Err(e) = launch_roblox(h.clone(), None).await {
+                            if let Err(e) = roblox_cmds::roblox_play(h.clone(), None, None, None).await {
                                 show_main(&h);
                                 let _ = h.emit("roblox-error", e);
                             }
@@ -615,6 +615,28 @@ fn main() {
             roblox_reinstall,
             roblox_register_protocol,
             clear_roblox_cache,
+            roblox_cmds::roblox_play,
+            roblox_cmds::roblox_rejoin_cancel,
+            roblox_cmds::roblox_accounts,
+            roblox_cmds::roblox_account_login,
+            roblox_cmds::roblox_account_cancel_login,
+            roblox_cmds::roblox_account_remove,
+            roblox_cmds::roblox_account_default,
+            roblox_cmds::roblox_account_note,
+            roblox_cmds::roblox_account_reorder,
+            roblox_cmds::roblox_account_check,
+            roblox_cmds::roblox_servers,
+            roblox_cmds::roblox_server_region,
+            roblox_cmds::roblox_games,
+            roblox_cmds::roblox_place_from,
+            roblox_cmds::roblox_history,
+            roblox_cmds::roblox_history_add,
+            roblox_cmds::roblox_history_favourite,
+            roblox_cmds::roblox_history_forget,
+            roblox_cmds::roblox_history_clear,
+            roblox_cmds::roblox_shortcut,
+            roblox_cmds::roblox_cursor_preview,
+            roblox_cmds::roblox_flag_allowlist,
             fflag_presets,
             parse_fflags,
             open_folder,
