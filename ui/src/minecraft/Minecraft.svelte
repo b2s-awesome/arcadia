@@ -7,6 +7,9 @@
   import Import from "./Import.svelte";
   import Security from "./Security.svelte";
   import Accounts from "./Accounts.svelte";
+  import Skins from "./Skins.svelte";
+  import Modal from "../components/Modal.svelte";
+  import CrashCard from "./CrashCard.svelte";
   import Console from "./Console.svelte";
   import NewInstance from "./NewInstance.svelte";
 
@@ -15,12 +18,28 @@
   const tabs: { id: McTab; label: string }[] = [
     { id: "instances", label: "Instances" },
     { id: "modpacks", label: "Modpacks" },
+    { id: "skins", label: "Skins" },
     { id: "import", label: "Import" },
     { id: "security", label: "Security" },
     { id: "accounts", label: "Accounts and setup" },
   ];
 
   let creating = $state(false);
+  let crashOpen = $state(false);
+  $effect(() => {
+    if (mcs.crash) crashOpen = true;
+  });
+  $effect(() => {
+    if (!crashOpen) mcs.crash = null;
+  });
+  const crashName = $derived(mcs.instances.find((i) => i.id === mcs.crash?.instance)?.name ?? "Minecraft");
+  function openLogs() {
+    if (!mcs.crash) return;
+    mcs.tab = "instances";
+    mcs.selected = mcs.crash.instance;
+    mcs.openSection = "logs";
+    crashOpen = false;
+  }
   let avatarOk = $state(true);
   onMount(() => {
     initMinecraft();
@@ -66,6 +85,7 @@
   <div class="body">
     {#if mcs.tab === "instances"}<Instances onnew={() => (creating = true)} />
     {:else if mcs.tab === "modpacks"}<Modpacks />
+    {:else if mcs.tab === "skins"}<Skins />
     {:else if mcs.tab === "import"}<Import />
     {:else if mcs.tab === "security"}<Security />
     {:else}<Accounts />{/if}
@@ -83,6 +103,13 @@
 </div>
 
 <NewInstance bind:open={creating} />
+<Modal bind:open={crashOpen} title="{crashName} crashed" wide>
+  {#if mcs.crash}<CrashCard info={mcs.crash} />{/if}
+  {#snippet actions()}
+    <button class="ghost" onclick={openLogs}>Open logs</button>
+    <button onclick={() => (crashOpen = false)}>Close</button>
+  {/snippet}
+</Modal>
 <Console />
 
 <style>

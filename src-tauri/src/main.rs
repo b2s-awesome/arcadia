@@ -18,6 +18,7 @@ use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 mod addon_cmds;
 mod minecraft_cmds;
 mod lyrics_cmds;
+mod mc_extra_cmds;
 mod media_keys;
 mod music_cmds;
 mod roblox_cmds;
@@ -674,6 +675,37 @@ fn main() {
             minecraft_cmds::mc_account_select,
             minecraft_cmds::mc_account_remove,
             minecraft_cmds::mc_play,
+            mc_extra_cmds::mc_packs,
+            mc_extra_cmds::mc_pack_toggle,
+            mc_extra_cmds::mc_pack_remove,
+            mc_extra_cmds::mc_packs_add,
+            mc_extra_cmds::mc_worlds,
+            mc_extra_cmds::mc_world_backup,
+            mc_extra_cmds::mc_world_restore,
+            mc_extra_cmds::mc_world_backup_delete,
+            mc_extra_cmds::mc_world_delete,
+            mc_extra_cmds::mc_screenshots,
+            mc_extra_cmds::mc_screenshot_delete,
+            mc_extra_cmds::mc_servers,
+            mc_extra_cmds::mc_server_add,
+            mc_extra_cmds::mc_server_remove,
+            mc_extra_cmds::mc_server_ping,
+            mc_extra_cmds::mc_updates,
+            mc_extra_cmds::mc_update_apply,
+            mc_extra_cmds::mc_export,
+            mc_extra_cmds::mc_java_runtimes,
+            mc_extra_cmds::mc_set_launch,
+            mc_extra_cmds::mc_logs,
+            mc_extra_cmds::mc_log_read,
+            mc_extra_cmds::mc_explain,
+            mc_extra_cmds::mc_skins,
+            mc_extra_cmds::mc_skin_add_file,
+            mc_extra_cmds::mc_skin_add_player,
+            mc_extra_cmds::mc_skin_edit,
+            mc_extra_cmds::mc_skin_remove,
+            mc_extra_cmds::mc_profile,
+            mc_extra_cmds::mc_skin_wear,
+            mc_extra_cmds::mc_cape_set,
             minecraft_cmds::mc_running,
             minecraft_cmds::mc_kill,
             minecraft_cmds::mc_incidents,

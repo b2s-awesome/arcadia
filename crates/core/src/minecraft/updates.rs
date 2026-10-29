@@ -6,10 +6,10 @@ use super::download::{fetch, sha1_file, Job};
 use super::instance::{self, game_dir};
 use super::modrinth::{self, Version};
 use anyhow::{anyhow, bail, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Update {
     /// "mods", "resourcepacks" or "shaderpacks".

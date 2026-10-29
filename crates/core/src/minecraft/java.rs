@@ -129,6 +129,9 @@ pub async fn ensure(component: &str, task: &str, on: &OnProgress) -> Result<Path
     Ok(exe)
 }
 
+/// Mojang's Java runtimes you can pick for an instance.
+pub const RUNTIMES: &[(&str, &str)] = &[("jre-legacy", "Java 8"), ("java-runtime-alpha", "Java 16"), ("java-runtime-gamma", "Java 17"), ("java-runtime-delta", "Java 21")];
+
 /// Which runtime a version needs. Old versions without `javaVersion` use Java 8.
 pub fn component_for(v: &super::version::VersionJson) -> String {
     v.java_version

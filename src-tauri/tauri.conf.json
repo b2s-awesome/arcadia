@@ -28,7 +28,8 @@
       "assetProtocol": {
         "enable": true,
         "scope": [
-          "$LOCALDATA/Arcadia/wallpapers/**"
+          "$LOCALDATA/Arcadia/wallpapers/**",
+          "$LOCALDATA/Arcadia/Minecraft/instances/*/minecraft/screenshots/**"
         ]
       }
     }

@@ -79,6 +79,47 @@ function mockCursor(style: string, colour: string, scale: number): string {
   return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
 }
 
+
+// ── Minecraft+ sample data ──
+function mockShot(i: number): string {
+  const hues = [200, 28, 120, 270, 340, 50, 180, 10, 230];
+  const h = hues[i % hues.length];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(${h} 70% 70%)"/><stop offset=".62" stop-color="hsl(${h + 20} 60% 82%)"/><stop offset=".62" stop-color="hsl(${(h + 120) % 360} 35% 40%)"/><stop offset="1" stop-color="hsl(${(h + 120) % 360} 35% 22%)"/></linearGradient></defs><rect width="320" height="180" fill="url(#g)"/><rect x="${40 + i * 23}" y="80" width="40" height="32" fill="hsl(${(h + 60) % 360} 30% 35%)"/><rect x="${180 - i * 9}" y="70" width="70" height="42" fill="hsl(${(h + 200) % 360} 25% 50%)"/></svg>`;
+  return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+}
+function mockSkin(shirt: string, legs: string, hair = "#3b2a1e"): string {
+  // A tiny 64×64 skin, drawn on a canvas so the 3D preview has real texture.
+  if (typeof document === "undefined") return "";
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d")!;
+  const r = (x: number, y: number, w: number, h: number, col: string) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+  const skin = "#e0ac80";
+  r(0, 8, 32, 8, skin); r(8, 0, 16, 8, skin); r(0, 8, 32, 2, hair); r(8, 0, 8, 8, hair); r(8, 8, 8, 2, hair);
+  r(9, 12, 2, 1, "#fff"); r(13, 12, 2, 1, "#fff"); r(10, 12, 1, 1, "#2c4a8a"); r(13, 12, 1, 1, "#2c4a8a"); r(11, 14, 2, 1, "#9a5a44");
+  r(16, 16, 24, 4, shirt); r(16, 20, 24, 12, shirt); r(40, 16, 16, 4, shirt); r(40, 20, 16, 12, shirt); r(44, 28, 4, 4, skin); r(32, 48, 16, 16, shirt); r(36, 60, 4, 4, skin);
+  r(0, 16, 16, 16, legs); r(16, 48, 16, 16, legs); r(0, 28, 16, 4, "#3a3a3a"); r(16, 60, 16, 4, "#3a3a3a");
+  return c.toDataURL("image/png");
+}
+let mcSkins: { id: string; name: string; variant: "classic" | "slim"; added: number; data: string }[] = [];
+const mcProfile = { name: "Notch", skin: "" as string | null, variant: "classic" as "classic" | "slim", capes: [
+  { id: "c1", alias: "Migrator", active: true, data: null as string | null },
+  { id: "c2", alias: "Pan", active: false, data: null as string | null },
+  { id: "c3", alias: "Common", active: false, data: null as string | null },
+] };
+if (typeof document !== "undefined") {
+  mcSkins = [
+    { id: "s1", name: "Red hoodie", variant: "classic", added: 1, data: mockSkin("#c0563b", "#2f3b5c") },
+    { id: "s2", name: "Forest", variant: "slim", added: 2, data: mockSkin("#3f8a4f", "#4b3a2a", "#d8b45a") },
+    { id: "s3", name: "Space", variant: "classic", added: 3, data: mockSkin("#2d3a8c", "#1c1c28", "#111") },
+  ];
+  mcProfile.skin = mcSkins[0].data;
+}
+function mockLog(path: string): string {
+  if (path.startsWith("crash")) return `---- Minecraft Crash Report ----\n// Who set us up the TNT?\n\nTime: 2026-10-29 21:14:03\nDescription: Mod loading\n\njava.lang.IllegalStateException: Sodium Extra requires Sodium 0.6.0\n\tat net.fabricmc.loader.impl.FabricLoaderImpl.load(FabricLoaderImpl.java:212)\n\tat net.minecraft.client.main.Main.main(Main.java:221)\n\n-- System Details --\nMinecraft Version: 1.21.4\nJava Version: 21.0.3, Microsoft\nSuspected Mods: Iris (iris)\n`;
+  return Array.from({ length: 60 }, (_, i) => `[19:${String(10 + Math.floor(i / 6)).padStart(2, "0")}:${String((i * 7) % 60).padStart(2, "0")}] [Render thread/${i % 17 === 5 ? "WARN" : i === 48 ? "ERROR" : "INFO"}]: ${["Loading 64 mods", "Reloading ResourceManager: vanilla, fabric, Faithful 32x", "Sound engine started", "Created: 1024x512x4 minecraft:textures/atlas/blocks.png-atlas", "Connecting to mc.hypixel.net, 25565", "Missing sound for event: minecraft:item.goat_horn.play"][i % 6]}`).join("\n");
+}
+
 const games: Game[] = [
   { id: "minecraft:launcher", name: "Minecraft", source: "minecraft", install_dir: null, launch: { kind: "minecraft" }, cover: null, hero: null },
   { id: "roblox:player", name: "Roblox", source: "roblox", install_dir: null, launch: { kind: "roblox" }, cover: null, hero: null },
@@ -320,13 +361,84 @@ export async function mockInvoke(cmd: string, args: Record<string, unknown> = {}
     case "parse_asset_ids": return ((args.text as string).match(/\d{3,}/g) ?? []).map(Number);
     case "inspector_snapshot": return entries;
     // ── Minecraft ──
+    // ── Minecraft+ ──
+    case "mc_packs": {
+      if (args.kind === "shaderpacks") return [
+        { fileName: "ComplementaryReimagined_r5.4.zip", name: "ComplementaryReimagined_r5.4", enabled: true, folder: false, size: 1_420_000, description: "Complementary Reimagined, by EminGT", icon: null },
+        { fileName: "BSL_v8.4.zip.disabled", name: "BSL_v8.4", enabled: false, folder: false, size: 980_000, description: "BSL Shaders", icon: null },
+      ];
+      return [
+        { fileName: "Faithful 32x - 1.21.4.zip", name: "Faithful 32x - 1.21.4", enabled: true, folder: false, size: 6_200_000, description: "The original Faithful, at double resolution", icon: null },
+        { fileName: "Fresh Animations.zip", name: "Fresh Animations", enabled: true, folder: false, size: 2_100_000, description: "Smooth, lively mob animations", icon: null },
+        { fileName: "My Tweaks", name: "My Tweaks", enabled: true, folder: true, size: 44_000, description: "Personal UI tweaks", icon: null },
+        { fileName: "Low Fire.zip.disabled", name: "Low Fire", enabled: false, folder: false, size: 12_000, description: "Shorter fire overlay", icon: null },
+      ];
+    }
+    case "mc_pack_toggle": return String(args.on ? String(args.file).replace(/\.disabled$/, "") : `${args.file}.disabled`);
+    case "mc_pack_remove": return;
+    case "mc_packs_add": return (args.files as string[]).length;
+    case "mc_worlds": {
+      const now = Date.now();
+      return [
+        { folder: "Survival Island", name: "Survival Island", lastPlayed: now - 3_600_000, gameMode: 0, hardcore: false, cheats: false, version: "1.21.4", seed: -4172144997902289642, size: 184_000_000, icon: null, backups: [{ file: "2026-10-27_18-02-11.zip", created: now / 1000 - 172800, size: 92_000_000 }, { file: "2026-10-20_21-44-02.zip", created: now / 1000 - 777600, size: 80_000_000 }] },
+        { folder: "Creative Build", name: "Castle Build", lastPlayed: now - 86_400_000 * 3, gameMode: 1, hardcore: false, cheats: true, version: "1.21.4", seed: 42, size: 61_000_000, icon: null, backups: [] },
+        { folder: "Hardcore", name: "Hardcore #3", lastPlayed: now - 86_400_000 * 20, gameMode: 0, hardcore: true, cheats: false, version: "1.21.1", seed: 1234567, size: 22_000_000, icon: null, backups: [] },
+      ];
+    }
+    case "mc_world_backup": await sleep(900); return { file: "2026-10-29_23-30-00.zip", created: Date.now() / 1000, size: 93_000_000 };
+    case "mc_world_restore": case "mc_world_backup_delete": case "mc_world_delete": await sleep(400); return;
+    case "mc_screenshots": return Array.from({ length: 9 }, (_, i) => ({ file: `2026-10-${29 - i}_19.4${i}.12.png`, path: mockShot(i), taken: Date.now() / 1000 - i * 90000, size: 2_400_000 }));
+    case "mc_screenshot_delete": return;
+    case "mc_servers": return [
+      { name: "Hypixel", address: "mc.hypixel.net", icon: null },
+      { name: "Friends SMP", address: "smp.example.net:25570", icon: null },
+      { name: "Local test", address: "localhost", icon: null },
+    ];
+    case "mc_server_add": case "mc_server_remove": return;
+    case "mc_server_ping": {
+      await sleep(300 + Math.random() * 600);
+      if (args.address === "localhost") throw "the server didn't answer";
+      return args.address === "mc.hypixel.net"
+        ? { online: 31248, max: 200000, version: "Requires MC 1.8 / 1.21", motd: "Hypixel Network [1.8-1.21]\nSKYBLOCK 0.23 | NEW PARTY GAMES", icon: null, pingMs: 34 }
+        : { online: 6, max: 20, version: "Paper 1.21.4", motd: "Welcome back! Season 4 is live", icon: null, pingMs: 61 };
+    }
+    case "mc_updates": await sleep(900); return [
+      { folder: "mods", fileName: "sodium-fabric-0.6.5+mc1.21.4.jar", projectId: "AANobbMI", title: "Sodium", icon: null, current: "0.6.5", latest: "0.6.9", latestId: "x1", latestFile: "sodium-fabric-0.6.9+mc1.21.4.jar" },
+      { folder: "mods", fileName: "iris-fabric-1.8.5.jar", projectId: "YL57xq9U", title: "Iris Shaders", icon: null, current: "1.8.5", latest: "1.8.8", latestId: "x2", latestFile: "iris-fabric-1.8.8.jar" },
+      { folder: "resourcepacks", fileName: "Fresh Animations.zip", projectId: "50dA9Sha", title: "Fresh Animations", icon: null, current: "1.9.2", latest: "1.9.4", latestId: "x3", latestFile: "FreshAnimations_v1.9.4.zip" },
+    ];
+    case "mc_update_apply": await sleep(700); return (args.update as { latestFile: string }).latestFile;
+    case "mc_export": await sleep(1200); return { path: args.dest, linked: 5, packed: 41 };
+    case "mc_java_runtimes": return [{ id: "jre-legacy", label: "Java 8" }, { id: "java-runtime-alpha", label: "Java 16" }, { id: "java-runtime-gamma", label: "Java 17" }, { id: "java-runtime-delta", label: "Java 21" }];
+    case "mc_set_launch": return;
+    case "mc_logs": return [
+      { path: "crash-reports/crash-2026-10-29_21.14.03-client.txt", kind: "crash", modified: Date.now() / 1000 - 7200, size: 18_200 },
+      { path: "logs/latest.log", kind: "log", modified: Date.now() / 1000 - 7000, size: 240_000 },
+      { path: "logs/debug.log", kind: "log", modified: Date.now() / 1000 - 7000, size: 1_900_000 },
+    ];
+    case "mc_log_read": return mockLog(String(args.path));
+    case "mc_explain": return {
+      instance: args.id, path: "crash-reports/crash-2026-10-29_21.14.03-client.txt",
+      diagnoses: [
+        { kind: "missing-dependency", title: "Sodium Extra needs sodium", detail: "Sodium Extra won't load without sodium 0.6.0 or newer.", fix: "Install sodium 0.6.0 or newer from Add content, or remove Sodium Extra.", mods: ["Sodium Extra", "sodium"] },
+        { kind: "suspect", title: "Probably caused by Iris", detail: "The crash report points at these mods.", fix: "Update them, or turn them off one at a time to find the culprit.", mods: ["Iris"] },
+      ],
+      lastError: "Caused by: java.lang.IllegalStateException: Sodium Extra requires Sodium 0.6.0",
+    };
+    case "mc_skins": return structuredClone(mcSkins);
+    case "mc_skin_add_file": case "mc_skin_add_player": { const s = { id: `s${mcSkins.length + 1}`, name: String(args.name ?? "New skin"), variant: "classic" as const, added: Date.now() / 1000, data: mockSkin("#c0563b", "#3f6fd1") }; mcSkins.unshift(s); return s; }
+    case "mc_skin_edit": { const s = mcSkins.find((x) => x.id === args.id); if (s) { s.name = String(args.name); s.variant = args.variant as "classic" | "slim"; } return; }
+    case "mc_skin_remove": mcSkins = mcSkins.filter((x) => x.id !== args.id); return;
+    case "mc_profile": await sleep(500); return structuredClone(mcProfile);
+    case "mc_skin_wear": { await sleep(700); const s = mcSkins.find((x) => x.id === args.id); if (s) { mcProfile.skin = s.data; mcProfile.variant = s.variant; } return structuredClone(mcProfile); }
+    case "mc_cape_set": { await sleep(500); mcProfile.capes.forEach((c) => (c.active = c.id === args.cape)); return structuredClone(mcProfile); }
     case "mc_instances": {
       const now = Math.floor(Date.now() / 1000);
       return [
-        { id: "a1", name: "Fabulously Optimized", mcVersion: "1.21.4", loader: "fabric", loaderVersion: "0.16.10", versionId: null, memoryMb: 4096, javaArgs: "", created: now - 864000, lastPlayed: now - 7200, playtimeSecs: 154800, source: { platform: "modrinth", name: "Fabulously Optimized" }, manualDownloads: [] },
-        { id: "a2", name: "All the Mods 10", mcVersion: "1.21.1", loader: "neoforge", loaderVersion: "21.1.93", versionId: null, memoryMb: 8192, javaArgs: "", created: now - 400000, lastPlayed: now - 172800, playtimeSecs: 41200, source: { platform: "curseforge" }, manualDownloads: [{ name: "Example Mod", fileName: "examplemod-1.21.1.jar", pageUrl: "https://www.curseforge.com/minecraft/mc-mods/", folder: "mods" }] },
-        { id: "a3", name: "RLCraft", mcVersion: "1.12.2", loader: "forge", loaderVersion: "14.23.5.2860", versionId: null, memoryMb: 6144, javaArgs: "", created: now - 2000000, lastPlayed: now - 1500000, playtimeSecs: 9000, source: null, manualDownloads: [] },
-        { id: "a4", name: "Vanilla 1.21.4", mcVersion: "1.21.4", loader: "vanilla", loaderVersion: null, versionId: null, memoryMb: 3072, javaArgs: "", created: now - 50000, lastPlayed: null, playtimeSecs: 0, source: null, manualDownloads: [] },
+        { id: "a1", name: "Fabulously Optimized", mcVersion: "1.21.4", loader: "fabric", loaderVersion: "0.16.10", versionId: null, memoryMb: 4096, javaArgs: "", created: now - 864000, lastPlayed: now - 7200, playtimeSecs: 154800, source: { platform: "modrinth", name: "Fabulously Optimized" }, manualDownloads: [], java: "", javaPath: null, autoJoin: "" },
+        { id: "a2", name: "All the Mods 10", mcVersion: "1.21.1", loader: "neoforge", loaderVersion: "21.1.93", versionId: null, memoryMb: 8192, javaArgs: "", created: now - 400000, lastPlayed: now - 172800, playtimeSecs: 41200, source: { platform: "curseforge" }, manualDownloads: [{ name: "Example Mod", fileName: "examplemod-1.21.1.jar", pageUrl: "https://www.curseforge.com/minecraft/mc-mods/", folder: "mods" }], java: "", javaPath: null, autoJoin: "" },
+        { id: "a3", name: "RLCraft", mcVersion: "1.12.2", loader: "forge", loaderVersion: "14.23.5.2860", versionId: null, memoryMb: 6144, javaArgs: "", created: now - 2000000, lastPlayed: now - 1500000, playtimeSecs: 9000, source: null, manualDownloads: [], java: "", javaPath: null, autoJoin: "" },
+        { id: "a4", name: "Vanilla 1.21.4", mcVersion: "1.21.4", loader: "vanilla", loaderVersion: null, versionId: null, memoryMb: 3072, javaArgs: "", created: now - 50000, lastPlayed: null, playtimeSecs: 0, source: null, manualDownloads: [], java: "", javaPath: null, autoJoin: "" },
       ];
     }
     case "mc_running": return [];

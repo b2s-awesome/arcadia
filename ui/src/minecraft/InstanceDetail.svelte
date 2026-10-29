@@ -7,12 +7,48 @@
   import Toggle from "../components/Toggle.svelte";
   import Modal from "../components/Modal.svelte";
   import Icon from "../components/Icon.svelte";
+  import TreeTabs, { type TreeNode } from "../components/TreeTabs.svelte";
+  import Packs from "./Packs.svelte";
+  import Worlds from "./Worlds.svelte";
+  import Screenshots from "./Screenshots.svelte";
+  import Servers from "./Servers.svelte";
+  import Logs from "./Logs.svelte";
+  import Updates from "./Updates.svelte";
+  import { pickFile, pickSave } from "../lib/api";
+  import type { McExportOptions } from "../lib/types";
 
   let { inst }: { inst: McInstance } = $props();
 
-  type Sub = "mods" | "add" | "settings";
-  let sub = $state<Sub>("mods");
   let mods: ModFile[] = $state([]);
+  let sub = $state("mods");
+  $effect(() => {
+    if (mcs.openSection) {
+      sub = mcs.openSection;
+      mcs.openSection = null;
+    }
+  });
+  let updateCount = $state(0);
+  const tree: TreeNode[] = $derived([
+    { id: "content", label: "Content", icon: "cube", children: [
+      { id: "mods", label: "Mods", badge: inst.loader === "vanilla" ? "" : mods.length || "" },
+      { id: "updates", label: "Updates", badge: updateCount || "" },
+      { id: "resourcepacks", label: "Resource packs" },
+      { id: "shaderpacks", label: "Shaders" },
+      { id: "add", label: "Add content" },
+    ] },
+    { id: "play", label: "Play", icon: "gamepad", children: [
+      { id: "worlds", label: "Worlds" },
+      { id: "servers", label: "Servers" },
+      { id: "screenshots", label: "Screenshots" },
+    ] },
+    { id: "logs", label: "Logs & crashes", icon: "code" },
+    { id: "settings", label: "Settings", icon: "settings", children: [
+      { id: "settings-general", label: "General" },
+      { id: "settings-java", label: "Java & launch" },
+      { id: "settings-export", label: "Export & share" },
+    ] },
+  ]);
+  const at = (id: string) => sub === id || (id.startsWith(sub + "-") && sub !== "") || (sub === "content" && id === "mods") || (sub === "play" && id === "worlds");
   let modQuery = $state("");
   let verified: Record<string, Verified> = $state({});
   let verifying = $state(false);
@@ -96,6 +132,57 @@
   $effect(() => {
     if (sub === "add" && hits.length === 0 && !searching) search();
   });
+  function findContent(k: Kind) {
+    kind = k;
+    hits = [];
+    sub = "add";
+  }
+
+  // ── Java & launch ──
+  let runtimes = $state<{ id: string; label: string }[]>([]);
+  let java = $state("");
+  let javaPath = $state<string | null>(null);
+  let autoJoin = $state("");
+  onMount(() => {
+    mc.javaRuntimes().then((r) => (runtimes = r)).catch(() => {});
+    java = inst.java ?? "";
+    javaPath = inst.javaPath ?? null;
+    autoJoin = inst.autoJoin ?? "";
+  });
+  async function saveLaunch() {
+    try {
+      await mc.setLaunch(inst.id, java, javaPath, autoJoin);
+      await refreshInstances();
+      toast("Saved");
+    } catch (e) {
+      toast(String(e), "error");
+    }
+  }
+  async function chooseJava() {
+    const f = await pickFile([{ name: "Java", extensions: ["exe"] }]);
+    if (f) {
+      javaPath = f;
+      java = "custom";
+    }
+  }
+
+  // ── Export ──
+  let ex = $state<McExportOptions>({ linkDownloads: true, includeConfig: true, includeWorlds: false, includeOptions: false, includeResourcepacks: true, includeShaderpacks: true, version: "1.0.0" });
+  let exporting = $state(false);
+  async function doExport() {
+    const safe = inst.name.replace(/[\\/:*?"<>|]/g, "").trim() || "pack";
+    const dest = await pickSave(`${safe} ${ex.version}.mrpack`, [{ name: "Modrinth pack", extensions: ["mrpack"] }, { name: "Zip", extensions: ["zip"] }]);
+    if (!dest) return;
+    exporting = true;
+    try {
+      const r = await mc.exportPack(inst.id, dest, $state.snapshot(ex));
+      toast(`Exported: ${r.linked} linked to Modrinth, ${r.packed} packed in`);
+    } catch (e) {
+      toast(String(e), "error");
+    } finally {
+      exporting = false;
+    }
+  }
 
   // ── Settings ──
   let name = $state("");
@@ -170,16 +257,18 @@
     </div>
   {/if}
 
-  <div class="subtabs" role="tablist" tabindex="-1">
-    <button role="tab" aria-selected={sub === "mods"} class:on={sub === "mods"} onclick={() => (sub = "mods")}>Mods <span class="n">{mods.length}</span></button>
-    <button role="tab" aria-selected={sub === "add"} class:on={sub === "add"} onclick={() => (sub = "add")}>Add content</button>
-    <button role="tab" aria-selected={sub === "settings"} class:on={sub === "settings"} onclick={() => (sub = "settings")}>Settings</button>
-    <div class="grow"></div>
-    <button class="ghost" onclick={() => mc.openFolder(inst.id)}><Icon name="folder" size={16} /> Folder</button>
-    {#if !running}<button class="ghost" onclick={() => (mcs.consoleFor = inst.id)}>Console</button>{/if}
-  </div>
-
-  {#if sub === "mods"}
+  <div class="split">
+  <TreeTabs key="mc-instance" label="{inst.name} sections" nodes={tree} bind:selected={sub} />
+  <div class="pane">
+  {#if at("mods")}
+    <div class="row spread head2">
+      <h3>Mods <span class="n">{mods.length}</span></h3>
+      <div class="row">
+        <button class="ghost" onclick={() => mc.openFolder(inst.id, "mods")}><Icon name="folder" size={15} /> Folder</button>
+        {#if inst.loader !== "vanilla"}<button class="ghost" onclick={() => (sub = "updates")}><Icon name="refresh" size={15} /> Updates{#if updateCount} ({updateCount}){/if}</button>{/if}
+        {#if inst.loader !== "vanilla"}<button onclick={() => findContent("mod")}><Icon name="search" size={15} /> Find mods</button>{/if}
+      </div>
+    </div>
     {#if inst.loader === "vanilla"}
       <p class="none">Vanilla instances can't load mods. Make a Fabric, Forge or NeoForge instance to use mods. Resource packs and shaders still work from Add content.</p>
     {:else}
@@ -211,6 +300,62 @@
         </ul>
       {/if}
     {/if}
+  {:else if sub === "updates"}
+    <Updates {inst} {running} bind:found={updateCount} onchanged={loadMods} />
+  {:else if sub === "resourcepacks"}
+    <Packs {inst} kind="resourcepacks" onadd={() => findContent("resourcepack")} />
+  {:else if sub === "shaderpacks"}
+    <Packs {inst} kind="shaderpacks" onadd={() => findContent("shader")} />
+  {:else if at("worlds")}
+    <Worlds {inst} {running} />
+  {:else if sub === "servers"}
+    <Servers {inst} {running} />
+  {:else if sub === "screenshots"}
+    <Screenshots {inst} />
+  {:else if sub === "logs"}
+    <Logs {inst} {running} />
+  {:else if sub === "settings-java"}
+    <div class="settings">
+      <h3>Java & launch</h3>
+      <div class="setting">
+        <div><div class="label">Java</div><div class="desc">Arcadia downloads the Java each Minecraft version asks for. Pick another if a modpack says it needs one.</div></div>
+        <select bind:value={java} aria-label="Java">
+          <option value="">Automatic (recommended)</option>
+          {#each runtimes as r}<option value={r.id}>{r.label} (Mojang)</option>{/each}
+          <option value="custom">Your own Java…</option>
+        </select>
+      </div>
+      {#if java === "custom"}
+        <div class="setting">
+          <div><div class="label">Java program</div><div class="desc mono">{javaPath ?? "None chosen"}</div></div>
+          <button onclick={chooseJava}>Choose javaw.exe</button>
+        </div>
+      {/if}
+      <div class="setting">
+        <div><div class="label">Join a server on start</div><div class="desc">Connect straight to this server every time you press Play. Leave empty to open the title screen.</div></div>
+        <input class="mono" bind:value={autoJoin} placeholder="play.example.net" style="width: 18rem" aria-label="Server to join on start" />
+      </div>
+      <div class="row save"><button onclick={saveLaunch}>Save changes</button></div>
+    </div>
+  {:else if sub === "settings-export"}
+    <div class="settings">
+      <h3>Export & share</h3>
+      <p class="hint">Makes a <span class="mono">.mrpack</span> that Arcadia, Prism Launcher and the Modrinth app can import.</p>
+      <div class="setting">
+        <div><div class="label">Link Modrinth files</div><div class="desc">Files from Modrinth are listed by link instead of packed in, so the pack stays small. Turn off for a full copy that works offline.</div></div>
+        <Toggle label="Link Modrinth files" bind:checked={ex.linkDownloads} />
+      </div>
+      <div class="setting"><div class="label">Mod settings (config)</div><Toggle label="Include config" bind:checked={ex.includeConfig} /></div>
+      <div class="setting"><div class="label">Resource packs</div><Toggle label="Include resource packs" bind:checked={ex.includeResourcepacks} /></div>
+      <div class="setting"><div class="label">Shader packs</div><Toggle label="Include shader packs" bind:checked={ex.includeShaderpacks} /></div>
+      <div class="setting"><div><div class="label">Game options</div><div class="desc">Keybinds and video settings (options.txt).</div></div><Toggle label="Include options" bind:checked={ex.includeOptions} /></div>
+      <div class="setting"><div><div class="label">Worlds</div><div class="desc">Can make the pack very large.</div></div><Toggle label="Include worlds" bind:checked={ex.includeWorlds} /></div>
+      <div class="setting">
+        <div class="label">Pack version</div>
+        <input class="mono" bind:value={ex.version} style="width: 8rem" aria-label="Pack version" />
+      </div>
+      <div class="row save"><button class="play" disabled={exporting} onclick={doExport}><Icon name="download" size={16} /> {exporting ? "Exporting…" : "Export pack"}</button></div>
+    </div>
   {:else if sub === "add"}
     <div class="row tools wrap">
       <div class="seg" role="radiogroup" aria-label="Source">
@@ -247,6 +392,7 @@
     {/if}
   {:else}
     <div class="settings">
+      <h3>General</h3>
       <div class="setting">
         <div><div class="label">Name</div></div>
         <input bind:value={name} style="width: 18rem" aria-label="Instance name" />
@@ -270,6 +416,8 @@
       </div>
     </div>
   {/if}
+  </div>
+  </div>
 </div>
 
 <Modal bind:open={confirmDelete} title="Delete {inst.name}?">
@@ -295,10 +443,13 @@
   .notice ul { list-style: none; margin: 0.6rem 0 0; padding: 0; }
   .notice li { display: flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0; }
 
-  .subtabs { display: flex; align-items: center; gap: 0.2rem; border-bottom: 1px solid var(--line-soft); margin-bottom: 0.9rem; }
-  .subtabs button[role="tab"] { border: 0; background: transparent; border-radius: 0; padding: 0.55rem 0.7rem; color: var(--muted); font-weight: 600; font-size: 0.88rem; box-shadow: inset 0 -2px 0 transparent; }
-  .subtabs button.on { color: var(--text); box-shadow: inset 0 -2px 0 var(--peach); }
-  .n { color: var(--faint); font-variant-numeric: tabular-nums; }
+  .split { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 1.4rem; align-items: start; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+  .pane { min-width: 0; }
+  .pane h3 { margin-bottom: 0.4rem; }
+  .head2 { margin-bottom: 0.6rem; }
+  .head2 button { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .n { color: var(--faint); font-weight: 500; font-variant-numeric: tabular-nums; }
   .grow { flex: 1; }
   .tools { margin-bottom: 0.7rem; }
   .hint { font-size: 0.82rem; margin: -0.2rem 0 0.7rem; }

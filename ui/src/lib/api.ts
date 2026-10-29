@@ -1,7 +1,7 @@
 // Every call into the Rust side goes through here. Outside Tauri (plain
 // browser during design work) a mock backend answers instead.
 import type {
-  DeviceCode, FoundInstance, Hit, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
+  DeviceCode, FoundInstance, Hit, McPack, McWorld, McBackup, McShot, McSavedServer, McServerStatus, McUpdate, McLogFile, McCrashInfo, McSkin, McProfile, McExportOptions, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
   Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RobloxAccount, RobloxAccounts, RobloxGame, RobloxHistory, RobloxServer, RuleConfig, ScanReport, Settings, RulesImported,
   MusicPlaylist, MusicScanReport, MusicStatus, QueueView, RepeatMode, Track, ShuffleMode, ListenStats, Lyrics,
   DownloadJob, OnlineFound, OnlineItem, OnlineSource, StreamingConfig, StreamingStatus, SyncedSource } from "./types";
@@ -19,6 +19,19 @@ export async function on<T>(event: string, cb: (payload: T) => void): Promise<()
   if (!inTauri) return mockListen(event, cb as (p: unknown) => void);
   const { listen } = await import("@tauri-apps/api/event");
   return listen<T>(event, (e) => cb(e.payload));
+}
+
+export async function pickSave(defaultPath: string, filters?: { name: string; extensions: string[] }[]): Promise<string | null> {
+  if (!inTauri) return `C:\\Users\\you\\Downloads\\${defaultPath}`;
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  return (await save({ defaultPath, filters })) ?? null;
+}
+
+export async function pickFiles(filters?: { name: string; extensions: string[] }[]): Promise<string[]> {
+  if (!inTauri) return ["C:\\Users\\you\\Downloads\\Faithful 32x.zip"];
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const r = await open({ multiple: true, directory: false, filters });
+  return Array.isArray(r) ? r : typeof r === "string" ? [r] : [];
 }
 
 export async function pickFile(filters?: { name: string; extensions: string[] }[]): Promise<string | null> {
@@ -142,7 +155,38 @@ export const mc = {
   loginFinish: (code: DeviceCode) => call<McAccount>("mc_login_finish", { code }),
   selectAccount: (uuid: string) => call<void>("mc_account_select", { uuid }),
   removeAccount: (uuid: string) => call<void>("mc_account_remove", { uuid }),
-  play: (id: string) => call<void>("mc_play", { id }),
+  play: (id: string, join: string | null = null) => call<void>("mc_play", { id, join }),
+  packs: (id: string, kind: "resourcepacks" | "shaderpacks") => call<McPack[]>("mc_packs", { id, kind }),
+  packToggle: (id: string, kind: string, file: string, on: boolean) => call<string>("mc_pack_toggle", { id, kind, file, on }),
+  packRemove: (id: string, kind: string, file: string) => call<void>("mc_pack_remove", { id, kind, file }),
+  packsAdd: (id: string, kind: string, files: string[]) => call<number>("mc_packs_add", { id, kind, files }),
+  worlds: (id: string) => call<McWorld[]>("mc_worlds", { id }),
+  worldBackup: (id: string, folder: string) => call<McBackup>("mc_world_backup", { id, folder }),
+  worldRestore: (id: string, folder: string, file: string) => call<void>("mc_world_restore", { id, folder, file }),
+  worldBackupDelete: (id: string, folder: string, file: string) => call<void>("mc_world_backup_delete", { id, folder, file }),
+  worldDelete: (id: string, folder: string, keepBackup: boolean) => call<void>("mc_world_delete", { id, folder, keepBackup }),
+  screenshots: (id: string) => call<McShot[]>("mc_screenshots", { id }),
+  screenshotDelete: (id: string, file: string) => call<void>("mc_screenshot_delete", { id, file }),
+  servers: (id: string) => call<McSavedServer[]>("mc_servers", { id }),
+  serverAdd: (id: string, name: string, address: string) => call<void>("mc_server_add", { id, name, address }),
+  serverRemove: (id: string, address: string) => call<void>("mc_server_remove", { id, address }),
+  serverPing: (address: string) => call<McServerStatus>("mc_server_ping", { address }),
+  updates: (id: string) => call<McUpdate[]>("mc_updates", { id }),
+  updateApply: (id: string, update: McUpdate) => call<string>("mc_update_apply", { id, update }),
+  exportPack: (id: string, dest: string, options: McExportOptions) => call<{ path: string; linked: number; packed: number }>("mc_export", { id, dest, options }),
+  javaRuntimes: () => call<{ id: string; label: string }[]>("mc_java_runtimes"),
+  setLaunch: (id: string, java: string, javaPath: string | null, autoJoin: string) => call<void>("mc_set_launch", { id, java, javaPath, autoJoin }),
+  logs: (id: string) => call<McLogFile[]>("mc_logs", { id }),
+  logRead: (id: string, path: string) => call<string>("mc_log_read", { id, path }),
+  explain: (id: string, path: string | null = null) => call<McCrashInfo | null>("mc_explain", { id, path }),
+  skins: () => call<McSkin[]>("mc_skins"),
+  skinAddFile: (path: string) => call<McSkin>("mc_skin_add_file", { path }),
+  skinAddPlayer: (name: string) => call<McSkin>("mc_skin_add_player", { name }),
+  skinEdit: (id: string, name: string, variant: string) => call<void>("mc_skin_edit", { id, name, variant }),
+  skinRemove: (id: string) => call<void>("mc_skin_remove", { id }),
+  profile: () => call<McProfile>("mc_profile"),
+  skinWear: (id: string) => call<McProfile>("mc_skin_wear", { id }),
+  capeSet: (cape: string | null) => call<McProfile>("mc_cape_set", { cape }),
   running: () => call<string[]>("mc_running"),
   kill: (id: string) => call<void>("mc_kill", { id }),
   incidents: () => call<Incident[]>("mc_incidents"),

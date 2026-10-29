@@ -259,6 +259,34 @@ export interface McInstance {
   playtimeSecs: number;
   source: { platform: string; projectId?: string | null; versionId?: string | null; name?: string | null } | null;
   manualDownloads: ManualDownload[];
+  /** "" = what this version asks for; a Mojang runtime id; or "custom". */
+  java: string;
+  javaPath: string | null;
+  autoJoin: string;
+}
+
+export interface McPack { fileName: string; name: string; enabled: boolean; folder: boolean; size: number; description: string | null; icon: string | null }
+export interface McBackup { file: string; created: number; size: number }
+export interface McWorld {
+  folder: string; name: string; lastPlayed: number | null; gameMode: number | null; hardcore: boolean; cheats: boolean;
+  version: string | null; seed: number | null; size: number; icon: string | null; backups: McBackup[];
+}
+export interface McShot { file: string; path: string; taken: number; size: number }
+export interface McSavedServer { name: string; address: string; icon: string | null }
+export interface McServerStatus { online: number; max: number; version: string; motd: string; icon: string | null; pingMs: number }
+export interface McUpdate {
+  folder: "mods" | "resourcepacks" | "shaderpacks"; fileName: string; projectId: string; title: string; icon: string | null;
+  current: string; latest: string; latestId: string; latestFile: string;
+}
+export interface McLogFile { path: string; kind: "log" | "crash" | "jvm"; modified: number; size: number }
+export interface McDiagnosis { kind: string; title: string; detail: string; fix: string; mods: string[] }
+export interface McCrashInfo { instance: string; path: string; diagnoses: McDiagnosis[]; lastError: string | null }
+export interface McSkin { id: string; name: string; variant: "classic" | "slim"; added: number; data: string }
+export interface McCape { id: string; alias: string; active: boolean; data: string | null }
+export interface McProfile { name: string; skin: string | null; variant: "classic" | "slim"; capes: McCape[] }
+export interface McExportOptions {
+  linkDownloads: boolean; includeConfig: boolean; includeWorlds: boolean; includeOptions: boolean;
+  includeResourcepacks: boolean; includeShaderpacks: boolean; version: string;
 }
 
 export interface ModFile {

@@ -134,7 +134,8 @@ pub struct Ready {
 }
 
 /// Install everything and produce the command to run.
-pub async fn prepare(inst: &mut Instance, session: &Session, on: &OnProgress) -> Result<Ready> {
+/// `join` connects to a server as soon as the game starts.
+pub async fn prepare(inst: &mut Instance, session: &Session, join: Option<&str>, on: &OnProgress) -> Result<Ready> {
     if !inst.manual_downloads.is_empty() {
         let mods = instance::game_dir(&inst.id);
         let missing: Vec<_> = inst
@@ -150,8 +151,18 @@ pub async fn prepare(inst: &mut Instance, session: &Session, on: &OnProgress) ->
     let v = prepare_version(inst, on).await?;
     let task = inst.id.clone();
     let p = install::ensure_files(&v, &inst.mc_version, &task, on).await?;
-    let component = super::java::component_for(&v);
-    let java = super::java::ensure(&component, &task, on).await?;
+    let java = match inst.java.as_str() {
+        "custom" => {
+            let p = PathBuf::from(inst.java_path.clone().unwrap_or_default());
+            if !p.is_file() {
+                bail!("The Java chosen for this instance isn't there any more: {}", p.display());
+            }
+            p
+        }
+        "" => super::java::ensure(&super::java::component_for(&v), &task, on).await?,
+        c if super::java::RUNTIMES.iter().any(|(id, _)| *id == c) => super::java::ensure(c, &task, on).await?,
+        other => bail!("Unknown Java choice {other}"),
+    };
 
     let game_dir = instance::game_dir(&inst.id);
     std::fs::create_dir_all(&game_dir)?;
@@ -162,7 +173,11 @@ pub async fn prepare(inst: &mut Instance, session: &Session, on: &OnProgress) ->
         instance::copy_dir(src, &game_dir.join("resources"))?;
     }
 
-    let args = build_args(&v, &p, &Context2 { game_dir: &game_dir, natives_dir: &natives, session, memory_mb: inst.memory_mb, extra_jvm: &inst.java_args })?;
+    let mut args = build_args(&v, &p, &Context2 { game_dir: &game_dir, natives_dir: &natives, session, memory_mb: inst.memory_mb, extra_jvm: &inst.java_args })?;
+    let join = join.map(str::to_string).or_else(|| (!inst.auto_join.trim().is_empty()).then(|| inst.auto_join.clone()));
+    if let Some(addr) = join {
+        args.extend(super::servers::join_args(&inst.mc_version, &addr));
+    }
     progress(on, &task, "Starting Minecraft", 1, 1);
     Ok(Ready { java, args, game_dir })
 }
