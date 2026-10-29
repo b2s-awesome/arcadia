@@ -11,6 +11,7 @@
 pub mod addons;
 pub mod library;
 pub mod minecraft;
+pub mod music;
 pub mod paths;
 pub mod proxy;
 pub mod registry;

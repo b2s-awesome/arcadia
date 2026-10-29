@@ -77,6 +77,55 @@ export const DEFAULT_SEE_THROUGH: SeeThroughPrefs = {
   enabled: true, effect: "acrylic", tint: "#0e0e12", strength: 0.35, panel: 0.6, keepWallpaper: false,
 };
 
+/** The Music page, all of it changeable from its Customise panel. */
+export type MusicSection = "hero" | "recent" | "added" | "playlists" | "most" | "favourites";
+export interface MusicPrefs {
+  layout: "tonal" | "tiled";
+  /** Tonal: where the player bar sits. */
+  bar: "bottom" | "top";
+  /** Tint the page with the playing cover's colour. */
+  artColours: boolean;
+  /** Smallest album tile, px. */
+  cover: number;
+  compact: boolean;
+  /** Home sections in order, and which are hidden. */
+  sections: MusicSection[];
+  hidden: MusicSection[];
+  /** Tiled: show the queue pane. */
+  queuePane: boolean;
+}
+
+export const MUSIC_SECTIONS: { id: MusicSection; label: string }[] = [
+  { id: "hero", label: "Now playing / shuffle all" },
+  { id: "recent", label: "Jump back in" },
+  { id: "added", label: "Recently added" },
+  { id: "playlists", label: "Playlists" },
+  { id: "most", label: "Most played" },
+  { id: "favourites", label: "Favourites" },
+];
+
+export const DEFAULT_MUSIC: MusicPrefs = {
+  layout: "tonal", bar: "bottom", artColours: true, cover: 168, compact: false,
+  sections: MUSIC_SECTIONS.map((s) => s.id), hidden: [], queuePane: true,
+};
+
+function normalizeMusic(v: Partial<MusicPrefs> | undefined): MusicPrefs {
+  const d = DEFAULT_MUSIC;
+  if (!v || typeof v !== "object") return { ...d, sections: [...d.sections] };
+  const ids = MUSIC_SECTIONS.map((s) => s.id);
+  const order = Array.isArray(v.sections) ? v.sections.filter((x): x is MusicSection => ids.includes(x as MusicSection)) : [];
+  return {
+    layout: v.layout === "tiled" ? "tiled" : "tonal",
+    bar: v.bar === "top" ? "top" : "bottom",
+    artColours: v.artColours !== false,
+    cover: typeof v.cover === "number" ? Math.min(260, Math.max(110, v.cover)) : d.cover,
+    compact: v.compact === true,
+    sections: [...order, ...ids.filter((x) => !order.includes(x))],
+    hidden: Array.isArray(v.hidden) ? v.hidden.filter((x): x is MusicSection => ids.includes(x as MusicSection)) : [],
+    queuePane: v.queuePane !== false,
+  };
+}
+
 export interface AddonPrefs {
   installed: string[];
 }
@@ -91,6 +140,7 @@ export interface UiState {
   addons: AddonPrefs;
   splash: SplashPrefs;
   seeThrough: SeeThroughPrefs;
+  music: MusicPrefs;
 }
 
 interface Preset {
@@ -228,6 +278,7 @@ export function defaultUi(): UiState {
     addons: { installed: [] },
     splash: { length: "normal", animateAlways: false },
     seeThrough: { ...DEFAULT_SEE_THROUGH },
+    music: normalizeMusic(undefined),
   };
 }
 
@@ -258,6 +309,7 @@ export function normalizeUi(v: unknown): UiState {
       animateAlways: u.splash?.animateAlways === true,
     },
     seeThrough: normalizeSeeThrough(u.seeThrough),
+    music: normalizeMusic(u.music),
   };
 }
 

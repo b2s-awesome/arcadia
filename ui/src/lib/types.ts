@@ -202,3 +202,49 @@ export interface Finding { incident: string; instanceId: string; instanceName: s
 export interface Leftover { path: string; what: string }
 export interface SecurityReport { findings: Finding[]; leftovers: Leftover[]; pipeblockerAdvised: string[]; checkedInstances: number }
 export interface Verified { fileName: string; source: "modrinth" | "curseforge" | "unknown"; project: string | null }
+
+// ── Music ──────────────────────────────────────────────────────
+export interface Track {
+  id: number;
+  path: string;
+  title: string;
+  artist: string;
+  albumArtist: string;
+  album: string;
+  genre: string;
+  year: number | null;
+  trackNo: number | null;
+  discNo: number | null;
+  duration: number;
+  sampleRate: number | null;
+  bitDepth: number | null;
+  channels: number | null;
+  bitrate: number | null;
+  format: string;
+  art: string | null;
+  artColor: string | null;
+  addedAt: number;
+  playCount: number;
+  lastPlayed: number | null;
+  favourite: boolean;
+}
+export interface MusicPlaylist { id: number; name: string; count: number; duration: number; updated: number; arts: string[] }
+export interface OutputInfo { device: string; rate: number; channels: number }
+export type RepeatMode = "off" | "all" | "one";
+export interface MusicStatus {
+  track: Track | null;
+  playing: boolean;
+  pos: number;
+  duration: number;
+  volume: number;
+  shuffle: boolean;
+  repeat: RepeatMode;
+  queueIndex: number | null;
+  queueLength: number;
+  output: OutputInfo | null;
+  outputError: string | null;
+  device: string | null;
+}
+export interface QueueView { index: number | null; tracks: Track[] }
+export interface MusicScanReport { added: number; updated: number; removed: number; total: number; missingFolders: string[]; errors: string[] }
+export interface MusicScanProgress { done: number; total: number; current: string }

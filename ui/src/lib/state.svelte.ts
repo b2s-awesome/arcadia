@@ -3,7 +3,7 @@ import type { Settings } from "./types";
 import { normalizeUi, type UiState } from "./theme";
 
 type Toast = { id: number; text: string; tone: "ok" | "error" };
-export type CorePage = "library" | "minecraft" | "roblox" | "proxy" | "inspector" | "appearance" | "settings" | "marketplace";
+export type CorePage = "library" | "music" | "minecraft" | "roblox" | "proxy" | "inspector" | "appearance" | "settings" | "marketplace";
 /** A built-in page, or an installed addon's page ("addon:<id>"). */
 export type Page = CorePage | `addon:${string}`;
 

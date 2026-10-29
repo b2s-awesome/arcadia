@@ -1,6 +1,6 @@
 # Arcadia
 
-A game hub for Windows that does three jobs in one small native app:
+A game hub for Windows that does three jobs in one small native app, plus a music player:
 
 1. **Universal library.** Finds installed games from Steam, Epic Games, Battle.net, GOG, EA app and Ubisoft Connect, plus anything you add by hand, and launches them through their own launcher.
 2. **Roblox bootstrapper** in the style of Bloxstrap / Fishstrap / Froststrap: installs and updates Roblox itself, FastFlags, mods, custom font, FPS cap, multi-instance, process priority, channels and version pinning.
@@ -53,6 +53,19 @@ Two keys are needed and are entered under **Accounts and setup**:
 - **CurseForge API key** for CurseForge search and downloads, free from the CurseForge developer console. Modrinth needs no key.
 
 Some CurseForge mods don't allow other launchers to download them. Arcadia lists those on the instance with a link to download each by hand, as Prism does.
+
+## Music
+
+A music player for the songs on your PC, built into Arcadia (inspired by Riff and MyRiff).
+
+- **Native audio engine** in Rust: MP3, AAC/M4A, ALAC, FLAC, WAV and Ogg Vorbis. Playback is **gapless**: the next song is decoded straight onto the end of the current one, and MP3/AAC encoder padding is trimmed, so live albums and DJ mixes don't click between tracks. Songs that match the device's sample rate pass through without resampling; others are resampled with a high-quality FFT resampler. It follows the Windows default output (plug in headphones and it moves), or stays on a device you pick.
+- **Library:** add folders, and Arcadia reads tags and cover art (embedded, or `cover.jpg`/`folder.jpg` beside the files), keeps a small database and only rereads files that changed. An unplugged drive doesn't wipe its songs. Albums, artists, songs, favourites, play counts and search.
+- **Playlists and queue:** create, rename, reorder by dragging; Play next / Add to queue from any song; shuffle keeps the current song playing; repeat all or one. The queue and position are restored next time.
+- **Two layouts**, switched under Customise: **Tonal** (covers, colour taken from what's playing, player bar top or bottom) and **Tiled** (panes with gaps, keyboard first: space, n/p, s, r, q, /). Customise also sets cover size, compact rows, and which Home sections show, in what order.
+- **Everywhere:** the top bar shows what's playing with play/pause and next, and Ctrl+K can play/pause or skip.
+- Keys: space play/pause, ←/→ seek 5 s, Shift+←/→ previous/next, ↑/↓ volume, / search.
+
+Opus files aren't supported by the engine yet; streaming, downloads, lyrics and Discord presence come in later updates.
 
 ## Appearance
 

@@ -10,6 +10,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 arcadia-core = { path = "../crates/core" }
+arcadia-audio = { path = "../crates/audio" }
 tauri = { version = "2", features = ["tray-icon", "protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"

@@ -3,6 +3,7 @@
   import { api, win } from "../lib/api";
   import { app, type Page } from "../lib/state.svelte";
   import { visibleNav } from "../lib/nav";
+  import MusicChip from "./MusicChip.svelte";
   import Icon from "./Icon.svelte";
   import Logo from "./Logo.svelte";
 
@@ -64,6 +65,7 @@
   <div class="island center" data-tauri-drag-region>
     {#if bar.date}<span class="date" data-tauri-drag-region>{date}</span>{/if}
     <span class="time" data-tauri-drag-region>{time}</span>
+    <MusicChip />
   </div>
 
   <div class="island right">

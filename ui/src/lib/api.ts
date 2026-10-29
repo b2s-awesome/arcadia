@@ -2,7 +2,8 @@
 // browser during design work) a mock backend answers instead.
 import type {
   DeviceCode, FoundInstance, Hit, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
-  Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RuleConfig, ScanReport, Settings, RulesImported } from "./types";
+  Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RuleConfig, ScanReport, Settings, RulesImported,
+  MusicPlaylist, MusicScanReport, MusicStatus, QueueView, RepeatMode, Track } from "./types";
 import { mockInvoke, mockListen } from "./mock";
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -178,6 +179,39 @@ export async function windowLabel(): Promise<string> {
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
   return getCurrentWindow().label;
 }
+
+/** The music player. */
+export const music = {
+  library: () => call<Track[]>("music_library"),
+  folders: () => call<string[]>("music_folders"),
+  setFolders: (folders: string[]) => call<void>("music_set_folders", { folders }),
+  scan: () => call<MusicScanReport>("music_scan"),
+  favourite: (id: number, on: boolean) => call<void>("music_favourite", { id, on }),
+  status: () => call<MusicStatus>("music_status"),
+  play: (ids: number[], start = 0) => call<void>("music_play", { ids, start }),
+  pause: (paused: boolean | null = null) => call<void>("music_pause", { paused }),
+  next: () => call<void>("music_next"),
+  prev: () => call<void>("music_prev"),
+  seek: (secs: number) => call<void>("music_seek", { secs }),
+  volume: (volume: number) => call<void>("music_volume", { volume }),
+  shuffle: (on: boolean) => call<void>("music_shuffle", { on }),
+  repeat: (mode: RepeatMode) => call<void>("music_repeat", { mode }),
+  devices: () => call<string[]>("music_devices"),
+  setDevice: (name: string | null) => call<void>("music_set_device", { name }),
+  queue: () => call<QueueView>("music_queue"),
+  queueAdd: (ids: number[], next: boolean) => call<void>("music_queue_add", { ids, next }),
+  queueRemove: (index: number) => call<void>("music_queue_remove", { index }),
+  queueMove: (from: number, to: number) => call<void>("music_queue_move", { from, to }),
+  queueJump: (index: number) => call<void>("music_queue_jump", { index }),
+  queueClear: () => call<void>("music_queue_clear"),
+  playlists: () => call<MusicPlaylist[]>("music_playlists"),
+  playlistItems: (id: number) => call<number[]>("music_playlist_items", { id }),
+  playlistCreate: (name: string, ids: number[]) => call<number>("music_playlist_create", { name, ids }),
+  playlistRename: (id: number, name: string) => call<void>("music_playlist_rename", { id, name }),
+  playlistDelete: (id: number) => call<void>("music_playlist_delete", { id }),
+  playlistSet: (id: number, ids: number[]) => call<void>("music_playlist_set", { id, ids }),
+  playlistAdd: (id: number, ids: number[]) => call<void>("music_playlist_add", { id, ids }),
+};
 
 export async function pickFolder(): Promise<string | null> {
   if (!inTauri) return "C:\\Users\\you\\AppData\\Roaming\\PrismLauncher\\instances\\Fabulously Optimized";
