@@ -9,8 +9,11 @@
 //! ```
 
 pub mod auth;
+pub mod content;
+pub mod crash;
 pub mod curseforge;
 pub mod download;
+pub mod export;
 pub mod import;
 pub mod install;
 pub mod instance;
@@ -19,7 +22,11 @@ pub mod launch;
 pub mod loaders;
 pub mod modmeta;
 pub mod modrinth;
+pub mod nbt;
 pub mod security;
+pub mod servers;
+pub mod skins;
+pub mod updates;
 pub mod version;
 
 use serde::Serialize;
