@@ -1,10 +1,16 @@
 <script lang="ts">
-  import { addons as addonApi } from "../lib/api";
-  import { app, saveSettingsNow, toast } from "../lib/state.svelte";
+  import { addons as addonApi, lyricsApi, music } from "../lib/api";
+  import { app, focus, saveSettingsNow, toast } from "../lib/state.svelte";
   import { CATALOG, type AddonMeta } from "../addons/registry";
   import { seeThroughRemoved } from "../lib/seeThrough.svelte";
   import Icon from "../components/Icon.svelte";
   import Modal from "../components/Modal.svelte";
+  import BundlesTab from "./marketplace/BundlesTab.svelte";
+  import ThemesSettings from "../addons/themes/Settings.svelte";
+  import { installAddons } from "../addons/bundles.svelte";
+
+  type Tab = "addons" | "bundles" | "themes";
+  let tab: Tab = $state("addons");
 
   type Filter = "all" | "installed" | "official";
   let filter: Filter = $state("all");
@@ -24,21 +30,17 @@
   async function install(a: AddonMeta) {
     if (isInstalled(a.id)) return;
     busy = true;
-    app.ui.addons.installed = [...app.ui.addons.installed, a.id];
-    // Show it in the sidebar straight away, even if the user hid it before.
-    const page = `addon:${a.id}`;
-    app.ui.rail.hidden = app.ui.rail.hidden.filter((h) => h !== page);
-    if (app.settings) app.settings.ui = $state.snapshot(app.ui);
-    // The backend checks the installed list, so save before opening it.
-    await saveSettingsNow();
+    // The backend checks the installed list, so this saves before opening it.
+    await installAddons([a.id]);
     busy = false;
     detailOpen = false;
-    toast(a.load ? `${a.name} added to the sidebar` : a.opens === "music" ? `${a.name} added: see Online and Downloads in Music` : `${a.name} added. Its settings are in Appearance.`);
+    toast(a.load ? `${a.name} added to the sidebar` : a.opens === "music" ? `${a.name} added: it's in Music, and its settings are in Appearance` : `${a.name} added. Its settings are in Appearance.`);
     openAddon(a);
   }
 
   function openAddon(a: AddonMeta) {
-    app.page = a.load ? `addon:${a.id}` : (a.opens ?? "appearance");
+    if (!a.load && a.settings) focus.addon = a.id;
+    app.page = a.load ? `addon:${a.id}` : a.opens === "music" && !a.settings ? "music" : "appearance";
   }
 
   function askRemove(a: AddonMeta) {
@@ -66,6 +68,11 @@
     removeOpen = false;
     toast(wipeData ? `Removed ${a.name} and its saved data` : `Removed ${a.name}. Its saved data is kept if you add it again.`);
     if (a.id === "see-through") seeThroughRemoved();
+    if (a.id === "shuffle-plus") music.shuffleMode("random").catch(() => {});
+    if (a.id === "lyrics-plus") {
+      lyricsApi.window("popup", false).catch(() => {});
+      lyricsApi.window("bar", false).catch(() => {});
+    }
   }
 
   function open(a: AddonMeta) {
@@ -87,14 +94,35 @@
         <h2>Marketplace</h2>
         <p>Addons bring whole new tools into {brand}. Each one runs on your PC, keeps its data in its own folder, and can be removed in a click.</p>
       </div>
-      <div class="seg" role="radiogroup" aria-label="Show">
-        <button role="radio" aria-checked={filter === "all"} onclick={() => (filter = "all")}>All</button>
-        <button role="radio" aria-checked={filter === "official"} onclick={() => (filter = "official")}>Official</button>
-        <button role="radio" aria-checked={filter === "installed"} onclick={() => (filter = "installed")}>Installed</button>
-      </div>
+      {#if tab === "addons"}
+        <div class="seg" role="radiogroup" aria-label="Show">
+          <button role="radio" aria-checked={filter === "all"} onclick={() => (filter = "all")}>All</button>
+          <button role="radio" aria-checked={filter === "official"} onclick={() => (filter = "official")}>Official</button>
+          <button role="radio" aria-checked={filter === "installed"} onclick={() => (filter = "installed")}>Installed</button>
+        </div>
+      {/if}
     </header>
 
-    {#if shown.length}
+    <div class="tabs" role="tablist" aria-label="Marketplace">
+      <button role="tab" aria-selected={tab === "addons"} onclick={() => (tab = "addons")}>Addons</button>
+      <button role="tab" aria-selected={tab === "bundles"} onclick={() => (tab = "bundles")}>Bundles</button>
+      <button role="tab" aria-selected={tab === "themes"} onclick={() => (tab = "themes")}>Themes</button>
+    </div>
+
+    {#if tab === "bundles"}
+      <BundlesTab />
+    {:else if tab === "themes"}
+      {#if isInstalled("themes")}
+        <ThemesSettings wide />
+      {:else}
+        {@const th = CATALOG.find((x) => x.id === "themes")!}
+        <div class="empty">
+          <Icon name="palette" size={28} />
+          <p>Theme packs, snippets and your own CSS come with the <b>{th.name}</b> addon.</p>
+          <button class="primary-sm" disabled={busy} onclick={() => install(th)}><Icon name="plus" size={15} /> Add {th.name}</button>
+        </div>
+      {/if}
+    {:else if shown.length}
       <div class="grid">
         {#each shown as a (a.id)}
           {@const on = isInstalled(a.id)}
@@ -105,6 +133,7 @@
               <div class="row name-row">
                 <h3>{a.name}</h3>
                 {#if a.official}<span class="pill official"><Icon name="check" size={12} /> Official</span>{/if}
+                {#if a.group}<span class="pill">{a.group}</span>{/if}
               </div>
               <p class="tagline">{a.tagline}</p>
               <div class="row meta">
@@ -179,6 +208,10 @@
 </Modal>
 
 <style>
+  .tabs { display: flex; gap: 0.3rem; margin-bottom: 1.2rem; border-bottom: 1px solid var(--line-soft); }
+  .tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; padding: 0.55rem 0.9rem; color: var(--muted); font-weight: 600; }
+  .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--peach); }
+  .tabs button:hover { background: transparent; color: var(--text); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
   .card {
     position: relative; overflow: hidden;

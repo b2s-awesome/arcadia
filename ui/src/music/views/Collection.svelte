@@ -6,6 +6,8 @@
   import Art from "../Art.svelte";
   import { openMenu, trackMenu, type MenuItem } from "../menu.svelte";
   import { longTime, play, shuffleAll } from "../store.svelte";
+  import { app } from "../../lib/state.svelte";
+  import SortPlay from "../../addons/listening/SortPlay.svelte";
 
   let { kind, title, sub, art, color, tracks, round = false, more = [], children }: {
     kind: string; title: string; sub?: string; art: string | null; color: string | null; tracks: Track[];
@@ -24,6 +26,7 @@
     <div class="row wrap">
       <button class="primary" disabled={!tracks.length} onclick={() => play(tracks, 0)}><Icon name="play" size={16} filled /> Play</button>
       <button class="ghosty" disabled={!tracks.length} onclick={() => shuffleAll(tracks)}><Icon name="shuffle" size={16} /> Shuffle</button>
+      {#if app.ui.addons.installed.includes("sort-play")}<SortPlay {tracks} />{/if}
       <button class="ghosty icon" aria-label="More" disabled={!tracks.length && !more.length} onclick={(e) => openMenu(e, [...trackMenu(tracks), ...more])}><Icon name="more" size={18} /></button>
       {@render children?.()}
     </div>

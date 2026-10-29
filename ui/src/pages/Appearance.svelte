@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api, fileUrl, pickFile } from "../lib/api";
-  import { app, saveUi, toast } from "../lib/state.svelte";
+  import { app, saveUi, toast, focus } from "../lib/state.svelte";
   import {
     ACCENTS, BUILTIN_WALLPAPERS, DEFAULT_BRAND, PRESETS, defaultLook, resolve, wallpaperUrl,
     type FontChoice, type Look, type PresetId, type RadiusChoice,
@@ -109,6 +109,13 @@
   }
 
   // ── Addons with settings here ─────────────────────────────
+  // Each folds away; the one opened from the Marketplace starts open.
+  function reveal(el: HTMLElement, id: string) {
+    if (focus.addon === id) {
+      setTimeout(() => el.scrollIntoView({ block: "start", behavior: "smooth" }), 120);
+      focus.addon = null;
+    }
+  }
   const settingAddons = $derived(app.ui.addons.installed.map(addonById).filter((a) => a?.settings));
 
   // ── Splash ───────────────────────────────────────────────
@@ -217,14 +224,14 @@
     </section>
 
     {#each settingAddons as a (a!.id)}
-      <section class="section" id="addon-{a!.id}">
-        <div class="row spread"><h3>{a!.name}</h3><span class="pill">Addon</span></div>
+      <details class="section addon" id="addon-{a!.id}" open={focus.addon === a!.id} use:reveal={a!.id}>
+        <summary class="row spread"><h3>{a!.name}</h3><span class="pill">Addon</span></summary>
         {#await a!.settings!()}
           <p class="hint">Loading…</p>
         {:then mod}
           <mod.default />
         {/await}
-      </section>
+      </details>
     {/each}
 
     <section class="section">
@@ -474,4 +481,9 @@
   .sw.default::after { content: ""; position: absolute; inset: 7px; border-radius: 50%; background: var(--ink); }
   .sw.custom { position: relative; overflow: hidden; background: conic-gradient(#ff6b6b, #ffd93d, #6bff95, #6bd9ff, #9b6bff, #ff6bd5, #ff6b6b); cursor: pointer; }
   .sw.custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  details.addon > summary { list-style: none; cursor: pointer; }
+  details.addon > summary::-webkit-details-marker { display: none; }
+  details.addon > summary h3::before { content: "▸"; display: inline-block; width: 1em; margin-right: 0.35em; text-align: center; color: var(--muted); transition: transform 0.15s; }
+  details.addon[open] > summary h3::before { transform: rotate(90deg); }
+  details.addon[open] > summary { margin-bottom: 0.6rem; }
 </style>

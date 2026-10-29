@@ -98,7 +98,7 @@ export interface MusicPrefs {
   hiddenTabs: MusicTab[];
 }
 
-export type MusicTab = "home" | "online" | "albums" | "artists" | "songs" | "playlists" | "favourites" | "downloads";
+export type MusicTab = "home" | "online" | "albums" | "artists" | "songs" | "playlists" | "favourites" | "lyrics" | "stats" | "downloads";
 export const MUSIC_TABS: { id: MusicTab; label: string; addon?: string }[] = [
   { id: "home", label: "Home" },
   { id: "online", label: "Online", addon: "streaming" },
@@ -107,8 +107,87 @@ export const MUSIC_TABS: { id: MusicTab; label: string; addon?: string }[] = [
   { id: "songs", label: "Songs" },
   { id: "playlists", label: "Playlists" },
   { id: "favourites", label: "Favourites" },
+  { id: "lyrics", label: "Lyrics", addon: "lyrics-plus" },
+  { id: "stats", label: "Stats", addon: "stats" },
   { id: "downloads", label: "Downloads", addon: "streaming" },
 ];
+
+/** Which drawing the visual addons use. "auto" follows Music's layout:
+ *  Tonal gets the first, Tiled the second. */
+export type Skin = "auto" | "tonal" | "tiled" | "glass";
+
+/** Full App Display addon. */
+export interface FadPrefs {
+  skin: Skin;
+  /** Tonal: cover beside the title, or everything centred. */
+  layout: "split" | "centred";
+  /** Background blur of the cover, px. */
+  blur: number;
+  clock: boolean;
+  upNext: boolean;
+  /** The current lyric line under the title (needs Lyrics Plus). */
+  lyric: boolean;
+  /** Tiled: the spectrum visualiser. */
+  visualiser: boolean;
+  bands: number;
+  vizStyle: "bars" | "blocks" | "mirror";
+  /** Make the window full screen too, not just fill it. */
+  fullscreen: boolean;
+}
+export const DEFAULT_FAD: FadPrefs = { skin: "auto", layout: "split", blur: 70, clock: true, upNext: true, lyric: true, visualiser: true, bands: 48, vizStyle: "bars", fullscreen: true };
+
+/** Lyrics Plus addon. */
+export interface LyricsPrefs {
+  skin: Skin;
+  align: "left" | "center";
+  /** Current line size, px. */
+  size: number;
+  /** Highlight word by word when the lyrics have word timings. */
+  words: boolean;
+  /** Look songs up on LRCLIB when there's nothing on this PC. */
+  online: boolean;
+  /** Save lyrics found online as .lrc files beside your songs. */
+  sidecar: boolean;
+  /** Seconds to shift lyrics by, per song id. */
+  offsets: Record<string, number>;
+  bar: { position: "bottom" | "top"; size: number; tint: number };
+  popup: { tint: number };
+}
+export const DEFAULT_LYRICS: LyricsPrefs = { skin: "auto", align: "left", size: 52, words: true, online: true, sidecar: false, offsets: {}, bar: { position: "bottom", size: 26, tint: 0.35 }, popup: { tint: 0.16 } };
+
+/** Stats addon. */
+export interface StatsPrefs {
+  skin: Skin;
+  range: "4w" | "6m" | "1y" | "all";
+  /** Daily listening goal in minutes (the Glass ring). */
+  goal: number;
+}
+export const DEFAULT_STATS: StatsPrefs = { skin: "auto", range: "4w", goal: 90 };
+
+/** Themes & CSS snippets addon. */
+export interface ThemesPrefs {
+  /** A theme pack id, or null to use the Look as it is. */
+  theme: string | null;
+  /** Built-in snippets switched on. */
+  snippets: string[];
+  /** Your own CSS. */
+  css: string;
+  /** Where your CSS applies. */
+  scope: "app" | "music";
+  /** Snippets you saved. */
+  mine: { id: string; name: string; css: string; on: boolean }[];
+}
+export const DEFAULT_THEMES: ThemesPrefs = { theme: null, snippets: [], css: "", scope: "app", mine: [] };
+
+/** A bundle you made from your addons (and optionally their settings). */
+export interface UserBundle {
+  id: string;
+  name: string;
+  addons: string[];
+  /** Settings carried with it, by UiState key. */
+  settings: Partial<Record<BundleKey, unknown>> | null;
+}
+export type BundleKey = "fad" | "lyrics" | "stats" | "themes" | "seeThrough" | "music";
 
 export const MUSIC_SECTIONS: { id: MusicSection; label: string }[] = [
   { id: "hero", label: "Now playing / shuffle all" },
@@ -125,7 +204,7 @@ export const DEFAULT_MUSIC: MusicPrefs = {
   tabs: MUSIC_TABS.map((t) => t.id), hiddenTabs: [],
 };
 
-function normalizeMusic(v: Partial<MusicPrefs> | undefined): MusicPrefs {
+export function normalizeMusic(v: Partial<MusicPrefs> | undefined): MusicPrefs {
   const d = DEFAULT_MUSIC;
   if (!v || typeof v !== "object") return { ...d, sections: [...d.sections], tabs: [...d.tabs], hiddenTabs: [] };
   const tabIds = MUSIC_TABS.map((t) => t.id);
@@ -162,6 +241,11 @@ export interface UiState {
   splash: SplashPrefs;
   seeThrough: SeeThroughPrefs;
   music: MusicPrefs;
+  fad: FadPrefs;
+  lyrics: LyricsPrefs;
+  stats: StatsPrefs;
+  themes: ThemesPrefs;
+  bundles: UserBundle[];
 }
 
 interface Preset {
@@ -300,6 +384,11 @@ export function defaultUi(): UiState {
     splash: { length: "normal", animateAlways: false },
     seeThrough: { ...DEFAULT_SEE_THROUGH },
     music: normalizeMusic(undefined),
+    fad: normalizeFad(undefined),
+    lyrics: normalizeLyrics(undefined),
+    stats: normalizeStats(undefined),
+    themes: normalizeThemes(undefined),
+    bundles: [],
   };
 }
 
@@ -331,13 +420,89 @@ export function normalizeUi(v: unknown): UiState {
     },
     seeThrough: normalizeSeeThrough(u.seeThrough),
     music: normalizeMusic(u.music),
+    fad: normalizeFad(u.fad),
+    lyrics: normalizeLyrics(u.lyrics),
+    stats: normalizeStats(u.stats),
+    themes: normalizeThemes(u.themes),
+    bundles: normalizeBundles(u.bundles),
   };
 }
 
-function normalizeSeeThrough(v: Partial<SeeThroughPrefs> | undefined): SeeThroughPrefs {
+const num = (x: unknown, lo: number, hi: number, def: number) => (typeof x === "number" && isFinite(x) ? Math.min(hi, Math.max(lo, x)) : def);
+const pick = <T extends string>(x: unknown, opts: readonly T[], def: T): T => (opts.includes(x as T) ? (x as T) : def);
+const SKINS = ["auto", "tonal", "tiled", "glass"] as const;
+
+export function normalizeFad(v: Partial<FadPrefs> | undefined): FadPrefs {
+  const d = DEFAULT_FAD;
+  if (!v || typeof v !== "object") return { ...d };
+  return {
+    skin: pick(v.skin, SKINS, d.skin),
+    layout: pick(v.layout, ["split", "centred"] as const, d.layout),
+    blur: num(v.blur, 0, 160, d.blur),
+    clock: v.clock !== false,
+    upNext: v.upNext !== false,
+    lyric: v.lyric !== false,
+    visualiser: v.visualiser !== false,
+    bands: Math.round(num(v.bands, 12, 128, d.bands)),
+    vizStyle: pick(v.vizStyle, ["bars", "blocks", "mirror"] as const, d.vizStyle),
+    fullscreen: v.fullscreen !== false,
+  };
+}
+
+export function normalizeLyrics(v: Partial<LyricsPrefs> | undefined): LyricsPrefs {
+  const d = DEFAULT_LYRICS;
+  if (!v || typeof v !== "object") return { ...d, offsets: {}, bar: { ...d.bar }, popup: { ...d.popup } };
+  const offsets: Record<string, number> = {};
+  if (v.offsets && typeof v.offsets === "object") for (const [k, x] of Object.entries(v.offsets)) if (typeof x === "number" && isFinite(x) && x !== 0) offsets[k] = Math.max(-30, Math.min(30, x));
+  return {
+    skin: pick(v.skin, SKINS, d.skin),
+    align: pick(v.align, ["left", "center"] as const, d.align),
+    size: num(v.size, 28, 96, d.size),
+    words: v.words !== false,
+    online: v.online !== false,
+    sidecar: v.sidecar === true,
+    offsets,
+    bar: { position: pick(v.bar?.position, ["bottom", "top"] as const, d.bar.position), size: num(v.bar?.size, 16, 56, d.bar.size), tint: num(v.bar?.tint, 0, 0.9, d.bar.tint) },
+    popup: { tint: num(v.popup?.tint, 0, 0.6, d.popup.tint) },
+  };
+}
+
+export function normalizeStats(v: Partial<StatsPrefs> | undefined): StatsPrefs {
+  const d = DEFAULT_STATS;
+  if (!v || typeof v !== "object") return { ...d };
+  return { skin: pick(v.skin, SKINS, d.skin), range: pick(v.range, ["4w", "6m", "1y", "all"] as const, d.range), goal: Math.round(num(v.goal, 5, 600, d.goal)) };
+}
+
+export function normalizeThemes(v: Partial<ThemesPrefs> | undefined): ThemesPrefs {
+  const d = DEFAULT_THEMES;
+  if (!v || typeof v !== "object") return { ...d, snippets: [], mine: [] };
+  const strs = (a: unknown): string[] => (Array.isArray(a) ? a.filter((x): x is string => typeof x === "string") : []);
+  return {
+    theme: typeof v.theme === "string" ? v.theme : null,
+    snippets: strs(v.snippets),
+    css: typeof v.css === "string" ? v.css.slice(0, 100_000) : "",
+    scope: pick(v.scope, ["app", "music"] as const, d.scope),
+    mine: Array.isArray(v.mine)
+      ? v.mine.filter((m) => m && typeof m.id === "string" && typeof m.css === "string").map((m) => ({ id: m.id, name: String(m.name ?? "Snippet").slice(0, 60), css: m.css.slice(0, 50_000), on: m.on !== false }))
+      : [],
+  };
+}
+
+function normalizeBundles(v: unknown): UserBundle[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((b) => b && typeof b.id === "string" && Array.isArray(b.addons))
+    .map((b) => ({ id: b.id, name: String(b.name ?? "My bundle").slice(0, 60), addons: b.addons.filter((x: unknown): x is string => typeof x === "string"), settings: b.settings && typeof b.settings === "object" ? b.settings : null }));
+}
+
+/** The drawing a visual addon uses, given its choice and Music's layout. */
+export function skinFor(choice: Skin, layout: MusicPrefs["layout"]): Exclude<Skin, "auto"> {
+  return choice === "auto" ? (layout === "tiled" ? "tiled" : "tonal") : choice;
+}
+
+export function normalizeSeeThrough(v: Partial<SeeThroughPrefs> | undefined): SeeThroughPrefs {
   const d = DEFAULT_SEE_THROUGH;
   if (!v || typeof v !== "object") return { ...d };
-  const num = (x: unknown, lo: number, hi: number, def: number) => (typeof x === "number" && isFinite(x) ? Math.min(hi, Math.max(lo, x)) : def);
   return {
     enabled: v.enabled !== false,
     effect: (["acrylic", "mica", "mica-dark", "tabbed", "blur"] as const).includes(v.effect as SeeThroughPrefs["effect"]) ? v.effect! : d.effect,

@@ -4,6 +4,16 @@
   let { name, size = 20, filled = false }: { name: string; size?: number; filled?: boolean } = $props();
   const paths: Record<string, string> = {
     library: "M4 5h4v14H4zM10 5h4v14h-4zM16.5 5.5l3.6 1-3.6 13-3.6-1z",
+    lyrics: "M4 6h16M4 11h10M4 16h13M4 21h7",
+    chart: "M4 20V10M10 20V4M16 20v-7M21 20H3",
+    loop: "M17 2l3 3-3 3M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3M20 13v2a4 4 0 0 1-4 4H4",
+    bookmark: "M6 3h12v18l-6-4.5L6 21z",
+    sort: "M7 4v16M3 16l4 4 4-4M14 6h7M14 11h5M14 16h3",
+    bundle: "M12 3l8.5 4.5v9L12 21l-8.5-4.5v-9zM3.5 7.5L12 12l8.5-4.5M12 12v9",
+    skip: "M5 5l10 7-10 7zM19 5v14",
+    fullscreen: "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5",
+    window: "M3 5h18v14H3zM3 9h18",
+    code: "M9 7l-5 5 5 5M15 7l5 5-5 5",
     roblox: "M6.5 3.5l14 3.8-3.8 14-14-3.8zM10.6 9.6l3.8 1-1 3.8-3.8-1z",
     proxy: "M4 7h11M11 3l4 4-4 4M20 17H9M13 13l-4 4 4 4",
     inspector: "M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.5 15.5L21 21",

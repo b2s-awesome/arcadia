@@ -103,9 +103,9 @@ pub async fn lyrics_forget(app: AppHandle, id: i64) -> Res<()> {
 }
 
 /// Open or close the pop-up lyrics window ("popup") or the click-through
-/// desktop lyrics bar ("bar").
+/// desktop lyrics bar ("bar"; `top` puts it at the top of the screen).
 #[tauri::command]
-pub async fn lyrics_window(app: AppHandle, kind: String, open: bool) -> Res<()> {
+pub async fn lyrics_window(app: AppHandle, kind: String, open: bool, top: Option<bool>) -> Res<()> {
     installed(&app, ID)?;
     let label = match kind.as_str() {
         "popup" => "lyrics-popup",
@@ -115,7 +115,13 @@ pub async fn lyrics_window(app: AppHandle, kind: String, open: bool) -> Res<()> 
     if let Some(w) = app.get_webview_window(label) {
         if open {
             let _ = w.show();
-            let _ = w.set_focus();
+            if label == "lyrics-popup" {
+                let _ = w.set_focus();
+            } else {
+                // The bar may have moved between top and bottom.
+                let _ = w.close();
+                return Box::pin(lyrics_window(app.clone(), kind, true, top)).await;
+            }
         } else {
             w.close().map_err(err)?;
         }
@@ -133,7 +139,13 @@ pub async fn lyrics_window(app: AppHandle, kind: String, open: bool) -> Res<()> 
     let (sw, sh) = (sw / scale, sh / scale);
     let popup = kind == "popup";
     let (w, h) = if popup { (440.0, 240.0) } else { (sw.min(1100.0), 96.0) };
-    let (x, y) = if popup { (sw - w - 32.0, 72.0) } else { ((sw - w) / 2.0, sh - h - 72.0) };
+    let (x, y) = if popup {
+        (sw - w - 32.0, 72.0)
+    } else if top.unwrap_or(false) {
+        ((sw - w) / 2.0, 24.0)
+    } else {
+        ((sw - w) / 2.0, sh - h - 72.0)
+    };
     let mode = label;
     let win = WebviewWindowBuilder::new(&app, label, WebviewUrl::App(format!("index.html?mode={mode}").into()))
         .title(if popup { "Lyrics" } else { "Desktop lyrics" })

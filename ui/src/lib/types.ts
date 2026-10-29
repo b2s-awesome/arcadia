@@ -230,6 +230,8 @@ export interface Track {
   /** "local", "stream" (online, cached) or "download". */
   origin: "local" | "stream" | "download";
   sourceUrl: string | null;
+  /** Marked explicit in its tags; null until checked. */
+  explicit: boolean | null;
 }
 export interface MusicPlaylist { id: number; name: string; count: number; duration: number; updated: number; arts: string[] }
 export interface OutputInfo { device: string; rate: number; channels: number }
@@ -249,7 +251,40 @@ export interface MusicStatus {
   device: string | null;
   /** Fetching the current online song. */
   loading: boolean;
+  shuffleMode: ShuffleMode;
+  /** Loopy Loop: the A–B loop, in seconds. */
+  loopAb: [number, number] | null;
 }
+export type ShuffleMode = "random" | "spreadArtists" | "fewerRepeats" | "lessPlayed";
+
+// ── Stats addon ────────────────────────────────────────────────
+export interface StatArt { art: string | null; artColor: string | null }
+export interface TopArtist extends StatArt { name: string; plays: number; listened: number }
+export interface TopSong extends StatArt { id: number | null; title: string; artist: string; album: string; plays: number; skips: number; avg: number }
+export interface TopAlbum extends StatArt { album: string; artist: string; plays: number }
+export interface ListenStats {
+  listened: number;
+  previous: number | null;
+  plays: number;
+  skips: number;
+  songs: number;
+  newSongs: number;
+  topArtists: TopArtist[];
+  topSongs: TopSong[];
+  topAlbums: TopAlbum[];
+  hours: number[];
+  days: number[];
+  sources: { key: string; listened: number }[];
+  formats: { key: string; listened: number }[];
+  streak: number;
+  busiestDay: { at: number; listened: number } | null;
+  today: number;
+}
+
+// ── Lyrics Plus addon ─────────────────────────────────────────
+export interface LyricWord { t: number; text: string }
+export interface LyricLine { t: number | null; text: string; words?: LyricWord[] }
+export interface Lyrics { synced: boolean; words: boolean; source: "file" | "tags" | "lrclib" | "yours"; lines: LyricLine[]; instrumental: boolean }
 export interface QueueView { index: number | null; tracks: Track[] }
 export interface MusicScanReport { added: number; updated: number; removed: number; total: number; missingFolders: string[]; errors: string[] }
 export interface MusicScanProgress { done: number; total: number; current: string }

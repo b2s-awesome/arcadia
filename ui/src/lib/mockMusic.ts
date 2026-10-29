@@ -1,6 +1,6 @@
 // A pretend music library and player, for designing the Music page in a
 // browser. Artists, albums and covers are all made up.
-import type { DownloadJob, MusicPlaylist, MusicStatus, OnlineItem, RepeatMode, StreamingConfig, SyncedSource, Track } from "./types";
+import type { DownloadJob, ListenStats, Lyrics, MusicPlaylist, MusicStatus, OnlineItem, RepeatMode, ShuffleMode, StreamingConfig, SyncedSource, Track } from "./types";
 
 type Emit = (event: string, payload: unknown) => void;
 
@@ -57,6 +57,7 @@ const tracks: Track[] = ALBUMS.flatMap((a, ai) =>
       favourite: id % 7 === 0,
       origin: "local" as const,
       sourceUrl: null,
+      explicit: id % 11 === 0,
     };
   }),
 );
@@ -68,7 +69,7 @@ let playlists: (MusicPlaylist & { items: number[] })[] = [
 ];
 let folders = ["C:\\Users\\you\\Music"];
 
-const st: { list: number[]; original: number[] | null; pos: number | null; playing: boolean; t: number; volume: number; shuffle: boolean; repeat: RepeatMode } = {
+const st: { list: number[]; original: number[] | null; pos: number | null; playing: boolean; t: number; volume: number; shuffle: boolean; repeat: RepeatMode; mode: ShuffleMode; ab: [number, number] | null } = {
   list: [1, 2, 3, 4, 5, 6, 7, 8],
   original: null,
   pos: 1,
@@ -77,6 +78,8 @@ const st: { list: number[]; original: number[] | null; pos: number | null; playi
   volume: 0.8,
   shuffle: false,
   repeat: "off",
+  mode: "random",
+  ab: null,
 };
 
 const byId = (id: number) => tracks.find((t) => t.id === id)!;
@@ -98,6 +101,8 @@ function status(): MusicStatus {
     outputError: null,
     device: null,
     loading: false,
+    shuffleMode: st.mode,
+    loopAb: st.ab,
   };
 }
 
@@ -108,6 +113,7 @@ function tick(emit: Emit) {
     const t = cur();
     if (!st.playing || !t) return;
     st.t += 0.25;
+    if (st.ab && st.t >= st.ab[1]) st.t = st.ab[0];
     if (st.t >= t.duration) {
       st.t = 0;
       if (st.repeat !== "one") {
@@ -158,7 +164,7 @@ function remoteTrack(i: OnlineItem): number {
   tracks.push({
     id, path: `remote:${i.url}`, title: i.title, artist: i.artist, albumArtist: i.artist, album: i.album ?? "Singles", genre: "", year: null, trackNo: null, discNo: null,
     duration: i.duration ?? 200, sampleRate: 44100, bitDepth: null, channels: 2, bitrate: 128, format: "M4A", art: cover(colors, id), artColor: colors[1],
-    addedAt: Math.floor(Date.now() / 1000), playCount: 0, lastPlayed: null, favourite: false, origin: "stream", sourceUrl: i.url,
+    addedAt: Math.floor(Date.now() / 1000), playCount: 0, lastPlayed: null, favourite: false, origin: "stream", sourceUrl: i.url, explicit: null,
   });
   return id;
 }
@@ -238,8 +244,52 @@ async function mockStreaming(cmd: string, args: Record<string, unknown>, emit: E
   throw new Error(`mock: unknown ${cmd}`);
 }
 
+// Made-up lyrics: the same verse for every song, timed every four seconds.
+const VERSE = [
+  "Every window holds a little sun", "I count the stops and lose the count", "You said the city never sleeps", "But tonight it is humming just for one",
+  "Hold the rail, the corner is coming", "", "Lantern lights along the river", "Every face a borrowed glow", "Tell me where the night bus goes", "Somewhere only dreamers know",
+];
+function mockLyrics(id: number): Lyrics | null {
+  if (id % 9 === 0) return null;
+  const lines = [] as Lyrics["lines"];
+  for (let r = 0; r < 6; r++) {
+    VERSE.forEach((text, i) => {
+      const t = 6 + (r * VERSE.length + i) * 4;
+      let w = t;
+      const words = text ? text.split(" ").map((x) => ({ t: (w += 0.32) - 0.32, text: x + " " })) : [];
+      lines.push({ t, text, words: id % 2 ? words : [] });
+    });
+  }
+  return { synced: true, words: id % 2 === 1, source: id % 3 ? "lrclib" : "file", lines, instrumental: false };
+}
+
+function mockStats(since: number | null): ListenStats {
+  const k = since ? Math.max(0.15, (now - since) / (28 * DAY)) : 6;
+  const sc = (x: number) => Math.round(x * k);
+  const top = [...tracks].sort((a, b) => b.playCount - a.playCount);
+  const artists = ALBUMS.map((a, i) => ({ name: a.artist, plays: sc(141 - i * 17), listened: sc((141 - i * 17) * 210), art: tracks.find((t) => t.artist === a.artist)!.art, artColor: tracks.find((t) => t.artist === a.artist)!.artColor }));
+  return {
+    listened: sc(41 * 3600), previous: since ? sc(35 * 3600) : null, plays: sc(612), skips: sc(71), songs: Math.min(tracks.length, sc(38)), newSongs: sc(9),
+    topArtists: artists,
+    topSongs: top.slice(0, 10).map((t, i) => ({ id: t.id, title: t.title, artist: t.artist, album: t.album, plays: sc(34 - i * 2), skips: (i * 3) % 7, avg: t.duration * (0.95 - i * 0.03), art: t.art, artColor: t.artColor })),
+    topAlbums: ALBUMS.slice(0, 6).map((a, i) => ({ album: a.title, artist: a.artist, plays: sc(96 - i * 11), art: tracks.find((t) => t.album === a.title)!.art, artColor: tracks.find((t) => t.album === a.title)!.artColor })),
+    hours: [3, 2, 1, 1, 1, 2, 5, 9, 12, 10, 8, 9, 14, 12, 10, 11, 15, 22, 30, 41, 55, 62, 48, 20].map((v) => sc(v * 120)),
+    days: Array.from({ length: 182 }, (_, i) => (i % 11 === 3 ? 0 : Math.round(((Math.sin(i * 0.37) + Math.sin(i * 1.3) + 2) / 4) * 7200))),
+    sources: [{ key: "local", listened: sc(30 * 3600) }, { key: "stream", listened: sc(8 * 3600) }, { key: "download", listened: sc(3 * 3600) }],
+    formats: [{ key: "FLAC", listened: sc(19 * 3600) }, { key: "M4A / AAC", listened: sc(15 * 3600) }, { key: "MP3", listened: sc(7 * 3600) }],
+    streak: Math.min(9, sc(9)), busiestDay: { at: now - 3 * DAY, listened: 5.2 * 3600 }, today: 74 * 60,
+  };
+}
+
 export async function mockMusic(cmd: string, args: Record<string, unknown>, emit: Emit): Promise<unknown> {
   if (cmd.startsWith("streaming_")) return mockStreaming(cmd, args, emit);
+  if (cmd.startsWith("lyrics_")) {
+    switch (cmd) {
+      case "lyrics_get": return mockLyrics(args.id as number);
+      case "lyrics_save": return { ...(await import("../addons/lyrics/lrc")).parseLrc(args.lrc as string), source: "yours" };
+      default: return;
+    }
+  }
   tick(emit);
   const changed = () => emit("music-status", status());
   switch (cmd) {
@@ -338,6 +388,24 @@ export async function mockMusic(cmd: string, args: Record<string, unknown>, emit
     case "music_playlist_delete": playlists = playlists.filter((p) => p.id !== args.id); return;
     case "music_playlist_set": { const p = playlists.find((x) => x.id === args.id); if (p) p.items = [...(args.ids as number[])]; return; }
     case "music_playlist_add": { const p = playlists.find((x) => x.id === args.id); if (p) p.items.push(...(args.ids as number[])); return; }
+    case "music_reload_rules": return;
+    case "music_shuffle_mode": st.mode = args.mode as ShuffleMode; changed(); return;
+    case "music_loop": st.ab = args.a != null && args.b != null ? [args.a as number, args.b as number] : null; changed(); return;
+    case "music_spectrum": {
+      const n = args.bands as number;
+      const t = performance.now() / 1000;
+      return Array.from({ length: n }, (_, i) => (st.playing ? Math.max(0, Math.min(1, 0.85 * Math.exp((-i / n) * 1.6) * (0.55 + 0.45 * Math.abs(Math.sin(t * (2.1 + (i % 5) * 0.7) + i * 1.3))))) : 0));
+    }
+    case "music_spectrum_stop": return;
+    case "music_queue_tool": {
+      const c = st.pos === null ? null : st.list[st.pos];
+      if (args.tool === "dedupe") { const seen = new Set<number>(); st.list = st.list.filter((x, i) => i === st.pos || (x !== c && !seen.has(x) && (seen.add(x), true))); }
+      if (args.tool === "clearPlayed" && st.pos) { st.list = st.list.slice(st.pos); }
+      if (args.tool === "shuffleRest" && st.pos !== null) st.list = [...st.list.slice(0, st.pos + 1), ...shuffleList(st.list.slice(st.pos + 1))];
+      st.pos = c === null ? null : st.list.indexOf(c);
+      emit("music-queue-changed", null); changed(); return;
+    }
+    case "music_stats": return mockStats(args.since as number | null);
   }
   throw new Error(`mock: unknown ${cmd}`);
 }

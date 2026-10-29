@@ -4,7 +4,9 @@
   import Seek from "./Seek.svelte";
   import Transport from "./Transport.svelte";
   import Volume from "./Volume.svelte";
-  import { albumKey, go, ms, setFavourite } from "./store.svelte";
+  import { albumKey, back, go, ms, setFavourite } from "./store.svelte";
+  import { app } from "../lib/state.svelte";
+  import { openFad } from "../addons/fad/fad.svelte";
   const t = $derived(ms.status?.track ?? null);
 </script>
 
@@ -26,7 +28,9 @@
     <Seek />
   </div>
   <div class="right">
+    {#if app.ui.addons.installed.includes("lyrics-plus")}<button class="ic" class:on={ms.view.kind === "lyrics"} aria-label="Lyrics" title="Lyrics" onclick={() => (ms.view.kind === "lyrics" ? back() : go({ kind: "lyrics" }))}><Icon name="lyrics" size={16} /></button>{/if}
     <button class="ic" class:on={ms.nowPlaying} aria-pressed={ms.nowPlaying} aria-label="Now Playing" onclick={() => (ms.nowPlaying = !ms.nowPlaying)}><Icon name="expand" size={16} /></button>
+    {#if app.ui.addons.installed.includes("full-app-display")}<button class="ic" aria-label="Full App Display (F)" title="Full App Display (F)" onclick={openFad} disabled={!t}><Icon name="fullscreen" size={16} /></button>{/if}
     <Volume />
   </div>
 </div>
