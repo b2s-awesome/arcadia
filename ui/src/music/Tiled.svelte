@@ -11,6 +11,7 @@
   import Volume from "./Volume.svelte";
   import { musicKeys } from "./keys";
   import { back, cycleRepeat, go, lib, ms, next, prev, quality, setShuffle, type MusicView } from "./store.svelte";
+  import { streamingOn } from "./streaming.svelte";
 
   const prefs = $derived(app.ui.music);
   const t = $derived(ms.status?.track ?? null);
@@ -18,13 +19,15 @@
   let q = $state("");
   let filterEl: HTMLInputElement | undefined = $state();
 
-  const lists: { kind: MusicView["kind"]; label: string; icon: string }[] = [
+  const lists: { kind: MusicView["kind"]; label: string; icon: string }[] = $derived([
     { kind: "home", label: "home", icon: "library" },
+    ...(streamingOn() ? [{ kind: "online" as const, label: "online", icon: "search" }] : []),
     { kind: "songs", label: "songs", icon: "music" },
     { kind: "albums", label: "albums", icon: "cube" },
     { kind: "artists", label: "artists", icon: "profile" },
     { kind: "favourites", label: "favourites", icon: "heart" },
-  ];
+    ...(streamingOn() ? [{ kind: "downloads" as const, label: "downloads", icon: "download" }] : []),
+  ]);
   const title = $derived.by(() => {
     const v = ms.view;
     if (v.kind === "album") return lib.albumByKey.get(v.key)?.title ?? "album";

@@ -65,7 +65,19 @@ A music player for the songs on your PC, built into Arcadia (inspired by Riff an
 - **Everywhere:** the top bar shows what's playing with play/pause and next, and Ctrl+K can play/pause or skip.
 - Keys: space play/pause, ←/→ seek 5 s, Shift+←/→ previous/next, ↑/↓ volume, / search.
 
-Opus files aren't supported by the engine yet; streaming, downloads, lyrics and Discord presence come in later updates.
+Opus files aren't supported by the engine yet; lyrics and Discord presence come in later updates.
+
+### Streaming & downloads (addon)
+
+Add it from the Marketplace and Music gets **Online** and **Downloads** tabs.
+
+- **Find music:** search YouTube Music or SoundCloud, or paste a link to a song, album, playlist or set from anywhere [yt-dlp](https://github.com/yt-dlp/yt-dlp) supports (Bandcamp and more).
+- **Play (fetch-then-play):** a song is fetched in a second or two, then played by Arcadia's own engine, so it's gapless and you can seek anywhere. The next song in the queue is fetched ahead. Streamed songs live in a cache (1 GB by default, least recently played cleared first) and don't clutter the library until you download them.
+- **Download:** M4A (default: exactly what the site sends, untouched), MP3 320 (re-encoded so it plays anywhere; tiny loss, bigger files) or FLAC (same sound as the source, 3–5× bigger). Files land in `Music\Arcadia Downloads\Artist\Album`, tagged, with covers, and appear in your library. On SoundCloud, the artist's original upload is used when they allow downloads.
+- **Linked playlists:** save a playlist/album/set link as an Arcadia playlist, stream or download it, and check it for new songs later.
+- **Tools:** yt-dlp (~18 MB) is fetched from its official GitHub release and checked against the release's published SHA-256 before use; ffmpeg (~87 MB, from yt-dlp's FFmpeg builds, also checksum-checked) only if you want MP3/FLAC or embedded covers. Copies you already have are found on PATH, or you can point to them.
+
+Only fetch what you're allowed to. Subscriber-only audio (e.g. SoundCloud Go+ tracks, which give non-subscribers a 30-second preview) and DRM-protected audio aren't fetched.
 
 ## Appearance
 

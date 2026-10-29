@@ -2,12 +2,12 @@
   import TrackList from "../TrackList.svelte";
   import AlbumGrid from "../AlbumGrid.svelte";
   import Collection from "./Collection.svelte";
-  import { lib, ms, play } from "../store.svelte";
+  import { lib, play } from "../store.svelte";
 
   let { name }: { name: string } = $props();
   const artist = $derived(lib.artists.find((a) => a.name === name) ?? null);
   // Songs where they feature on someone else's album.
-  const appears = $derived(ms.tracks.filter((t) => t.albumArtist !== name && t.artist.toLowerCase().includes(name.toLowerCase())));
+  const appears = $derived(lib.tracks.filter((t) => t.albumArtist !== name && t.artist.toLowerCase().includes(name.toLowerCase())));
   const top = $derived(artist ? [...artist.tracks].sort((a, b) => b.playCount - a.playCount).slice(0, 5) : []);
   const all = $derived(artist ? [...artist.tracks, ...appears] : appears);
   const albums = $derived(artist ? [...artist.albums].sort((a, b) => (b.year ?? 0) - (a.year ?? 0)) : []);

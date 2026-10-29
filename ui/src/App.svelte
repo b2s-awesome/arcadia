@@ -116,7 +116,7 @@
     ...baseActions,
     ...app.ui.addons.installed.flatMap((id) => {
       const a = addonById(id);
-      return a ? [{ id: `addon-${id}`, label: a.name, hint: a.tagline, icon: a.icon, run: go(a.load ? `addon:${id}` : "appearance") }] : [];
+      return a ? [{ id: `addon-${id}`, label: a.name, hint: a.tagline, icon: a.icon, run: go(a.load ? `addon:${id}` : (a.opens ?? "appearance")) }] : [];
     }),
   ]);
 

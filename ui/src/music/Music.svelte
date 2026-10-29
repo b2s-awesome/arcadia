@@ -11,23 +11,28 @@
   import { inkFor } from "./colour";
   import { musicKeys } from "./keys";
   import { back, go, initMusic, ms, type MusicView } from "./store.svelte";
+  import { initStreaming, streamingOn, sx } from "./streaming.svelte";
 
   onMount(() => {
     initMusic();
+    initStreaming();
   });
+  const busy = $derived(sx.jobs.filter((j) => j.state === "running" || j.state === "queued").length);
 
   const prefs = $derived(app.ui.music);
   // Colour from the playing cover, or the look's accent.
   const accent = $derived(prefs.artColours ? (ms.status?.track?.artColor ?? null) : null);
 
-  const tabs: { kind: MusicView["kind"]; label: string }[] = [
+  const tabs: { kind: MusicView["kind"]; label: string }[] = $derived([
     { kind: "home", label: "Home" },
+    ...(streamingOn() ? [{ kind: "online" as const, label: "Online" }] : []),
     { kind: "albums", label: "Albums" },
     { kind: "artists", label: "Artists" },
     { kind: "songs", label: "Songs" },
     { kind: "playlists", label: "Playlists" },
     { kind: "favourites", label: "Favourites" },
-  ];
+    ...(streamingOn() ? [{ kind: "downloads" as const, label: "Downloads" }] : []),
+  ]);
   const tabFor = (k: MusicView["kind"]): MusicView["kind"] =>
     k === "album" ? "albums" : k === "artist" ? "artists" : k === "playlist" ? "playlists" : k;
 
@@ -48,6 +53,18 @@
   });
 
   let scroller: HTMLDivElement | undefined = $state();
+  // Fade the tab row's edges only when it overflows.
+  let tabsEl: HTMLElement | undefined = $state();
+  let tabsOverflow = $state(false);
+  $effect(() => {
+    const el = tabsEl;
+    if (!el) return;
+    const check = () => (tabsOverflow = el.scrollWidth > el.clientWidth + 1);
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    check();
+    return () => ro.disconnect();
+  });
   $effect(() => {
     void ms.view;
     scroller?.scrollTo({ top: 0 });
@@ -78,9 +95,9 @@
       <header class="head">
         <button class="back" onclick={back} disabled={!ms.history.length} aria-label="Back"><Icon name="up" size={16} /></button>
         <h1>Music</h1>
-        <nav class="tabs" aria-label="Music sections">
+        <nav class="tabs" class:fade={tabsOverflow} aria-label="Music sections" bind:this={tabsEl}>
           {#each tabs as t}
-            <button class:on={tabFor(ms.view.kind) === t.kind} aria-current={tabFor(ms.view.kind) === t.kind ? "page" : undefined} onclick={() => go({ kind: t.kind } as MusicView)}>{t.label}</button>
+            <button class:on={tabFor(ms.view.kind) === t.kind} aria-current={tabFor(ms.view.kind) === t.kind ? "page" : undefined} onclick={() => go({ kind: t.kind } as MusicView)}>{t.label}{#if t.kind === "downloads" && busy}<span class="badge">{busy}</span>{/if}</button>
           {/each}
         </nav>
         <span class="grow"></span>
@@ -122,20 +139,26 @@
   .tonal.bar-top { grid-template-rows: auto auto minmax(0, 1fr); }
   .tonal.bar-top .player { grid-row: 2; padding: 0 1.4rem 0.6rem; }
   .tonal.bar-top .body { grid-row: 3; }
-  .head { display: flex; align-items: center; gap: 0.8rem; padding: 1.3rem 1.6rem 0.8rem; flex-wrap: wrap; }
+  .head { display: flex; align-items: center; gap: 0.8rem; padding: 1.3rem 1.6rem 0.8rem; min-width: 0; }
   .head h1 { font-size: 1.6rem; margin-right: 0.4rem; }
   .back { border: 0; background: transparent; padding: 0.3rem; color: var(--muted); transform: rotate(-90deg); display: grid; }
   .back:disabled { opacity: 0.3; }
   .back:hover:not(:disabled) { color: var(--text); background: transparent; }
-  .tabs { display: flex; gap: 0.3rem; flex-wrap: wrap; }
-  .tabs button { border-radius: 999px; padding: 0.4rem 0.9rem; font-size: 0.85rem; border: 1px solid var(--line); background: transparent; color: var(--muted); }
+  /* One row: tabs scroll sideways when there are many, rather than wrapping. */
+  .tabs { display: flex; gap: 0.3rem; min-width: 0; overflow-x: auto; scrollbar-width: none; flex: 0 1 auto; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex-shrink: 0; }
+  .tabs.fade { mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent); padding: 0 10px; }
+  .tabs button { border-radius: 999px; padding: 0.4rem 0.8rem; font-size: 0.85rem; border: 1px solid var(--line); background: transparent; color: var(--muted); }
   .tabs button:hover { color: var(--text); }
+  .badge { margin-left: 0.35rem; font-size: 0.7rem; padding: 0 0.4rem; border-radius: 999px; background: var(--m-accent, var(--peach)); color: var(--m-ink, var(--peach-ink)); }
+  .tabs button.on .badge { background: var(--m-ink, var(--peach-ink)); color: var(--m-accent, var(--peach)); }
   .tabs button.on { background: var(--m-accent, var(--peach)); border-color: transparent; color: var(--m-ink, var(--peach-ink)); }
-  .search { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.7rem; border-radius: 999px; background: var(--sunk); border: 1px solid var(--line); color: var(--faint); width: 260px; }
+  .search { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.7rem; border-radius: 999px; background: var(--sunk); border: 1px solid var(--line); color: var(--faint); width: clamp(150px, 17vw, 250px); flex-shrink: 0; }
   .search:focus-within { border-color: var(--lilac); }
   .search input { border: 0; background: transparent; padding: 0; flex: 1; min-width: 0; outline: none; }
   .search kbd { font: inherit; font-size: 0.7rem; border: 1px solid var(--line); border-radius: 5px; padding: 0 0.35rem; }
-  .cust { border-radius: 50%; width: 36px; height: 36px; padding: 0; display: grid; place-items: center; }
+  .cust { flex-shrink: 0; border-radius: 50%; width: 36px; height: 36px; padding: 0; display: grid; place-items: center; }
   .cust.on { background: var(--m-accent, var(--peach)); color: var(--m-ink, var(--peach-ink)); border-color: transparent; }
   .body { position: relative; min-height: 0; min-width: 0; }
   .scroll { height: 100%; overflow-y: auto; padding: 0.4rem 1.6rem 2rem; }

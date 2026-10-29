@@ -5,7 +5,11 @@
   import TrackList from "../TrackList.svelte";
   import Collection from "./Collection.svelte";
   import { ask } from "../menu.svelte";
-  import { back, ms, play, playlistTracks, reloadPlaylists } from "../store.svelte";
+  import { back, ms, play, playlistTracks, reloadLibrary, reloadPlaylists } from "../store.svelte";
+  import { streaming } from "../../lib/api";
+  import { downloadTracks } from "../menu.svelte";
+  import { initStreaming, streamingOn, sx } from "../streaming.svelte";
+  import Icon from "../../components/Icon.svelte";
 
   let { id }: { id: number } = $props();
   const pl = $derived(ms.playlists.find((p) => p.id === id) ?? null);
@@ -31,6 +35,25 @@
     save(v);
   };
   const removeAt = (i: number) => save(tracks.filter((_, j) => j !== i));
+  $effect(() => {
+    if (streamingOn()) initStreaming();
+  });
+  const linked = $derived(sx.sources.find((s) => s.playlistId === id) ?? null);
+  const streamed = $derived(tracks.filter((t) => t.origin === "stream"));
+  let syncing = $state(false);
+  async function sync() {
+    syncing = true;
+    try {
+      const n = await streaming.sync(id);
+      toast(n ? `${n} new ${n === 1 ? "song" : "songs"} added` : "Nothing new");
+      await Promise.all([reloadLibrary(), reloadPlaylists()]);
+      await load();
+    } catch (e) {
+      toast(String(e), "error");
+    }
+    syncing = false;
+  }
+
   async function rename() {
     const name = await ask("Rename playlist", pl?.name ?? "");
     if (name === null || !name) return;
@@ -47,7 +70,14 @@
 
 {#if pl}
   <Collection kind="Playlist" title={pl.name} art={tracks[0]?.art ?? null} color={tracks[0]?.artColor ?? null} {tracks}
-    more={[{ label: "", sep: true }, { label: "Rename", run: rename }, { label: "Delete playlist", danger: true, run: del }]} />
+    more={[{ label: "", sep: true }, { label: "Rename", run: rename }, { label: "Delete playlist", danger: true, run: del }]}>
+    {#if linked}
+      <button class="pbtn" onclick={sync} disabled={syncing}><Icon name="refresh" size={15} /> {syncing ? "Checking…" : "Check for new songs"}</button>
+    {/if}
+    {#if streamingOn() && streamed.length}
+      <button class="pbtn" onclick={() => downloadTracks(streamed)}><Icon name="download" size={15} /> Download {streamed.length === tracks.length ? "all" : `${streamed.length} online`}</button>
+    {/if}
+  </Collection>
   {#if !tracks.length}
     <p class="muted">Empty for now. Right-click any song and choose <b>Add to playlist</b>.</p>
   {/if}
@@ -55,3 +85,7 @@
 {:else}
   <p class="muted">That playlist was deleted.</p>
 {/if}
+
+<style>
+  .pbtn { display: inline-flex; align-items: center; gap: 0.4rem; border-radius: 999px; padding: 0.6rem 1rem; background: transparent; }
+</style>

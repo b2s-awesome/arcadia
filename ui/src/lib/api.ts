@@ -3,7 +3,8 @@
 import type {
   DeviceCode, FoundInstance, Hit, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
   Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RuleConfig, ScanReport, Settings, RulesImported,
-  MusicPlaylist, MusicScanReport, MusicStatus, QueueView, RepeatMode, Track } from "./types";
+  MusicPlaylist, MusicScanReport, MusicStatus, QueueView, RepeatMode, Track,
+  DownloadJob, OnlineFound, OnlineItem, OnlineSource, StreamingConfig, StreamingStatus, SyncedSource } from "./types";
 import { mockInvoke, mockListen } from "./mock";
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -211,6 +212,27 @@ export const music = {
   playlistDelete: (id: number) => call<void>("music_playlist_delete", { id }),
   playlistSet: (id: number, ids: number[]) => call<void>("music_playlist_set", { id, ids }),
   playlistAdd: (id: number, ids: number[]) => call<void>("music_playlist_add", { id, ids }),
+};
+
+/** Streaming & downloads addon. */
+export const streaming = {
+  status: () => call<StreamingStatus>("streaming_status"),
+  install: (tool: "yt-dlp" | "ffmpeg") => call<void>("streaming_install", { tool }),
+  update: () => call<string>("streaming_update"),
+  setConfig: (config: StreamingConfig) => call<void>("streaming_set_config", { config }),
+  clearCache: () => call<number>("streaming_clear_cache"),
+  search: (source: OnlineSource, query: string) => call<OnlineFound>("streaming_search", { source, query }),
+  resolve: (url: string) => call<OnlineFound>("streaming_resolve", { url }),
+  tracks: (items: OnlineItem[]) => call<number[]>("streaming_tracks", { items }),
+  jobs: () => call<DownloadJob[]>("streaming_jobs"),
+  download: (ids: number[]) => call<number>("streaming_download", { ids }),
+  cancel: (id: number) => call<void>("streaming_cancel", { id }),
+  retry: (id: number) => call<void>("streaming_retry", { id }),
+  clearFinished: () => call<void>("streaming_clear_finished"),
+  sources: () => call<SyncedSource[]>("streaming_sources"),
+  import: (url: string, name: string | null, download: boolean) => call<number>("streaming_import", { url, name, download }),
+  sync: (playlistId: number) => call<number>("streaming_sync", { playlistId }),
+  unlink: (playlistId: number) => call<void>("streaming_unlink", { playlistId }),
 };
 
 export async function pickFolder(): Promise<string | null> {

@@ -32,12 +32,18 @@ struct Player {
     /// Consecutive tracks that failed to open, so a broken queue can't spin.
     failures: usize,
     saved_at: std::time::Instant,
+    /// An online song being fetched before it can play.
+    loading: Option<i64>,
+    /// The current song is chosen but nothing is loaded in the engine yet
+    /// (an online song restored from last time: fetched when Play is pressed).
+    pending: bool,
 }
 
 pub struct Music {
     pub lib: Library,
     engine: Engine,
     p: Mutex<Player>,
+    app: AppHandle,
 }
 
 #[derive(Serialize, Clone)]
@@ -55,6 +61,8 @@ pub struct Status {
     output: Option<OutputInfo>,
     output_error: Option<String>,
     device: Option<String>,
+    /// Fetching the current online song.
+    loading: bool,
 }
 
 #[derive(Serialize)]
@@ -114,7 +122,10 @@ impl Music {
                 counted: false,
                 failures: 0,
                 saved_at: std::time::Instant::now(),
+                loading: None,
+                pending: false,
             }),
+            app: app.clone(),
         });
         // Pick up where the last session left off, paused.
         let resume = m.p.lock().queue.current();
@@ -126,7 +137,6 @@ impl Music {
     }
 
     fn load(&self, id: i64, start: f64, paused: bool) {
-        let Some(path) = self.lib.path_of(id) else { return };
         {
             let mut p = self.p.lock();
             p.current = Some(id);
@@ -134,13 +144,92 @@ impl Music {
             p.duration = self.lib.track(id).ok().flatten().map(|t| t.duration).unwrap_or(0.0);
             p.counted = false;
             p.paused = paused;
+            p.pending = false;
+            p.loading = None;
         }
-        self.engine.load(id as u64, path, start, paused);
+        if let Some(path) = self.lib.file_of(id) {
+            self.engine.load(id as u64, path, start, paused);
+            return;
+        }
+        if self.lib.source_of(id).is_none() {
+            let _ = self.app.emit("music-error", "That song's file is missing. Rescan your library under Customise.");
+            return;
+        }
+        // An online song: don't fetch just to sit paused (e.g. on startup).
+        if paused {
+            self.engine.stop();
+            self.p.lock().pending = true;
+            return;
+        }
+        self.engine.stop();
+        self.p.lock().loading = Some(id);
+        self.changed(&self.app);
+        let app = self.app.clone();
+        tauri::async_runtime::spawn(async move {
+            let r = crate::streaming_cmds::ensure_cached(&app, id).await;
+            let Some(m) = app.try_state::<Arc<Music>>().map(|m| m.inner().clone()) else { return };
+            let still = {
+                let mut p = m.p.lock();
+                let still = p.current == Some(id) && p.loading == Some(id);
+                if still {
+                    p.loading = None;
+                }
+                still
+            };
+            if !still {
+                return;
+            }
+            match r {
+                Ok(path) => {
+                    m.engine.load(id as u64, path, start, false);
+                    m.preload_next();
+                }
+                Err(e) => {
+                    let _ = app.emit("music-error", e);
+                    // Move on, as with a file that won't open.
+                    let next = m.p.lock().queue.next();
+                    match next {
+                        Some(n) if n != id => m.load(n, 0.0, false),
+                        _ => m.changed(&app),
+                    }
+                }
+            }
+        });
     }
 
+    /// Queue up the next song for a gapless start, fetching it first if
+    /// it's online.
     fn preload_next(&self) {
         let next = self.p.lock().queue.peek_next();
-        self.engine.set_next(next.and_then(|id| self.lib.path_of(id).map(|p| (id as u64, p))));
+        let Some(id) = next else {
+            self.engine.set_next(None);
+            return;
+        };
+        if let Some(path) = self.lib.file_of(id) {
+            self.engine.set_next(Some((id as u64, path)));
+            return;
+        }
+        self.engine.set_next(None);
+        if self.lib.source_of(id).is_none() {
+            return;
+        }
+        let app = self.app.clone();
+        tauri::async_runtime::spawn(async move {
+            if crate::streaming_cmds::ensure_cached(&app, id).await.is_ok() {
+                if let Some(m) = app.try_state::<Arc<Music>>() {
+                    // Still the next one? Then it can follow on gaplessly.
+                    if m.p.lock().queue.peek_next() == Some(id) {
+                        m.preload_next();
+                    }
+                }
+            }
+        });
+    }
+
+    /// The current and next songs (kept when trimming the stream cache).
+    pub fn near_ids(&self) -> Vec<i64> {
+        let p = self.p.lock();
+        [p.current, p.queue.peek_next(), p.loading].into_iter().flatten().collect()
     }
 
     pub fn status(&self) -> Status {
@@ -158,6 +247,7 @@ impl Music {
             output: p.output.clone().or_else(|| self.engine.output()),
             output_error: p.output_error.clone(),
             device: p.device.clone(),
+            loading: p.loading.is_some(),
         }
     }
 
@@ -386,11 +476,17 @@ pub async fn music_play(app: AppHandle, ids: Vec<i64>, start: usize) -> Res<()> 
 #[tauri::command]
 pub async fn music_pause(app: AppHandle, paused: Option<bool>) -> Res<()> {
     let m = m(&app)?;
-    let (now, has) = {
+    let (now, has, pending, cur, pos) = {
         let p = m.p.lock();
-        (p.paused, p.current.is_some())
+        (p.paused, p.current.is_some(), p.pending, p.current, p.pos)
     };
     if !has {
+        return Ok(());
+    }
+    if pending && !paused.unwrap_or(!now) {
+        if let Some(id) = cur {
+            m.load(id, pos, false);
+        }
         return Ok(());
     }
     m.engine.pause(paused.unwrap_or(!now));

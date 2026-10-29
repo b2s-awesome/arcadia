@@ -44,6 +44,21 @@ pub struct Track {
     pub play_count: i64,
     pub last_played: Option<i64>,
     pub favourite: bool,
+    /// "local" (from a library folder), "stream" (online, cached) or
+    /// "download" (fetched and kept).
+    pub origin: String,
+    /// Where an online song came from.
+    pub source_url: Option<String>,
+}
+
+/// What's known about an online song before its file exists.
+#[derive(Debug, Clone, Default)]
+pub struct RemoteMeta {
+    pub url: String,
+    pub title: String,
+    pub artist: String,
+    pub album: Option<String>,
+    pub duration: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -125,13 +140,21 @@ CREATE TABLE IF NOT EXISTS playlist_items (
 CREATE INDEX IF NOT EXISTS playlist_items_by_list ON playlist_items(playlist_id, pos);
 ";
 
-const TRACK_COLS: &str = "id, path, title, artist, album_artist, album, genre, year, track_no, disc_no, duration, sample_rate, bit_depth, channels, bitrate, format, art, art_color, added_at, play_count, last_played, favourite";
+const TRACK_COLS: &str = "id, path, title, artist, album_artist, album, genre, year, track_no, disc_no, duration, sample_rate, bit_depth, channels, bitrate, format, art, art_color, added_at, play_count, last_played, favourite, origin, source_url";
+
+/// Schema changes after the first release, applied in order.
+const MIGRATIONS: &[&str] = &["ALTER TABLE tracks ADD COLUMN origin TEXT NOT NULL DEFAULT 'local'; ALTER TABLE tracks ADD COLUMN source_url TEXT; CREATE INDEX IF NOT EXISTS tracks_by_source ON tracks(source_url);"];
 
 impl Library {
     pub fn open(dir: &Path) -> Result<Library> {
         std::fs::create_dir_all(dir.join("art"))?;
         let conn = Connection::open(dir.join("library.db")).context("Couldn't open the music library")?;
         conn.execute_batch(SCHEMA)?;
+        let version: usize = conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))? as usize;
+        for (i, m) in MIGRATIONS.iter().enumerate().skip(version) {
+            conn.execute_batch(m)?;
+            conn.execute_batch(&format!("PRAGMA user_version = {}", i + 1))?;
+        }
         Ok(Library { db: Mutex::new(conn), art_dir: dir.join("art") })
     }
 
@@ -160,6 +183,8 @@ impl Library {
             play_count: r.get(19)?,
             last_played: r.get(20)?,
             favourite: r.get::<_, i64>(21)? != 0,
+            origin: r.get(22)?,
+            source_url: r.get(23)?,
         })
     }
 
@@ -185,7 +210,7 @@ impl Library {
         // Tracks outside every folder go; their playlists entries with them.
         let keep: Vec<String> = folders.iter().map(|f| f.trim().to_string()).filter(|f| !f.is_empty()).collect();
         let paths: Vec<(i64, String)> = {
-            let mut st = tx.prepare("SELECT id, path FROM tracks")?;
+            let mut st = tx.prepare("SELECT id, path FROM tracks WHERE origin = 'local'")?;
             let v = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
             v
         };
@@ -230,6 +255,112 @@ impl Library {
     pub fn path_of(&self, id: i64) -> Option<PathBuf> {
         let db = self.db.lock();
         db.query_row("SELECT path FROM tracks WHERE id = ?1", [id], |r| r.get::<_, String>(0)).ok().map(PathBuf::from)
+    }
+
+    // ── online songs ───────────────────────────────────────────
+
+    /// The library entry for an online song, made if it's new. It has no
+    /// file until it's fetched (`path` is empty).
+    pub fn remote(&self, m: &RemoteMeta) -> Result<i64> {
+        let db = self.db.lock();
+        if let Some(id) = db.query_row("SELECT id FROM tracks WHERE source_url = ?1", [&m.url], |r| r.get::<_, i64>(0)).optional()? {
+            return Ok(id);
+        }
+        // `path` is unique: stand-in until the file exists.
+        let placeholder = format!("remote:{}", m.url);
+        db.execute(
+            "INSERT INTO tracks(path, mtime, size, title, artist, album_artist, album, duration, format, added_at, origin, source_url)
+             VALUES (?1, 0, 0, ?2, ?3, ?3, ?4, ?5, '', ?6, 'stream', ?7)",
+            params![placeholder, m.title, m.artist, m.album.clone().unwrap_or_else(|| "Singles".into()), m.duration.unwrap_or(0.0), now(), m.url],
+        )?;
+        Ok(db.last_insert_rowid())
+    }
+
+    /// A playable file on disk for this track, if there is one.
+    pub fn file_of(&self, id: i64) -> Option<PathBuf> {
+        self.path_of(id).filter(|p| p.is_file())
+    }
+
+    pub fn source_of(&self, id: i64) -> Option<String> {
+        self.db.lock().query_row("SELECT source_url FROM tracks WHERE id = ?1", [id], |r| r.get::<_, Option<String>>(0)).ok().flatten()
+    }
+
+    /// Point an online song at its file: a cached stream or a download.
+    /// Tags and covers in the file win; `fallback` and `cover` fill gaps.
+    pub fn attach_file(&self, id: i64, path: &Path, origin: &str, fallback: Option<&RemoteMeta>, cover: Option<&[u8]>) -> Result<()> {
+        let meta = std::fs::metadata(path)?;
+        let mtime = meta.modified().ok().and_then(|m| m.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_secs() as i64).unwrap_or(0);
+        let mut t = read_tags(path).unwrap_or_default();
+        if let Some(f) = fallback {
+            let stem = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            if t.title.is_empty() || t.title == stem {
+                t.title = f.title.clone();
+            }
+            if t.artist.is_empty() || t.artist == "Unknown artist" {
+                t.artist = f.artist.clone();
+                t.album_artist = f.artist.clone();
+            }
+            if t.album.is_empty() || t.album == "Unknown album" {
+                t.album = f.album.clone().unwrap_or_else(|| "Singles".into());
+            }
+            if t.duration <= 0.0 {
+                t.duration = f.duration.unwrap_or(0.0);
+            }
+        }
+        if t.title.is_empty() {
+            t.title = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        }
+        if t.format.is_empty() {
+            t.format = path.extension().map(|e| e.to_string_lossy().to_ascii_uppercase()).unwrap_or_default();
+        }
+        if let Some(bytes) = t.picture.take().or_else(|| cover.map(<[u8]>::to_vec)) {
+            let hash = hex::encode(Sha1::digest(&bytes));
+            if let Ok(c) = self.save_art(&hash, &bytes) {
+                t.art = Some(hash);
+                t.art_color = Some(c);
+            }
+        }
+        let db = self.db.lock();
+        // A file already in the library (e.g. a download inside a scanned
+        // folder) merges into this entry instead of duplicating it.
+        let p = path.display().to_string();
+        if let Some(other) = db.query_row("SELECT id FROM tracks WHERE path = ?1 AND id != ?2", params![p, id], |r| r.get::<_, i64>(0)).optional()? {
+            db.execute("UPDATE playlist_items SET track_id = ?1 WHERE track_id = ?2", params![id, other])?;
+            db.execute("DELETE FROM tracks WHERE id = ?1", [other])?;
+        }
+        db.execute(
+            "UPDATE tracks SET path=?2, mtime=?3, size=?4, title=?5, artist=?6, album_artist=?7, album=?8, genre=?9, year=?10, track_no=?11, disc_no=?12,
+             duration=?13, sample_rate=?14, bit_depth=?15, channels=?16, bitrate=?17, format=?18, art=COALESCE(?19, art), art_color=COALESCE(?20, art_color), origin=?21 WHERE id=?1",
+            params![id, p, mtime, meta.len() as i64, t.title, t.artist, if t.album_artist.is_empty() { t.artist.clone() } else { t.album_artist.clone() }, t.album, t.genre, t.year, t.track_no, t.disc_no,
+                t.duration, t.sample_rate, t.bit_depth, t.channels, t.bitrate, t.format, t.art, t.art_color, origin],
+        )?;
+        Ok(())
+    }
+
+    /// Give a track a cover from image bytes (e.g. an online thumbnail).
+    pub fn set_art(&self, id: i64, bytes: &[u8]) -> Result<()> {
+        let hash = hex::encode(Sha1::digest(bytes));
+        let color = self.save_art(&hash, bytes)?;
+        self.db.lock().execute("UPDATE tracks SET art = ?2, art_color = ?3 WHERE id = ?1", params![id, hash, color])?;
+        Ok(())
+    }
+
+    pub fn has_art(&self, id: i64) -> bool {
+        self.db.lock().query_row("SELECT art IS NOT NULL FROM tracks WHERE id = ?1", [id], |r| r.get::<_, bool>(0)).unwrap_or(false)
+    }
+
+    /// Cached stream files, least recently played first (for trimming the cache).
+    pub fn cached_streams(&self) -> Result<Vec<(i64, PathBuf)>> {
+        let db = self.db.lock();
+        let mut st = db.prepare("SELECT id, path FROM tracks WHERE origin = 'stream' AND path NOT LIKE 'remote:%' ORDER BY COALESCE(last_played, added_at)")?;
+        let v = st.query_map([], |r| Ok((r.get::<_, i64>(0)?, PathBuf::from(r.get::<_, String>(1)?))))?.collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(v)
+    }
+
+    /// Forget a cached file (it's fetched again next time it plays).
+    pub fn uncache(&self, id: i64) -> Result<()> {
+        self.db.lock().execute("UPDATE tracks SET path = 'remote:' || source_url, size = 0 WHERE id = ?1 AND origin = 'stream' AND source_url IS NOT NULL", [id])?;
+        Ok(())
     }
 
     // ── play history and favourites ────────────────────────────
@@ -733,5 +864,57 @@ mod tests {
         let c = accent(&dark_blue);
         let (_, _, l) = hsl(u8::from_str_radix(&c[1..3], 16).unwrap(), u8::from_str_radix(&c[3..5], 16).unwrap(), u8::from_str_radix(&c[5..7], 16).unwrap());
         assert!(l >= 0.5, "{c} is too dark to use as an accent");
+    }
+}
+
+#[cfg(test)]
+mod remote_tests {
+    use super::*;
+
+    #[test]
+    fn online_songs_get_files_later_and_survive_folder_changes() {
+        let t = tempfile::tempdir().unwrap();
+        let lib = Library::open(&t.path().join("db")).unwrap();
+        let m = RemoteMeta { url: "https://soundcloud.com/a/b".into(), title: "B".into(), artist: "A".into(), album: None, duration: Some(1.0) };
+        let id = lib.remote(&m).unwrap();
+        assert_eq!(lib.remote(&m).unwrap(), id, "same link, same entry");
+        assert!(lib.file_of(id).is_none());
+        let tr = lib.track(id).unwrap().unwrap();
+        assert_eq!((tr.origin.as_str(), tr.album.as_str(), tr.source_url.as_deref()), ("stream", "Singles", Some("https://soundcloud.com/a/b")));
+
+        // Folder changes don't touch online songs.
+        lib.set_folders(&[t.path().join("nowhere").display().to_string()]).unwrap();
+        assert!(lib.track(id).unwrap().is_some());
+
+        // The file arrives (no tags in it): the known details are kept.
+        let f = t.path().join("b.wav");
+        std::fs::write(&f, minimal_wav()).unwrap();
+        lib.attach_file(id, &f, "stream", Some(&m), None).unwrap();
+        let tr = lib.track(id).unwrap().unwrap();
+        assert_eq!((tr.title.as_str(), tr.artist.as_str()), ("B", "A"));
+        assert_eq!(lib.file_of(id).as_deref(), Some(f.as_path()));
+        assert_eq!(lib.cached_streams().unwrap().len(), 1);
+        lib.uncache(id).unwrap();
+        assert!(lib.file_of(id).is_none());
+        assert!(lib.cached_streams().unwrap().is_empty());
+    }
+
+    fn minimal_wav() -> Vec<u8> {
+        let mut v = Vec::new();
+        let data = 1600u32;
+        v.extend_from_slice(b"RIFF");
+        v.extend_from_slice(&(36 + data).to_le_bytes());
+        v.extend_from_slice(b"WAVEfmt ");
+        v.extend_from_slice(&16u32.to_le_bytes());
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&8000u32.to_le_bytes());
+        v.extend_from_slice(&16000u32.to_le_bytes());
+        v.extend_from_slice(&2u16.to_le_bytes());
+        v.extend_from_slice(&16u16.to_le_bytes());
+        v.extend_from_slice(b"data");
+        v.extend_from_slice(&data.to_le_bytes());
+        v.extend(std::iter::repeat_n(0u8, data as usize));
+        v
     }
 }

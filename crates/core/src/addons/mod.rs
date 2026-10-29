@@ -13,6 +13,7 @@
 //! a 0600 file elsewhere.
 
 pub mod discord;
+pub mod streaming;
 
 use anyhow::{bail, Context, Result};
 use serde_json::Value;

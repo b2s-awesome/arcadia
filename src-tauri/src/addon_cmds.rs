@@ -13,7 +13,7 @@ use tauri::{AppHandle, Manager};
 const DISCORD: &str = "discord-profile";
 
 /// The UI owns the installed list (in settings.ui.addons.installed).
-fn installed(app: &AppHandle, addon: &str) -> Res<()> {
+pub(crate) fn installed(app: &AppHandle, addon: &str) -> Res<()> {
     let st = app.state::<AppState>();
     let s = st.settings.lock();
     let ok = s.ui["addons"]["installed"].as_array().is_some_and(|a| a.iter().any(|v| v.as_str() == Some(addon)));

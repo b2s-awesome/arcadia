@@ -28,7 +28,7 @@ export interface AddonMeta {
   /** A settings panel, shown under Appearance → Addons. */
   settings?: () => Promise<{ default: Component }>;
   /** Where "Open" goes for an addon without a page. */
-  opens?: "appearance";
+  opens?: "appearance" | "music";
 }
 
 export const CATALOG: AddonMeta[] = [
@@ -81,6 +81,32 @@ export const CATALOG: AddonMeta[] = [
     ],
     settings: () => import("./see-through/Settings.svelte"),
     opens: "appearance",
+  },
+  {
+    id: "streaming",
+    name: "Streaming & downloads",
+    tagline: "Play and download music from YouTube Music, SoundCloud and more.",
+    description:
+      "Adds Online and Downloads to Music. Search YouTube Music or SoundCloud, or paste a link to a song, album, playlist or set from anywhere yt-dlp supports. Songs play through Arcadia's own engine (gapless, full seeking) after a quick fetch, and can be saved as M4A, MP3 or FLAC with their covers. Link a playlist and check it for new songs any time. Only download what you're allowed to: subscriber-only and DRM-protected audio isn't fetched.",
+    author: "Arcadia",
+    official: true,
+    version: "1.0.0",
+    icon: "download",
+    art: ["#2a0f1c", "#ff5f6d", "#ff8a3d"],
+    features: [
+      "Search YouTube Music and SoundCloud, or paste any link",
+      "Fetch-then-play through the native engine: gapless, seek anywhere, the next song pre-fetched",
+      "Download as M4A (untouched), MP3 320 or FLAC, with tags and covers",
+      "SoundCloud: the artist's original file when they allow downloads",
+      "Import playlists, albums and sets; check them for new songs later",
+      "A size-limited cache for streamed songs, cleared oldest first",
+    ],
+    permissions: [
+      { label: "Runs yt-dlp", detail: "Fetches yt-dlp from its official GitHub release (checked against the published checksum), or uses one you already have. ffmpeg likewise, only if you pick MP3/FLAC or want covers embedded." },
+      { label: "Internet", detail: "Talks to the sites you search or link, through yt-dlp, and downloads their thumbnails." },
+      { label: "Files", detail: "Streamed songs go to a cache in Arcadia's folder; downloads go to Music\\Arcadia Downloads (changeable)." },
+    ],
+    opens: "music",
   },
 ];
 

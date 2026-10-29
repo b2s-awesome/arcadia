@@ -35,7 +35,9 @@ export type MusicView =
   | { kind: "album"; key: string }
   | { kind: "artist"; name: string }
   | { kind: "playlist"; id: number }
-  | { kind: "search"; q: string };
+  | { kind: "search"; q: string }
+  | { kind: "online" }
+  | { kind: "downloads" };
 
 export const ms = $state({
   loaded: false,
@@ -56,13 +58,21 @@ export const artUrl = (p: string | null) => (p ? fileUrl(p) : null);
 export const albumKey = (t: Track) => `${t.albumArtist}\u0000${t.album}`;
 
 /** Albums and artists, rebuilt when the library changes. */
-export const lib = $state({ albums: [] as Album[], artists: [] as Artist[], byId: new Map<number, Track>(), albumByKey: new Map<string, Album>() });
+export const lib = $state({ albums: [] as Album[], artists: [] as Artist[], byId: new Map<number, Track>(), albumByKey: new Map<string, Album>(), tracks: [] as Track[], streamed: [] as Track[] });
 
 function rebuild() {
   const byId = new Map<number, Track>();
   const albums = new Map<string, Album>();
+  // Streamed songs aren't part of the library until they're downloaded.
+  const own: Track[] = [];
+  const streamed: Track[] = [];
   for (const t of ms.tracks) {
     byId.set(t.id, t);
+    if (t.origin === "stream") {
+      streamed.push(t);
+      continue;
+    }
+    own.push(t);
     const k = albumKey(t);
     let a = albums.get(k);
     if (!a) {
@@ -92,6 +102,8 @@ function rebuild() {
     ar.tracks.push(...a.tracks);
   }
   lib.byId = byId;
+  lib.tracks = own;
+  lib.streamed = streamed.sort((a, b) => (b.lastPlayed ?? b.addedAt) - (a.lastPlayed ?? a.addedAt));
   lib.albumByKey = albums;
   lib.albums = albumList;
   lib.artists = [...artists.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
@@ -280,7 +292,7 @@ export function search(q: string) {
     return words.every((w) => l.includes(w));
   };
   return {
-    tracks: ms.tracks.filter((t) => hit(`${t.title} ${t.artist} ${t.album}`)).slice(0, 200),
+    tracks: lib.tracks.filter((t) => hit(`${t.title} ${t.artist} ${t.album}`)).slice(0, 200),
     albums: lib.albums.filter((a) => hit(`${a.title} ${a.artist}`)).slice(0, 24),
     artists: lib.artists.filter((a) => hit(a.name)).slice(0, 12),
   };

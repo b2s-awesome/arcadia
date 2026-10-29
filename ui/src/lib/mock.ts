@@ -133,7 +133,7 @@ function mockImage(url: string): string {
 
 export async function mockInvoke(cmd: string, args: Record<string, unknown> = {}): Promise<unknown> {
   await sleep(60);
-  if (cmd.startsWith("music_")) return mockMusic(cmd, args, emit);
+  if (cmd.startsWith("music_") || cmd.startsWith("streaming_")) return mockMusic(cmd, args, emit);
   switch (cmd) {
     case "addon_get": return structuredClone(addonStore.get(`${args.addon}/${args.key}`) ?? null);
     case "addon_set": {

@@ -227,6 +227,9 @@ export interface Track {
   playCount: number;
   lastPlayed: number | null;
   favourite: boolean;
+  /** "local", "stream" (online, cached) or "download". */
+  origin: "local" | "stream" | "download";
+  sourceUrl: string | null;
 }
 export interface MusicPlaylist { id: number; name: string; count: number; duration: number; updated: number; arts: string[] }
 export interface OutputInfo { device: string; rate: number; channels: number }
@@ -244,7 +247,22 @@ export interface MusicStatus {
   output: OutputInfo | null;
   outputError: string | null;
   device: string | null;
+  /** Fetching the current online song. */
+  loading: boolean;
 }
 export interface QueueView { index: number | null; tracks: Track[] }
 export interface MusicScanReport { added: number; updated: number; removed: number; total: number; missingFolders: string[]; errors: string[] }
 export interface MusicScanProgress { done: number; total: number; current: string }
+
+// ── Streaming & downloads addon ────────────────────────────────
+export type OnlineSource = "youtube-music" | "soundcloud";
+export interface OnlineItem { url: string; title: string; artist: string; album: string | null; duration: number | null; thumbnail: string | null; site: string }
+export interface OnlineFound { playlist: string | null; items: OnlineItem[] }
+export type DownloadFormat = "m4a" | "mp3" | "flac";
+export interface StreamingConfig { format: DownloadFormat; scOriginal: boolean; downloadDir: string; cacheLimitMb: number; ytdlpPath: string; ffmpegPath: string }
+export interface ToolInfo { path: string; version: string | null; managed: boolean }
+export interface StreamingStatus { ytdlp: ToolInfo | null; ffmpeg: ToolInfo | null; config: StreamingConfig; downloadDir: string; cacheBytes: number; windows: boolean }
+export interface FetchProgress { percent: number; speed: string; eta: string; stage: string }
+export interface DownloadJob { id: number; trackId: number; title: string; artist: string; url: string; state: "queued" | "running" | "done" | "failed" | "cancelled"; progress: FetchProgress; error: string | null; path: string | null }
+export interface SyncedSource { playlistId: number; url: string; download: boolean; lastSync: number }
+export interface InstallProgress { tool: "yt-dlp" | "ffmpeg"; done: number; total: number; stage: string }
