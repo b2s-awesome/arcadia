@@ -6,7 +6,7 @@
   import { visibleNav } from "./lib/nav";
   import { addonById } from "./addons/registry";
   import Marketplace from "./pages/Marketplace.svelte";
-  import { applyLook, defaultLook, PRESETS, wallpaperUrl, type PresetId } from "./lib/theme";
+  import { applyLook, defaultLook, PRESETS, SPLASH_MS, wallpaperUrl, type PresetId } from "./lib/theme";
   import type { Activity, Progress } from "./lib/types";
   import Icon from "./components/Icon.svelte";
   import Logo from "./components/Logo.svelte";
@@ -107,20 +107,51 @@
     }),
   ]);
 
-  // Splash: plays the animated logo once at startup, after settings load.
-  let splash = $state(new URLSearchParams(location.search).get("splash") !== "0");
+  // Splash: the logo builds itself once at startup. It's timed from when it
+  // first paints, not from launch, so a fast start doesn't cut it short, and
+  // Windows' "animation effects off" only stills it rather than shortening it.
+  // The popped-out Minecraft window skips it.
+  let splash = $state(app.mode === "hub" && new URLSearchParams(location.search).get("splash") !== "0");
+  let splashReady = $state(false);
   const reduced = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const splashStill = $derived(reduced && !app.ui.splash.animateAlways);
   $effect(() => {
     if (!splash || !app.settings) return;
-    const t = setTimeout(() => (splash = false), reduced ? 500 : 1900);
-    return () => clearTimeout(t);
+    const length = app.ui.splash.length;
+    if (length === "off") {
+      splash = false;
+      return;
+    }
+    // Wait for two frames so the timer starts once the logo is on screen.
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => {
+      splashReady = true;
+      t = setTimeout(() => (splash = false), SPLASH_MS[length]);
+    }));
+    return () => { cancelAnimationFrame(raf); clearTimeout(t); };
   });
+  // Replays (Appearance → Preview).
+  let lastRun = 0;
+  $effect(() => {
+    if (app.splashRun !== lastRun) {
+      lastRun = app.splashRun;
+      splashReady = false;
+      splash = true;
+    }
+  });
+  function skipSplash() {
+    if (splashReady) splash = false;
+  }
 
   let myLabel = "main";
   onMount(() => {
     loadSettings();
     windowLabel().then((l) => (myLabel = l));
     const key = (e: KeyboardEvent) => {
+      if (splash) {
+        skipSplash();
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "k" || e.key === " ")) {
         e.preventDefault();
         app.launcher = !app.launcher;
@@ -264,8 +295,12 @@
   {/if}
 
   {#if splash}
-    <div class="splash" out:fade={{ duration: reduced ? 0 : 350 }} aria-hidden="true">
-      {#if app.settings}<AnimatedLogo size={112} name={brandName} />{/if}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div class="splash" class:motion-ok={!splashStill} out:fade={{ duration: splashStill ? 180 : 350 }} aria-hidden="true" onclick={skipSplash}>
+      {#if app.settings}
+        {#key app.splashRun}<AnimatedLogo size={112} name={brandName} still={splashStill} />{/key}
+        {#if splashReady}<span class="splash-skip">Click or press any key to skip</span>{/if}
+      {/if}
     </div>
   {/if}
 
@@ -376,6 +411,13 @@
   .track { flex: 1; height: 6px; background: var(--sunk); border-radius: 6px; overflow: hidden; }
   .fill { height: 100%; background: var(--peach); transition: width 0.3s ease; }
 
+  .splash-skip {
+    position: absolute; bottom: 2.2rem; left: 0; right: 0; text-align: center;
+    font-size: 0.78rem; color: var(--faint); opacity: 0;
+    animation: skip-in 0.4s ease-out 1.2s forwards;
+  }
+  @keyframes skip-in { to { opacity: 1; } }
+  .splash:not(.motion-ok) .splash-skip { opacity: 1; }
   .splash {
     position: fixed; inset: 0; z-index: 80;
     display: grid; place-items: center;

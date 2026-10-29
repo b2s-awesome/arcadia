@@ -65,6 +65,8 @@ Four built-in looks, switchable from **Appearance** or the launcher:
 
 On top of any look you can set a wallpaper (five built in, or your own image), its blur and dim, panel opacity, corners, font and accent color, and save the result as a named look. The window is frameless; the top bar holds the page dots, clock, proxy status and window buttons, and can be an island or a flush strip, or hidden.
 
+The startup splash can be Short, Normal, Long or off (**Appearance → Startup**), and any click or key skips it. It's timed from when the logo first appears, so a fast start doesn't cut it short. If animation effects are off in Windows, the logo shows without moving for the same length of time; a switch there plays the animation anyway.
+
 The sidebar is yours too: under **Appearance → Sidebar**, drag entries into any order, hide the ones you don't use (they stay one Ctrl+K away), or switch to icons only. The page dots in the top bar follow the same order.
 
 ## Marketplace and addons

@@ -49,6 +49,17 @@ export interface RailPrefs {
   compact: boolean;
 }
 
+/** The logo animation at startup. */
+export interface SplashPrefs {
+  length: "off" | "short" | "normal" | "long";
+  /** Play the animation even when Windows animations are turned off. */
+  animateAlways: boolean;
+}
+
+/** How long the splash stays up, from first paint, in ms. The logo
+ *  animation itself takes about 1.3 s. */
+export const SPLASH_MS: Record<Exclude<SplashPrefs["length"], "off">, number> = { short: 1500, normal: 2600, long: 4000 };
+
 export interface AddonPrefs {
   installed: string[];
 }
@@ -61,6 +72,7 @@ export interface UiState {
   applied: string | null;
   rail: RailPrefs;
   addons: AddonPrefs;
+  splash: SplashPrefs;
 }
 
 interface Preset {
@@ -196,6 +208,7 @@ export function defaultUi(): UiState {
     applied: null,
     rail: { order: [], hidden: [], compact: false },
     addons: { installed: [] },
+    splash: { length: "normal", animateAlways: false },
   };
 }
 
@@ -221,6 +234,10 @@ export function normalizeUi(v: unknown): UiState {
     applied: u.applied ?? null,
     rail,
     addons: { installed: strs(u.addons?.installed) },
+    splash: {
+      length: (["off", "short", "normal", "long"] as const).includes(u.splash?.length as SplashPrefs["length"]) ? u.splash!.length : d.splash.length,
+      animateAlways: u.splash?.animateAlways === true,
+    },
   };
 }
 

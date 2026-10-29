@@ -107,6 +107,15 @@
     dropAt = null;
   }
 
+  // ── Splash ───────────────────────────────────────────────
+  const motionOff = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const splashLengths = [
+    { id: "off", label: "Off" },
+    { id: "short", label: "Short" },
+    { id: "normal", label: "Normal" },
+    { id: "long", label: "Long" },
+  ] as const;
+
   const opacity = $derived(look.panelOpacity ?? PRESETS[look.preset].panelOpacity);
 </script>
 
@@ -174,6 +183,32 @@
       <div class="setting">
         <div><div class="label">Icons only</div><div class="desc">A narrow sidebar; hover an icon to see its name.{hiddenCount ? ` ${hiddenCount} hidden.` : ""}</div></div>
         <Toggle label="Icons only" checked={app.ui.rail.compact} onchange={(v) => { app.ui.rail.compact = v; saveUi(); }} />
+      </div>
+    </section>
+
+    <section class="section">
+      <h3>Startup</h3>
+      <div class="setting">
+        <div><div class="label">Splash screen</div><div class="desc">The logo builds itself while {app.ui.brand.name.trim() || "Arcadia"} opens. Click or press any key to skip it.</div></div>
+        <div class="row">
+          <div class="seg" role="radiogroup" aria-label="Splash length">
+            {#each splashLengths as l}
+              <button role="radio" aria-checked={app.ui.splash.length === l.id} onclick={() => { app.ui.splash.length = l.id; saveUi(); }}>{l.label}</button>
+            {/each}
+          </div>
+          <button class="ghost small" disabled={app.ui.splash.length === "off"} onclick={() => app.splashRun++}>Preview</button>
+        </div>
+      </div>
+      <div class="setting">
+        <div>
+          <div class="label">Animate even with Windows animations off</div>
+          <div class="desc">
+            {motionOff
+              ? "Windows animation effects are off on this PC, so the logo shows without moving. Turn this on to see it build anyway."
+              : "If you turn off animation effects in Windows, the logo shows without moving. Turn this on to keep the animation."}
+          </div>
+        </div>
+        <Toggle label="Animate even with Windows animations off" checked={app.ui.splash.animateAlways} onchange={(v) => { app.ui.splash.animateAlways = v; saveUi(); }} />
       </div>
     </section>
 

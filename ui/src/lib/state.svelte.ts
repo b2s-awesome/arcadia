@@ -26,6 +26,8 @@ export const app = $state({
   /** Live status shared by the top bar and pages. */
   playing: null as { placeId: number; ip?: string } | null,
   toasts: [] as Toast[],
+  /** Bumped to show the startup splash again (e.g. a preview). */
+  splashRun: 0,
 });
 
 let tid = 1;
