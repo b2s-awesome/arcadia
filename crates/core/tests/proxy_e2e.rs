@@ -14,8 +14,26 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
+/// Stand-in for Roblox's shared ClientSettings compression dictionary.
+fn test_dictionary() -> Vec<u8> {
+    br#"{"applicationSettings":{"FFlagExisting":"True","DFIntSomething":"100"}}"#.repeat(30)
+}
+
 async fn upstream_handler(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
     let path = req.uri().path_and_query().unwrap().to_string();
+    let dict_hash = arcadia_core::proxy::dcz::sha256_hex(&test_dictionary());
+    if path == format!("/v2/compression-dictionaries/{dict_hash}") {
+        return Ok(Response::new(Full::new(Bytes::from(test_dictionary()))));
+    }
+    if path.starts_with("/v2/settings-compressed/application/PCDesktopClient/") {
+        // Like Roblox: dictionary-compressed, signed, with an ETag.
+        let body = arcadia_core::proxy::dcz::encode(br#"{"applicationSettings":{"FFlagExisting":"True"}}"#, &test_dictionary()).unwrap();
+        let mut r = Response::new(Full::new(Bytes::from(body)));
+        r.headers_mut().insert("content-encoding", "dcz".parse().unwrap());
+        r.headers_mut().insert("x-signature-ed25519", "c2lnbmF0dXJl".parse().unwrap());
+        r.headers_mut().insert("etag", "\"abc\"".parse().unwrap());
+        return Ok(r);
+    }
     let method = req.method().clone();
     let enc = req.headers().get("content-encoding").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     let body = req.into_body().collect().await.unwrap().to_bytes();
@@ -217,6 +235,23 @@ async fn proxy_end_to_end() {
     // The certificate flag always rides along, so Roblox keeps trusting the proxy.
     assert_eq!(v["applicationSettings"]["DFFlagHttpUseEmbeddedCaCerts"], "False");
 
+    // ── dictionary-compressed settings (what the Player actually requests) ──
+    let dict_hash = arcadia_core::proxy::dcz::sha256_hex(&test_dictionary());
+    let resp = client
+        .get(format!("https://clientsettingscdn.roblox.com/v2/settings-compressed/application/PCDesktopClient/{dict_hash}.dcz"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.headers()["content-encoding"], "dcz");
+    assert!(resp.headers().get("x-signature-ed25519").is_none(), "stale signature must be dropped");
+    assert!(resp.headers().get("etag").is_none());
+    let plain = arcadia_core::proxy::dcz::decode(&resp.bytes().await.unwrap(), &test_dictionary()).expect("still valid dcz");
+    let v: Value = serde_json::from_slice(&plain).unwrap();
+    assert_eq!(v["applicationSettings"]["DFFlagHttpUseEmbeddedCaCerts"], "False");
+    assert_eq!(v["applicationSettings"]["DFIntTaskSchedulerTargetFps"], "360");
+    assert_eq!(v["applicationSettings"]["FFlagExisting"], "True");
+
     // ── other hosts are tunneled, never decrypted ──
     // This client trusts ONLY the upstream CA, so it would fail if the proxy
     // had swapped in its own certificate.
@@ -254,9 +289,12 @@ async fn proxy_end_to_end() {
     assert_eq!(stats.replaced, 4);
     assert_eq!(stats.removed, 4);
     assert_eq!(stats.served_files, 1);
-    assert_eq!(stats.fflag_injections, 2); // the FPS flag + the certificate flag
+    assert_eq!(stats.fflag_injections, 4); // FPS + certificate flag, in each of the two settings responses
     let log = proxy.inspector().snapshot();
     assert!(log.iter().any(|e| e.kind == "modified" && e.note.contains("replaced 1")));
     assert!(log.iter().any(|e| e.kind == "tunnel" && e.url.starts_with("auth.roblox.com")), "{log:#?}");
+    // Tunnels now report what passed through them.
+    assert!(log.iter().any(|e| e.kind == "tunnel" && e.resp_bytes > 0), "{log:#?}");
+    assert!(log.iter().any(|e| e.note.contains("(dcz)")), "{log:#?}");
     proxy.stop();
 }

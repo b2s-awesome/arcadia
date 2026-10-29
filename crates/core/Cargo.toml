@@ -37,6 +37,7 @@ sha2 = "0.10"
 toml = "0.8"
 hex = "0.4"
 ruzstd = "0.8"
+zstd = "0.13"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"

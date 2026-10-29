@@ -50,6 +50,8 @@ struct State {
     delivered: Mutex<Option<String>>,
     /// Off = every connection is a blind tunnel (see `ProxyHook::intercept`).
     intercept: Arc<AtomicBool>,
+    /// Roblox's ClientSettings compression dictionaries, by SHA-256.
+    dictionaries: Mutex<HashMap<String, Arc<Vec<u8>>>>,
     inspector: Inspector,
     upstream: reqwest::Client,
     test_upstream: Option<TestUpstream>,
@@ -81,6 +83,7 @@ impl Proxy {
             fflags: RwLock::new(Map::new()),
             delivered: Mutex::new(None),
             intercept: Arc::new(AtomicBool::new(true)),
+            dictionaries: Mutex::new(HashMap::new()),
             inspector: Inspector::default(),
             upstream: b.build()?,
             test_upstream: cfg.test_upstream,
@@ -185,6 +188,11 @@ async fn front(st: Arc<State>, req: Request<Incoming>) -> Result<Response<Body>,
         });
         return Ok(Response::new(Full::new(Bytes::new())));
     }
+    // Something talking to the port directly rather than through it as a
+    // proxy (no host in the request line). Not ours to forward.
+    if req.uri().authority().is_none() {
+        return Ok(respond(StatusCode::BAD_REQUEST, "This is Arcadia's Roblox proxy; it only handles proxied requests."));
+    }
     // Plain-HTTP proxying: forward as-is.
     let url = req.uri().to_string();
     let host = req.uri().host().unwrap_or("").to_string();
@@ -197,12 +205,12 @@ async fn tunnel(st: Arc<State>, host: String, port: u16, mut client: TokioIo<hyp
         Some(t) => TcpStream::connect(t.addr).await,
         None => TcpStream::connect((host.as_str(), port)).await,
     };
-    let (status, kind) = match target {
+    let (status, kind, (up_bytes, down_bytes)) = match target {
         Ok(mut server) => {
-            let _ = tokio::io::copy_bidirectional(&mut client, &mut server).await;
-            (200, "tunnel")
+            let sent = tokio::io::copy_bidirectional(&mut client, &mut server).await.unwrap_or((0, 0));
+            (200, "tunnel", sent)
         }
-        Err(_) => (502, "error"),
+        Err(_) => (502, "error", (0, 0)),
     };
     st.inspector.record(Entry {
         id: 0,
@@ -210,8 +218,8 @@ async fn tunnel(st: Arc<State>, host: String, port: u16, mut client: TokioIo<hyp
         method: "CONNECT".into(),
         url: format!("{host}:{port}"),
         status,
-        req_bytes: 0,
-        resp_bytes: 0,
+        req_bytes: up_bytes as usize,
+        resp_bytes: down_bytes as usize,
         duration_ms: t0.elapsed().as_millis() as u64,
         kind: kind.into(),
         note: "not decrypted".into(),
@@ -274,6 +282,29 @@ fn decode_if_needed(headers: &mut HeaderMap, body: Bytes) -> Bytes {
         }
         None => body,
     }
+}
+
+/// Fetch (once) and verify one of Roblox's ClientSettings compression dictionaries.
+async fn fetch_dictionary(st: &State, hash: &str) -> Option<Arc<Vec<u8>>> {
+    if let Some(d) = st.dictionaries.lock().get(hash) {
+        return Some(d.clone());
+    }
+    let url = format!("https://clientsettings.roblox.com/v2/compression-dictionaries/{hash}");
+    let mut h = HeaderMap::new();
+    h.insert(hyper::header::ACCEPT_ENCODING, HeaderValue::from_static("identity"));
+    let mut up = forward(st, &Method::GET, &url, &h, Bytes::new()).await.ok()?;
+    if !up.status.is_success() {
+        log::warn!("compression dictionary {hash}: HTTP {}", up.status);
+        return None;
+    }
+    let body = decode_if_needed(&mut up.headers, up.body);
+    if super::dcz::sha256_hex(&body) != hash {
+        log::warn!("compression dictionary {hash}: contents don't match the hash");
+        return None;
+    }
+    let d = Arc::new(body.to_vec());
+    st.dictionaries.lock().insert(hash.to_string(), d.clone());
+    Some(d)
 }
 
 struct Upstream {
@@ -446,23 +477,71 @@ async fn handle(st: Arc<State>, req: Request<Incoming>, host: String, url: Strin
                 .get(hyper::header::CONTENT_ENCODING)
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("")
+                .trim()
                 .to_ascii_lowercase();
-            if !matches!(enc.as_str(), "" | "identity" | "gzip") {
+            // Get the plain JSON, whichever way Roblox encoded it.
+            let mut dictionary = None;
+            let plain = match enc.as_str() {
+                "dcz" => {
+                    let Some(hash) = super::dcz::dictionary_hash(&pq) else {
+                        kind = "error";
+                        note = "couldn't add flags: compressed settings without a dictionary name".into();
+                        return Ok(build(up.status, up.headers, up.body));
+                    };
+                    let Some(dict) = fetch_dictionary(&st, &hash).await else {
+                        kind = "error";
+                        note = "couldn't add flags: couldn't get Roblox's compression dictionary".into();
+                        return Ok(build(up.status, up.headers, up.body));
+                    };
+                    let Some(p) = super::dcz::decode(&up.body, &dict) else {
+                        kind = "error";
+                        note = "couldn't add flags: couldn't decode the compressed settings".into();
+                        return Ok(build(up.status, up.headers, up.body));
+                    };
+                    dictionary = Some(dict);
+                    Bytes::from(p)
+                }
+                "" | "identity" | "gzip" | "zstd" => decode_if_needed(&mut up.headers, up.body.clone()),
+                other => {
+                    kind = "error";
+                    note = format!("couldn't add flags: settings came back encoded as {other}");
+                    return Ok(build(up.status, up.headers, up.body));
+                }
+            };
+            let injected = hooks::inject_fflags(&plain, &flags);
+            let Some((edited, n)) = injected.filter(|_| up.status.is_success()) else {
                 kind = "error";
-                note = format!("couldn't add flags: settings came back encoded as {enc}");
+                note = "couldn't add flags: unexpected settings response".into();
                 return Ok(build(up.status, up.headers, up.body));
+            };
+            // Headers that describe the original body would no longer match
+            // (Fleasion drops the same ones).
+            for h in ["etag", "content-md5", "x-signature-ed25519", "x-signature"] {
+                up.headers.remove(h);
             }
-            let raw = decode_if_needed(&mut up.headers, up.body.clone());
-            let injected = hooks::inject_fflags(&raw, &flags);
-            if let (Some((b, n)), true) = (injected, up.status.is_success()) {
-                *st.delivered.lock() = Some(sig);
-                st.inspector.bump(|s| s.fflag_injections += n as u64);
-                kind = "modified";
-                note = format!("fastflags +{n}");
-                return Ok(build(up.status, up.headers, Bytes::from(b)));
-            }
-            note = "couldn't add flags: unexpected settings response".into();
-            return Ok(build(up.status, up.headers, raw));
+            let out = match &dictionary {
+                // The client asked for dcz, so answer in dcz.
+                Some(dict) => match super::dcz::encode(&edited, dict) {
+                    Some(b) => {
+                        up.headers.insert(hyper::header::CONTENT_ENCODING, HeaderValue::from_static("dcz"));
+                        b
+                    }
+                    None => {
+                        kind = "error";
+                        note = "couldn't add flags: couldn't re-compress the settings".into();
+                        return Ok(build(up.status, up.headers, up.body));
+                    }
+                },
+                None => {
+                    up.headers.remove(hyper::header::CONTENT_ENCODING);
+                    edited
+                }
+            };
+            *st.delivered.lock() = Some(sig);
+            st.inspector.bump(|s| s.fflag_injections += n as u64);
+            kind = "modified";
+            note = format!("fastflags +{n}{}", if dictionary.is_some() { " (dcz)" } else { "" });
+            return Ok(build(up.status, up.headers, Bytes::from(out)));
         }
 
         // 5. Everything else on an intercepted host: untouched.
