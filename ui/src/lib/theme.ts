@@ -40,12 +40,27 @@ export interface Brand {
 
 export const DEFAULT_BRAND: Brand = { name: "Arcadia", tagline: "Games and Roblox" };
 
+/** The vertical sidebar: which entries show, in what order. */
+export interface RailPrefs {
+  /** Entry ids top to bottom: pages, "marketplace" and "addon:<id>". */
+  order: string[];
+  hidden: string[];
+  /** Icons only, with labels on hover. */
+  compact: boolean;
+}
+
+export interface AddonPrefs {
+  installed: string[];
+}
+
 export interface UiState {
   brand: Brand;
   look: Look;
   bar: BarPrefs;
   saved: SavedLook[];
   applied: string | null;
+  rail: RailPrefs;
+  addons: AddonPrefs;
 }
 
 interface Preset {
@@ -179,6 +194,8 @@ export function defaultUi(): UiState {
     bar: { show: true, style: "island", clock24: false, seconds: false, date: true },
     saved: [],
     applied: null,
+    rail: { order: [], hidden: [], compact: false },
+    addons: { installed: [] },
   };
 }
 
@@ -190,7 +207,21 @@ export function normalizeUi(v: unknown): UiState {
   const preset = u.look?.preset && u.look.preset in PRESETS ? u.look.preset : "obsidian";
   const look = { ...defaultLook(preset), ...(u.look ?? {}), preset };
   const brand = { ...DEFAULT_BRAND, ...(u.brand ?? {}) };
-  return { brand, look, bar: { ...d.bar, ...(u.bar ?? {}) }, saved: Array.isArray(u.saved) ? u.saved : [], applied: u.applied ?? null };
+  const strs = (a: unknown): string[] => (Array.isArray(a) ? a.filter((x): x is string => typeof x === "string") : []);
+  const rail: RailPrefs = {
+    order: strs(u.rail?.order),
+    hidden: strs(u.rail?.hidden),
+    compact: u.rail?.compact === true,
+  };
+  return {
+    brand,
+    look,
+    bar: { ...d.bar, ...(u.bar ?? {}) },
+    saved: Array.isArray(u.saved) ? u.saved : [],
+    applied: u.applied ?? null,
+    rail,
+    addons: { installed: strs(u.addons?.installed) },
+  };
 }
 
 function rgba(color: string, alpha: number): string {

@@ -15,6 +15,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
+mod addon_cmds;
 mod minecraft_cmds;
 
 pub(crate) struct AppState {
@@ -40,8 +41,10 @@ fn get_settings(st: State<'_, AppState>) -> Settings {
     st.settings.lock().clone()
 }
 
+/// Saves settings, then tells the *other* windows to reload them, so the hub
+/// and the popped-out Minecraft window never overwrite each other's changes.
 #[tauri::command]
-async fn save_settings(st: State<'_, AppState>, settings: Settings) -> Res<()> {
+async fn save_settings(app: AppHandle, window: tauri::Window, st: State<'_, AppState>, settings: Settings) -> Res<()> {
     settings.save().map_err(err)?;
     let boot = settings.run_on_boot.then(|| format!("\"{}\" --tray", st.exe));
     arcadia_core::registry::set_run_on_boot("Arcadia", boot.as_deref()).map_err(err)?;
@@ -52,6 +55,7 @@ async fn save_settings(st: State<'_, AppState>, settings: Settings) -> Res<()> {
             .store(settings.proxy_inspector_enabled, Ordering::Relaxed);
     }
     *st.settings.lock() = settings;
+    let _ = app.emit("settings-changed", window.label());
     Ok(())
 }
 
@@ -72,8 +76,7 @@ async fn launch_game(app: AppHandle, st: State<'_, AppState>, id: String) -> Res
         return launch_roblox(app, None).await.map(|_| ());
     }
     if game.launch == LaunchTarget::Minecraft {
-        minecraft_cmds::open_minecraft(&app, false);
-        return Ok(());
+        return minecraft_cmds::open_minecraft(&app, false);
     }
     library::launch(&game.launch).map_err(err)?;
     let settings = st.settings.lock().clone();
@@ -455,7 +458,12 @@ pub(crate) fn show_main(app: &AppHandle) {
 /// Handle a command line (first start, or forwarded from a second start).
 fn handle_args(app: &AppHandle, args: &[String]) -> bool {
     if args.iter().any(|a| a == "--minecraft") {
-        minecraft_cmds::open_minecraft(app, true);
+        if let Err(e) = minecraft_cmds::open_minecraft(app, true) {
+            // No launcher window: fall back to the hub so the user sees something.
+            show_main(app);
+            let _ = app.emit_to("main", "navigate", "minecraft");
+            log::error!("{e}");
+        }
         return true;
     }
     if let Some(uri) = args.iter().skip(1).find(|a| roblox::is_roblox_uri(a)).cloned() {
@@ -623,6 +631,14 @@ fn main() {
             minecraft_cmds::open_url,
             inspector_snapshot,
             inspector_clear,
+            addon_cmds::addon_get,
+            addon_cmds::addon_set,
+            addon_cmds::addon_keys,
+            addon_cmds::addon_clear,
+            addon_cmds::addon_secret_set,
+            addon_cmds::addon_secrets,
+            addon_cmds::discord_lookup,
+            addon_cmds::discord_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Arcadia");
