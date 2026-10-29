@@ -32,6 +32,14 @@ Pushing a tag like `v0.1.0` to GitHub runs `.github/workflows/release.yml`, whic
 ## Using it
 
 - **Library:** click a cover to select it, double-click or press Play to launch. "Add a game" accepts an `.exe` or any launcher link (`steam://…`, `uplay://…`).
+  - **Sections** in collapsible tabs: all games, favourites, recently played, your collections (with an emoji each), each launcher, and hidden games. Sort by name, recent or most played, and resize the covers.
+  - **Playtime for every game:** Arcadia watches for the game's process to close after launching it. Steam's own playtime, and Roblox's and Minecraft's trackers, are shown too.
+  - **Per game** (the brush button):
+    - **Art:** covers, banners and logos from SteamGridDB (needs a free key in Settings → Library), or your own pictures.
+    - **Launch:** launch options (passed through Steam for Steam games), plus scripts that run before the game starts and after it closes.
+    - **Notes.**
+    - **Details:** a rename, how long to beat (shown as progress against your playtime, with a link to HowLongToBeat), collections, and hiding the game.
+  - **Big Picture:** a full-screen, sofa-friendly view with shelves. Use the arrow keys or a controller: A plays, Y favourites, LB/RB switch shelves, B leaves.
 - **Roblox join buttons:** on first launch Arcadia offers to take over `roblox-player:` links, so Join on roblox.com opens through Arcadia (with your FastFlags, mods and proxy applied). It re-claims the links each launch, since Roblox's own updater tends to take them back.
 - **Mods:** drop files into the mods folder using Roblox's own layout, e.g. `content\sounds\ouch.ogg`. They're copied over Roblox's files on launch and the originals restored when you remove them.
 - **Asset proxy:** turn on "Use the proxy when Roblox starts", add rules in a profile (paste asset IDs, pick Swap / Use a file / Remove), then launch Roblox from Arcadia. The cache is cleared on launch and exit so changes take effect. Profiles can be shared as JSON.

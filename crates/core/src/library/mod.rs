@@ -7,6 +7,8 @@ mod epic;
 mod gog;
 mod steam;
 mod ubisoft;
+pub mod meta;
+pub mod steamgriddb;
 pub mod vdf;
 
 pub use custom::{add_custom, remove_custom, CustomGame};

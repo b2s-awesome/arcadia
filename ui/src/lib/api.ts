@@ -2,7 +2,7 @@
 // browser during design work) a mock backend answers instead.
 import type {
   DeviceCode, FoundInstance, Hit, McPack, McWorld, McBackup, McShot, McSavedServer, McServerStatus, McUpdate, McLogFile, McCrashInfo, McSkin, McProfile, McExportOptions, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
-  Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RobloxAccount, RobloxAccounts, RobloxGame, RobloxHistory, RobloxServer, RuleConfig, ScanReport, Settings, RulesImported,
+  Entry, Game, GameMeta, GameCollection, LibraryMeta, SgdbFound, SgdbArt, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RobloxAccount, RobloxAccounts, RobloxGame, RobloxHistory, RobloxServer, RuleConfig, ScanReport, Settings, RulesImported,
   MusicPlaylist, MusicScanReport, MusicStatus, QueueView, RepeatMode, Track, ShuffleMode, ListenStats, Lyrics,
   DownloadJob, OnlineFound, OnlineItem, OnlineSource, StreamingConfig, StreamingStatus, SyncedSource } from "./types";
 import { mockInvoke, mockListen } from "./mock";
@@ -78,6 +78,13 @@ export const api = {
 
   scanLibrary: () => call<ScanReport>("scan_library"),
   launchGame: (id: string) => call<void>("launch_game", { id }),
+  libraryMeta: () => call<LibraryMeta>("library_meta"),
+  libraryMetaSet: (id: string, meta: GameMeta) => call<void>("library_meta_set", { id, meta }),
+  libraryCollectionsSet: (list: GameCollection[]) => call<void>("library_collections_set", { list }),
+  libraryArtImport: (path: string) => call<string>("library_art_import", { path }),
+  libraryArtSearch: (term: string) => call<SgdbFound[]>("library_art_search", { term }),
+  libraryArt: (kind: "cover" | "hero" | "logo", id: number, steam: boolean) => call<SgdbArt[]>("library_art", { kind, id, steam }),
+  libraryBigPicture: (on: boolean) => call<void>("library_big_picture", { on }),
   addCustomGame: (name: string, target: LaunchTarget, cover: string | null) =>
     call<void>("add_custom_game", { name, target, cover }),
   removeCustomGame: (id: string) => call<void>("remove_custom_game", { id }),
