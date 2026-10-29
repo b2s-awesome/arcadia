@@ -99,7 +99,7 @@
 
   const go = (p: Page) => () => { app.page = p; };
   const baseActions: LauncherAction[] = [
-    { id: "play", label: "Play Roblox", hint: "Update if needed and launch", icon: "play", ring: true, run: () => { api.robloxLaunch(null).catch((e) => toast(String(e), "error")); } },
+    { id: "play", label: "Play Roblox", hint: "Update if needed and launch", icon: "play", ring: true, run: () => { api.robloxPlay(null).catch((e) => toast(String(e), "error")); } },
     { id: "library", label: "Library", hint: "All your games", icon: "library", ring: true, run: go("library") },
     { id: "proxy", label: "Asset proxy", hint: "Swap and remove assets", icon: "proxy", ring: true, run: go("proxy") },
     { id: "inspector", label: "Inspector", hint: "Live proxy requests", icon: "inspector", ring: true, run: go("inspector") },

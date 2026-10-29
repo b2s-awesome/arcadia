@@ -2,7 +2,7 @@
 // browser during design work) a mock backend answers instead.
 import type {
   DeviceCode, FoundInstance, Hit, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
-  Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RuleConfig, ScanReport, Settings, RulesImported,
+  Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RobloxAccount, RobloxAccounts, RobloxGame, RobloxHistory, RobloxServer, RuleConfig, ScanReport, Settings, RulesImported,
   MusicPlaylist, MusicScanReport, MusicStatus, QueueView, RepeatMode, Track, ShuffleMode, ListenStats, Lyrics,
   DownloadJob, OnlineFound, OnlineItem, OnlineSource, StreamingConfig, StreamingStatus, SyncedSource } from "./types";
 import { mockInvoke, mockListen } from "./mock";
@@ -77,6 +77,28 @@ export const api = {
   clearCache: (kill: boolean) => call<{ removed: number; locked: number }>("clear_roblox_cache", { kill }),
   fflagPresets: () => call<Preset[]>("fflag_presets"),
   parseFflags: (json: string) => call<Record<string, string>>("parse_fflags", { json }),
+  robloxPlay: (account: number | null, place: number | null = null, job: string | null = null) => call<string>("roblox_play", { account, place, job }),
+  robloxRejoinCancel: () => call<void>("roblox_rejoin_cancel"),
+  robloxAccounts: () => call<RobloxAccounts>("roblox_accounts"),
+  robloxAccountLogin: () => call<RobloxAccount>("roblox_account_login"),
+  robloxAccountCancelLogin: () => call<void>("roblox_account_cancel_login"),
+  robloxAccountRemove: (id: number) => call<void>("roblox_account_remove", { id }),
+  robloxAccountDefault: (id: number | null) => call<void>("roblox_account_default", { id }),
+  robloxAccountNote: (id: number, note: string) => call<void>("roblox_account_note", { id, note }),
+  robloxAccountReorder: (ids: number[]) => call<void>("roblox_account_reorder", { ids }),
+  robloxAccountCheck: (id: number) => call<boolean>("roblox_account_check", { id }),
+  robloxServers: (place: number, cursor: string | null = null) => call<{ servers: RobloxServer[]; next: string | null }>("roblox_servers", { place, cursor }),
+  robloxServerRegion: (place: number, job: string) => call<string | null>("roblox_server_region", { place, job }),
+  robloxGames: (places: number[]) => call<RobloxGame[]>("roblox_games", { places }),
+  robloxPlaceFrom: (text: string) => call<number | null>("roblox_place_from", { text }),
+  robloxHistory: () => call<RobloxHistory>("roblox_history"),
+  robloxHistoryAdd: (place: number) => call<void>("roblox_history_add", { place }),
+  robloxHistoryFavourite: (place: number, on: boolean) => call<void>("roblox_history_favourite", { place, on }),
+  robloxHistoryForget: (place: number) => call<void>("roblox_history_forget", { place }),
+  robloxHistoryClear: () => call<void>("roblox_history_clear"),
+  robloxShortcut: (place: number, name: string, account: number | null) => call<string>("roblox_shortcut", { place, name, account }),
+  robloxCursorPreview: (style: string, colour: string, scale: number) => call<string>("roblox_cursor_preview", { style, colour, scale }),
+  robloxFlagAllowlist: () => call<string[]>("roblox_flag_allowlist"),
   openFolder: (which: "mods" | "roblox" | "proxy" | "data") => call<void>("open_folder", { which }),
 
   proxyStatus: () => call<ProxyStatus>("proxy_status"),

@@ -14,6 +14,9 @@ use std::time::{Duration, SystemTime};
 pub enum Activity {
     Joining { place_id: u64, job_id: String },
     ServerIp { ip: String },
+    /// The server dropped us: kicked for being idle, a lost connection or a
+    /// shutdown. `reason` is Roblox's disconnect code when the log has one.
+    Disconnected { reason: Option<u32> },
     Left,
 }
 
@@ -30,12 +33,20 @@ fn re_udmux() -> &'static Regex {
     R.get_or_init(|| Regex::new(r"Connection accepted from ([0-9\.]+)\|").unwrap())
 }
 
+fn re_dropped() -> &'static Regex {
+    static R: OnceLock<Regex> = OnceLock::new();
+    R.get_or_init(|| Regex::new(r"Disconnection Notification\. Reason: ([0-9]+)|(?i)(lost connection to the game server|kicked (?:due to|for) being idle)").unwrap())
+}
+
 pub fn parse_line(line: &str) -> Option<Activity> {
     if let Some(c) = re_join().captures(line) {
         return Some(Activity::Joining { place_id: c[2].parse().ok()?, job_id: c[1].to_string() });
     }
     if let Some(c) = re_server().captures(line).or_else(|| re_udmux().captures(line)) {
         return Some(Activity::ServerIp { ip: c[1].to_string() });
+    }
+    if let Some(c) = re_dropped().captures(line) {
+        return Some(Activity::Disconnected { reason: c.get(1).and_then(|m| m.as_str().parse().ok()) });
     }
     if line.contains("[FLog::Network] Time to disconnect replication data") {
         return Some(Activity::Left);
@@ -112,5 +123,9 @@ mod tests {
         );
         let s = "[FLog::Network] UDMUX Address = 1.2.3.4, Port = 5 | RCC Server Address = 128.116.1.2, Port = 6";
         assert_eq!(parse_line(s), Some(Activity::ServerIp { ip: "128.116.1.2".into() }));
+        let d = "2026-10-28T18:20:00.000Z,1.0,abcd,6 [FLog::Network] Disconnection Notification. Reason: 277";
+        assert_eq!(parse_line(d), Some(Activity::Disconnected { reason: Some(277) }));
+        let k = "[FLog::Output] You were kicked for being idle more than 20 minutes";
+        assert_eq!(parse_line(k), Some(Activity::Disconnected { reason: None }));
     }
 }

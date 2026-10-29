@@ -132,6 +132,193 @@ pub fn custom_font_files(version_dir: &Path, font: &Path) -> Result<Vec<(String,
     Ok(out)
 }
 
+// ── Mod studio ──────────────────────────────────────────────
+
+/// Mods made from a few choices instead of hand-placed files.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct ModStudio {
+    /// "" keeps Roblox's cursor; a built-in style ("dot", "ring", "cross",
+    /// "arrow"); or "custom" for your own pictures.
+    pub cursor: String,
+    /// Colour for the built-in styles, as #rrggbb.
+    pub cursor_colour: String,
+    /// Size of the built-in styles, 50–200 (%).
+    pub cursor_scale: u32,
+    pub cursor_arrow: Option<String>,
+    pub cursor_far: Option<String>,
+    /// Shift-lock crosshair: "", a built-in style, or "custom".
+    pub shiftlock: String,
+    pub shiftlock_file: Option<String>,
+    /// Sound for when your character resets or dies.
+    pub death_sound: Option<String>,
+}
+
+impl Default for ModStudio {
+    fn default() -> Self {
+        Self {
+            cursor: String::new(),
+            cursor_colour: "#ffffff".into(),
+            cursor_scale: 100,
+            cursor_arrow: None,
+            cursor_far: None,
+            shiftlock: String::new(),
+            shiftlock_file: None,
+            death_sound: None,
+        }
+    }
+}
+
+pub const CURSOR_STYLES: &[&str] = &["dot", "ring", "ring-dot", "cross", "arrow"];
+const ARROW: &str = "content/textures/Cursors/KeyboardMouse/ArrowCursor.png";
+const ARROW_FAR: &str = "content/textures/Cursors/KeyboardMouse/ArrowFarCursor.png";
+const LOCKED: &str = "content/textures/MouseLockedCursor.png";
+const OUCH: &str = "content/sounds/ouch.ogg";
+
+impl ModStudio {
+    pub fn is_empty(&self) -> bool {
+        self.cursor.is_empty() && self.shiftlock.is_empty() && self.death_sound.is_none()
+    }
+
+    /// The files these choices add, as (path in the version folder, bytes).
+    pub fn files(&self) -> Result<Vec<(String, Vec<u8>)>> {
+        let mut out = Vec::new();
+        let colour = parse_colour(&self.cursor_colour).unwrap_or([255, 255, 255]);
+        let scale = self.cursor_scale.clamp(50, 200) as f32 / 100.0;
+        let read = |p: &Option<String>| -> Result<Option<Vec<u8>>> {
+            match p.as_deref().filter(|p| !p.is_empty()) {
+                Some(p) => Ok(Some(std::fs::read(p).map_err(|e| anyhow::anyhow!("{p}: {e}"))?)),
+                None => Ok(None),
+            }
+        };
+        match self.cursor.as_str() {
+            "" => {}
+            "custom" => {
+                let arrow = read(&self.cursor_arrow)?;
+                let far = read(&self.cursor_far)?.or_else(|| arrow.clone());
+                if let Some(a) = arrow {
+                    out.push((ARROW.into(), a));
+                }
+                if let Some(f) = far {
+                    out.push((ARROW_FAR.into(), f));
+                }
+            }
+            style => {
+                out.push((ARROW.into(), cursor_png(style, colour, scale, 1.0)));
+                out.push((ARROW_FAR.into(), cursor_png(style, colour, scale, 0.6)));
+            }
+        }
+        match self.shiftlock.as_str() {
+            "" => {}
+            "custom" => {
+                if let Some(b) = read(&self.shiftlock_file)? {
+                    out.push((LOCKED.into(), b));
+                }
+            }
+            style => out.push((LOCKED.into(), cursor_png(style, colour, scale, 1.0))),
+        }
+        if let Some(b) = read(&self.death_sound)? {
+            out.push((OUCH.into(), b));
+        }
+        Ok(out)
+    }
+}
+
+fn parse_colour(s: &str) -> Option<[u8; 3]> {
+    let h = s.trim().trim_start_matches('#');
+    if h.len() != 6 {
+        return None;
+    }
+    let n = u32::from_str_radix(h, 16).ok()?;
+    Some([(n >> 16) as u8, (n >> 8) as u8, n as u8])
+}
+
+/// Signed distance from a point to a convex or concave polygon.
+fn sd_polygon(p: (f32, f32), v: &[(f32, f32)]) -> f32 {
+    let mut d = f32::MAX;
+    let mut inside = false;
+    let mut j = v.len() - 1;
+    for i in 0..v.len() {
+        let (a, b) = (v[i], v[j]);
+        let e = (b.0 - a.0, b.1 - a.1);
+        let w = (p.0 - a.0, p.1 - a.1);
+        let t = ((w.0 * e.0 + w.1 * e.1) / (e.0 * e.0 + e.1 * e.1)).clamp(0.0, 1.0);
+        let q = (w.0 - e.0 * t, w.1 - e.1 * t);
+        d = d.min((q.0 * q.0 + q.1 * q.1).sqrt());
+        if ((a.1 > p.1) != (b.1 > p.1)) && (p.0 < (b.0 - a.0) * (p.1 - a.1) / (b.1 - a.1) + a.0) {
+            inside = !inside;
+        }
+        j = i;
+    }
+    if inside { -d } else { d }
+}
+
+fn sd_box(p: (f32, f32), c: (f32, f32), half: (f32, f32)) -> f32 {
+    let q = ((p.0 - c.0).abs() - half.0, (p.1 - c.1).abs() - half.1);
+    let out = (q.0.max(0.0).powi(2) + q.1.max(0.0).powi(2)).sqrt();
+    out + q.0.max(q.1).min(0.0)
+}
+
+/// Distance to one of Arcadia's own cursor shapes, centred on (32, 32)
+/// (Roblox draws cursor pictures centred on the pointer).
+fn shape(style: &str, p: (f32, f32), k: f32) -> f32 {
+    let c = (32.0, 32.0);
+    let r = ((p.0 - c.0).powi(2) + (p.1 - c.1).powi(2)).sqrt();
+    match style {
+        "ring" => (r - 9.0 * k).abs() - 1.6 * k,
+        "ring-dot" => ((r - 9.0 * k).abs() - 1.6 * k).min(r - 2.2 * k),
+        "cross" => {
+            let gap = 3.5 * k;
+            let len = 7.0 * k;
+            let arm = |dx: f32, dy: f32| sd_box(p, (c.0 + dx * (gap + len / 2.0), c.1 + dy * (gap + len / 2.0)), if dx != 0.0 { (len / 2.0, 1.2 * k) } else { (1.2 * k, len / 2.0) });
+            arm(1.0, 0.0).min(arm(-1.0, 0.0)).min(arm(0.0, 1.0)).min(arm(0.0, -1.0)).min(r - 1.4 * k)
+        }
+        "arrow" => {
+            let pts = [(0.0, 0.0), (0.0, 19.0), (4.6, 14.8), (8.2, 22.4), (11.4, 21.0), (7.9, 13.6), (13.6, 13.6)];
+            let v: Vec<(f32, f32)> = pts.iter().map(|(x, y)| (c.0 + x * k, c.1 + y * k)).collect();
+            sd_polygon(p, &v) - 0.6 * k
+        }
+        _ => r - 4.0 * k,
+    }
+}
+
+/// Draw one of Arcadia's cursor shapes as a 64×64 PNG: a fill in `colour`
+/// with a soft dark outline so it shows on any background.
+pub fn cursor_png(style: &str, colour: [u8; 3], scale: f32, alpha: f32) -> Vec<u8> {
+    const N: u32 = 64;
+    const SS: u32 = 4;
+    let k = scale;
+    let outline = 1.6 * k.max(0.8);
+    let mut img = image::RgbaImage::new(N, N);
+    for y in 0..N {
+        for x in 0..N {
+            let (mut fill, mut edge) = (0.0f32, 0.0f32);
+            for sy in 0..SS {
+                for sx in 0..SS {
+                    let p = (x as f32 + (sx as f32 + 0.5) / SS as f32, y as f32 + (sy as f32 + 0.5) / SS as f32);
+                    let d = shape(style, p, k);
+                    if d < 0.0 {
+                        fill += 1.0;
+                    } else if d < outline {
+                        edge += 1.0;
+                    }
+                }
+            }
+            let n = (SS * SS) as f32;
+            let (f, e) = (fill / n, edge / n);
+            let a = f + e * 0.7;
+            if a <= 0.0 {
+                continue;
+            }
+            let mix = |ch: u8| ((ch as f32 * f + 12.0 * e * 0.7) / a).round().clamp(0.0, 255.0) as u8;
+            img.put_pixel(x, y, image::Rgba([mix(colour[0]), mix(colour[1]), mix(colour[2]), (a * alpha * 255.0).round().min(255.0) as u8]));
+        }
+    }
+    let mut out = std::io::Cursor::new(Vec::new());
+    let _ = img.write_to(&mut out, image::ImageFormat::Png);
+    out.into_inner()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -174,5 +361,28 @@ mod tests {
         assert_eq!(files[0].0, "content/fonts/CustomFont.ttf");
         let fam: serde_json::Value = serde_json::from_slice(&files[1].1).unwrap();
         assert_eq!(fam["faces"][0]["assetId"], "rbxasset://fonts/CustomFont.ttf");
+    }
+
+    #[test]
+    fn studio_makes_cursor_files() {
+        let mut m = ModStudio { cursor: "ring".into(), shiftlock: "cross".into(), ..Default::default() };
+        let f = m.files().unwrap();
+        assert_eq!(f.iter().map(|x| x.0.as_str()).collect::<Vec<_>>(), [ARROW, ARROW_FAR, LOCKED]);
+        let img = image::load_from_memory(&f[0].1).unwrap().to_rgba8();
+        assert_eq!(img.dimensions(), (64, 64));
+        // The ring is drawn, the middle of it is empty.
+        assert!(img.get_pixel(41, 32)[3] > 200);
+        assert_eq!(img.get_pixel(32, 32)[3], 0);
+        // The far cursor is fainter.
+        let far = image::load_from_memory(&f[1].1).unwrap().to_rgba8();
+        assert!(far.get_pixel(41, 32)[3] < img.get_pixel(41, 32)[3]);
+        for s in CURSOR_STYLES {
+            let i = image::load_from_memory(&cursor_png(s, [255, 0, 0], 1.0, 1.0)).unwrap().to_rgba8();
+            assert!(i.pixels().any(|p| p[3] > 0), "{s} draws something");
+        }
+        m.cursor = "custom".into();
+        m.cursor_arrow = Some("/no/such/file.png".into());
+        assert!(m.files().is_err());
+        assert!(ModStudio::default().files().unwrap().is_empty());
     }
 }

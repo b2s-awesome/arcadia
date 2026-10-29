@@ -31,6 +31,54 @@ const other = (source: Game["source"], id: string, name: string): Game => ({
   hero: null,
 });
 
+
+// ── Roblox+ sample data ──
+const nowS = () => Math.floor(Date.now() / 1000);
+let rbxAccounts = {
+  list: [
+    { id: 1, name: "skyline_main", displayName: "Skyline", avatar: null as string | null, note: "main", added: nowS() - 9e6, lastUsed: nowS() - 3600 },
+    { id: 2, name: "skyline_alt", displayName: "Sky Alt", avatar: null as string | null, note: "trading", added: nowS() - 4e6, lastUsed: nowS() - 864000 },
+    { id: 3, name: "afk_farmer_77", displayName: "Farmer", avatar: null as string | null, note: "", added: nowS() - 1e6, lastUsed: null as number | null },
+  ],
+  default: 1 as number | null,
+};
+const rbxGame = (placeId: number, name: string, creator: string, hours: number, sessions: number, agoH: number, favourite = false) =>
+  ({ placeId, name, creator, icon: null as string | null, seconds: Math.round(hours * 3600), sessions, last: nowS() - agoH * 3600, favourite });
+let rbxHistory = {
+  games: [
+    rbxGame(2753915549, "Blox Fruits", "Gamer Robot Inc", 61.5, 88, 2, true),
+    rbxGame(920587237, "Adopt Me!", "Uplift Games", 23.2, 41, 26, true),
+    rbxGame(6516141723, "DOORS", "LSPLASH", 9.8, 17, 50),
+    rbxGame(4924922222, "Brookhaven RP", "Wolfpaq Games", 7.1, 12, 120),
+    rbxGame(606849621, "Jailbreak", "Badimo", 4.4, 9, 300),
+    rbxGame(142823291, "Murder Mystery 2", "Nikilis", 2.2, 6, 700),
+  ],
+  visits: [] as { placeId: number; jobId: string; session: number; account: number | null; started: number; ended: number | null; region: string | null }[],
+};
+{
+  const regions = ["Frankfurt, Germany", "London, United Kingdom", "Ashburn, United States", "Amsterdam, Netherlands"];
+  let t = nowS() - 2 * 3600;
+  for (let i = 0; i < 14; i++) {
+    const g = rbxHistory.games[(i * 7) % 5];
+    const len = 600 + ((i * 937) % 4200);
+    rbxHistory.visits.unshift({ placeId: g.placeId, jobId: `${(0x4f1c9a3e + i * 7919).toString(16)}-2b7d-4e8f-9a10-${(123456789 + i).toString(16).padStart(12, "0")}`, session: i, account: [1, 1, 2, null, 3][i % 5], started: t - len, ended: t, region: regions[i % 4] });
+    t -= len + 3600 * (1 + (i % 3) * 7);
+  }
+}
+function mockCursor(style: string, colour: string, scale: number): string {
+  const k = scale / 100;
+  const st = `fill="${colour}" stroke="rgba(10,10,12,.75)" stroke-width="${1.6 * k}"`;
+  const shapes: Record<string, string> = {
+    dot: `<circle cx="32" cy="32" r="${4 * k}" ${st}/>`,
+    ring: `<circle cx="32" cy="32" r="${9 * k}" fill="none" stroke="rgba(10,10,12,.75)" stroke-width="${5 * k}"/><circle cx="32" cy="32" r="${9 * k}" fill="none" stroke="${colour}" stroke-width="${3.2 * k}"/>`,
+    "ring-dot": `<circle cx="32" cy="32" r="${9 * k}" fill="none" stroke="rgba(10,10,12,.75)" stroke-width="${5 * k}"/><circle cx="32" cy="32" r="${9 * k}" fill="none" stroke="${colour}" stroke-width="${3.2 * k}"/><circle cx="32" cy="32" r="${2.2 * k}" ${st}/>`,
+    cross: [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([x, y]) => { const g = 3.5 * k, l = 7 * k; return `<rect x="${32 + (x ? x * (g + l / 2) - l / 2 : -1.2 * k)}" y="${32 + (y ? y * (g + l / 2) - l / 2 : -1.2 * k)}" width="${x ? l : 2.4 * k}" height="${y ? l : 2.4 * k}" ${st}/>`; }).join("") + `<circle cx="32" cy="32" r="${1.4 * k}" ${st}/>`,
+    arrow: `<path transform="translate(32 32) scale(${k})" d="M0 0V19L4.6 14.8 8.2 22.4 11.4 21 7.9 13.6H13.6Z" ${st} stroke-linejoin="round"/>`,
+  };
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">${shapes[style] ?? shapes.dot}</svg>`;
+  return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+}
+
 const games: Game[] = [
   { id: "minecraft:launcher", name: "Minecraft", source: "minecraft", install_dir: null, launch: { kind: "minecraft" }, cover: null, hero: null },
   { id: "roblox:player", name: "Roblox", source: "roblox", install_dir: null, launch: { kind: "roblox" }, cover: null, hero: null },
@@ -61,7 +109,17 @@ let settings: Settings = {
   roblox_priority: "AboveNormal",
   roblox_custom_font: null,
   roblox_apply_mods: true,
-  fast_flags: { FFlagDebugGraphicsPreferD3D11: "True", FIntDebugForceMSAASamples: "0" },
+  roblox_flag_profiles: {
+    "Competitive": { FFlagDebugGraphicsPreferD3D11: "True", FIntDebugForceMSAASamples: "0", DFIntTextureQualityOverride: "0", DFFlagTextureQualityOverrideEnabled: "True" },
+    "Pretty": { FIntDebugForceMSAASamples: "4" },
+  },
+  roblox_flag_profile: "",
+  roblox_auto_rejoin: true,
+  roblox_rejoin_delay: 10,
+  roblox_rejoin_same_server: true,
+  roblox_mod_studio: { cursor: "ring-dot", cursor_colour: "#ffffff", cursor_scale: 100, cursor_arrow: null, cursor_far: null, shiftlock: "cross", shiftlock_file: null, death_sound: null },
+  roblox_mod_presets: { "Clean aim": { cursor: "dot", cursor_colour: "#b8bbff", cursor_scale: 90, cursor_arrow: null, cursor_far: null, shiftlock: "dot", shiftlock_file: null, death_sound: null } },
+  fast_flags: { FFlagDebugGraphicsPreferD3D11: "True", FIntDebugForceMSAASamples: "0", FFlagDebugDisplayFPS: "True" },
   proxy_enabled: true,
   proxy_port: 58443,
   proxy_clear_cache_on_launch: true,
@@ -188,6 +246,57 @@ export async function mockInvoke(cmd: string, args: Record<string, unknown> = {}
       emit("roblox-activity", { type: "serverIp", ip: "128.116.44.12" });
       return "version-6d7e1c9a4b2f4e31";
     }
+    // ── Roblox+ ──
+    case "roblox_play": {
+      emit("roblox-progress", { stage: "checking" });
+      await sleep(600);
+      emit("roblox-progress", { stage: "ready", version: "version-6d7e1c9a4b2f4e31" });
+      emit("roblox-launched", "version-6d7e1c9a4b2f4e31");
+      if (args.place) {
+        await sleep(400);
+        emit("roblox-activity", { type: "joining", place_id: args.place, job_id: args.job ?? "4f1c9a3e-2b7d-4e8f-9a10-1234567890ab" });
+      }
+      return "version-6d7e1c9a4b2f4e31";
+    }
+    case "roblox_rejoin_cancel": emit("roblox-rejoin", { state: "cancelled", placeId: 0, seconds: 0, message: null }); return;
+    case "roblox_accounts": return structuredClone(rbxAccounts);
+    case "roblox_account_login": {
+      await sleep(1500);
+      const a = { id: 3000000000 + rbxAccounts.list.length, name: "new_alt_" + rbxAccounts.list.length, displayName: "New alt", avatar: null, note: "", added: Date.now() / 1000, lastUsed: null };
+      rbxAccounts.list.push(a);
+      return a;
+    }
+    case "roblox_account_cancel_login": return;
+    case "roblox_account_remove": rbxAccounts.list = rbxAccounts.list.filter((a) => a.id !== args.id); if (rbxAccounts.default === args.id) rbxAccounts.default = null; return;
+    case "roblox_account_default": rbxAccounts.default = args.id as number | null; return;
+    case "roblox_account_note": { const a = rbxAccounts.list.find((x) => x.id === args.id); if (a) a.note = String(args.note); return; }
+    case "roblox_account_reorder": { const ids = args.ids as number[]; rbxAccounts.list.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id)); return; }
+    case "roblox_account_check": await sleep(500); return args.id !== 2;
+    case "roblox_servers": {
+      await sleep(500);
+      const page = args.cursor ? 2 : 1;
+      const servers = Array.from({ length: page === 1 ? 24 : 12 }, (_, i) => {
+        const max = 24;
+        const playing = Math.max(1, Math.round(max - (i + (page - 1) * 24) * 0.7 - Math.random() * 3));
+        return { id: `job-${page}-${i}-${Math.random().toString(16).slice(2, 10)}`, playing, maxPlayers: max, ping: 30 + Math.round(Math.random() * 160), fps: 55 + Math.random() * 5 };
+      });
+      return { servers, next: page === 1 ? "page2" : null };
+    }
+    case "roblox_server_region": {
+      await sleep(250 + Math.random() * 500);
+      const r = ["Ashburn, United States", "Frankfurt, Germany", "London, United Kingdom", "Singapore, Singapore", "Los Angeles, United States", "Tokyo, Japan", "Sydney, Australia", "Amsterdam, Netherlands", "Mumbai, India", "Dallas, United States"];
+      return r[Math.abs([...String(args.job)].reduce((h, c) => h * 31 + c.charCodeAt(0), 7)) % r.length];
+    }
+    case "roblox_games": return (args.places as number[]).map((p) => { const g = rbxHistory.games.find((x) => x.placeId === p); return { placeId: p, universeId: p + 1, name: g?.name ?? `Place ${p}`, creator: g?.creator ?? "Someone", icon: null, playing: 12000 }; });
+    case "roblox_place_from": { const m = String(args.text).match(/(?:games\/|placeid=)?(\d{3,})/i); return m ? Number(m[1]) : null; }
+    case "roblox_history": return structuredClone(rbxHistory);
+    case "roblox_history_add": rbxHistory.games.push({ placeId: args.place as number, name: "Natural Disaster Survival", creator: "Stickmasterluke", icon: null, seconds: 0, sessions: 0, last: Date.now() / 1000, favourite: false }); emit("roblox-history", null); return;
+    case "roblox_history_favourite": { const g = rbxHistory.games.find((x) => x.placeId === args.place); if (g) g.favourite = !!args.on; return; }
+    case "roblox_history_forget": rbxHistory.games = rbxHistory.games.filter((g) => g.placeId !== args.place); rbxHistory.visits = rbxHistory.visits.filter((g) => g.placeId !== args.place); return;
+    case "roblox_history_clear": rbxHistory.visits = []; return;
+    case "roblox_shortcut": return `C:\\Users\\you\\Desktop\\${args.name}.lnk`;
+    case "roblox_cursor_preview": return mockCursor(String(args.style), String(args.colour), Number(args.scale));
+    case "roblox_flag_allowlist": return ["DFIntCSGLevelOfDetailSwitchingDistance", "DFIntCSGLevelOfDetailSwitchingDistanceL12", "DFIntCSGLevelOfDetailSwitchingDistanceL23", "DFIntCSGLevelOfDetailSwitchingDistanceL34", "FFlagHandleAltEnterFullscreenManually", "DFFlagTextureQualityOverrideEnabled", "DFIntTextureQualityOverride", "FIntDebugForceMSAASamples", "DFFlagDisableDPIScale", "FFlagDebugGraphicsPreferD3D11", "FFlagDebugSkyGray", "DFFlagDebugPauseVoxelizer", "DFIntDebugFRMQualityLevelOverride", "FIntFRMMaxGrassDistance", "FIntFRMMinGrassDistance", "FFlagDebugGraphicsPreferVulkan", "FFlagDebugGraphicsPreferOpenGL", "FIntGrassMovementReducedMotionFactor"];
     case "clear_roblox_cache": return { removed: 3, locked: 0 };
     case "fflag_presets": return [
       { id: "dx11", label: "Force Direct3D 11", description: "Use the D3D11 renderer.", flags: { FFlagDebugGraphicsPreferD3D11: "True" } },

@@ -49,6 +49,13 @@ export interface Settings {
   roblox_custom_font: string | null;
   roblox_apply_mods: boolean;
   fast_flags: Record<string, FlagValue>;
+  roblox_flag_profiles: Record<string, Record<string, FlagValue>>;
+  roblox_flag_profile: string;
+  roblox_auto_rejoin: boolean;
+  roblox_rejoin_delay: number;
+  roblox_rejoin_same_server: boolean;
+  roblox_mod_studio: ModStudio;
+  roblox_mod_presets: Record<string, ModStudio>;
   proxy_enabled: boolean;
   proxy_port: number;
   proxy_clear_cache_on_launch: boolean;
@@ -81,7 +88,79 @@ export type Progress =
 export type Activity =
   | { type: "joining"; place_id: number; job_id: string }
   | { type: "serverIp"; ip: string }
+  | { type: "disconnected"; reason: number | null }
   | { type: "left" };
+
+export interface ModStudio {
+  /** "" = Roblox's own, a built-in style, or "custom". */
+  cursor: string;
+  cursor_colour: string;
+  cursor_scale: number;
+  cursor_arrow: string | null;
+  cursor_far: string | null;
+  shiftlock: string;
+  shiftlock_file: string | null;
+  death_sound: string | null;
+}
+
+export interface RobloxAccount {
+  id: number;
+  name: string;
+  displayName: string;
+  avatar: string | null;
+  note: string;
+  added: number;
+  lastUsed: number | null;
+}
+export interface RobloxAccounts {
+  list: RobloxAccount[];
+  default: number | null;
+}
+
+export interface RobloxVisit {
+  placeId: number;
+  jobId: string;
+  session: number;
+  account: number | null;
+  started: number;
+  ended: number | null;
+  region: string | null;
+}
+export interface RobloxPlayed {
+  placeId: number;
+  name: string;
+  creator: string;
+  icon: string | null;
+  seconds: number;
+  sessions: number;
+  last: number;
+  favourite: boolean;
+}
+export interface RobloxHistory {
+  visits: RobloxVisit[];
+  games: RobloxPlayed[];
+}
+export interface RobloxServer {
+  id: string;
+  playing: number;
+  maxPlayers: number;
+  ping: number | null;
+  fps: number | null;
+}
+export interface RobloxGame {
+  placeId: number;
+  universeId: number;
+  name: string;
+  creator: string;
+  icon: string | null;
+  playing: number;
+}
+export interface RejoinEvent {
+  state: "waiting" | "cancelled" | "joining" | "done" | "failed" | "limit";
+  placeId: number;
+  seconds: number;
+  message: string | null;
+}
 
 export interface Preset {
   id: string;

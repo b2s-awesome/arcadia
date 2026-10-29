@@ -81,3 +81,10 @@ pub fn ensure_all() -> std::io::Result<()> {
     }
     Ok(())
 }
+
+/// Write a file so a crash halfway never leaves it half-written.
+pub fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    let tmp = path.with_extension("tmp");
+    std::fs::write(&tmp, bytes)?;
+    std::fs::rename(&tmp, path)
+}

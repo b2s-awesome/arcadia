@@ -42,12 +42,92 @@ pub fn presets() -> Vec<Preset> {
             flags: json!({"FIntFRMMinGrassDistance": "0", "FIntFRMMaxGrassDistance": "0"}),
         },
         Preset {
+            id: "low-textures",
+            label: "Lowest texture quality",
+            description: "Blurrier textures, less memory and faster loading.",
+            flags: json!({"DFFlagTextureQualityOverrideEnabled": "True", "DFIntTextureQualityOverride": "0"}),
+        },
+        Preset {
+            id: "low-detail",
+            label: "Simpler distant parts",
+            description: "Switches unions and meshes to their low-detail models sooner.",
+            flags: json!({
+                "DFIntCSGLevelOfDetailSwitchingDistance": "0",
+                "DFIntCSGLevelOfDetailSwitchingDistanceL12": "0",
+                "DFIntCSGLevelOfDetailSwitchingDistanceL23": "0",
+                "DFIntCSGLevelOfDetailSwitchingDistanceL34": "0"
+            }),
+        },
+        Preset {
+            id: "low-lighting",
+            label: "Lowest lighting quality",
+            description: "Forces the lowest lighting and shadow level.",
+            flags: json!({"DFIntDebugFRMQualityLevelOverride": "1"}),
+        },
+        Preset {
+            id: "pause-voxel",
+            label: "Freeze lighting updates",
+            description: "Stops lighting recalculating as things move. Big FPS gain, odd shadows.",
+            flags: json!({"DFFlagDebugPauseVoxelizer": "True"}),
+        },
+        Preset {
+            id: "gray-sky",
+            label: "Plain grey sky",
+            description: "Replaces skyboxes with flat grey.",
+            flags: json!({"FFlagDebugSkyGray": "True"}),
+        },
+        Preset {
+            id: "still-grass",
+            label: "Still grass",
+            description: "Stops grass swaying.",
+            flags: json!({"FIntGrassMovementReducedMotionFactor": "0"}),
+        },
+        Preset {
+            id: "no-dpi",
+            label: "Ignore display scaling",
+            description: "Renders at full resolution on scaled (125%, 150%) displays.",
+            flags: json!({"DFFlagDisableDPIScale": "True"}),
+        },
+        Preset {
+            id: "alt-enter",
+            label: "Alt+Enter fullscreen fix",
+            description: "Lets Alt+Enter toggle fullscreen properly.",
+            flags: json!({"FFlagHandleAltEnterFullscreenManually": "False"}),
+        },
+        Preset {
             id: "msaa-off",
             label: "Disable MSAA",
             description: "Turns off multisample anti-aliasing.",
             flags: json!({"FIntDebugForceMSAASamples": "0"}),
         },
     ]
+}
+
+/// Flags Roblox still reads from `ClientAppSettings.json` (its published
+/// allowlist). Anything else in that file is ignored.
+pub const ALLOWLIST: &[&str] = &[
+    "DFIntCSGLevelOfDetailSwitchingDistance",
+    "DFIntCSGLevelOfDetailSwitchingDistanceL12",
+    "DFIntCSGLevelOfDetailSwitchingDistanceL23",
+    "DFIntCSGLevelOfDetailSwitchingDistanceL34",
+    "FFlagHandleAltEnterFullscreenManually",
+    "DFFlagTextureQualityOverrideEnabled",
+    "DFIntTextureQualityOverride",
+    "FIntDebugForceMSAASamples",
+    "DFFlagDisableDPIScale",
+    "FFlagDebugGraphicsPreferD3D11",
+    "FFlagDebugSkyGray",
+    "DFFlagDebugPauseVoxelizer",
+    "DFIntDebugFRMQualityLevelOverride",
+    "FIntFRMMaxGrassDistance",
+    "FIntFRMMinGrassDistance",
+    "FFlagDebugGraphicsPreferVulkan",
+    "FFlagDebugGraphicsPreferOpenGL",
+    "FIntGrassMovementReducedMotionFactor",
+];
+
+pub fn allowed(name: &str) -> bool {
+    ALLOWLIST.iter().any(|a| a.eq_ignore_ascii_case(name))
 }
 
 /// Makes Roblox trust `ssl/cacert.pem` (which holds Arcadia's CA) instead of
@@ -118,6 +198,16 @@ pub fn parse_import(src: &str) -> anyhow::Result<Map<String, Value>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn presets_only_use_allowed_flags() {
+        for p in presets() {
+            for k in p.flags.as_object().unwrap().keys() {
+                assert!(allowed(k), "{} uses {k}", p.id);
+            }
+        }
+        assert!(!allowed("DFIntTaskSchedulerTargetFps"));
+    }
+
     #[test]
     fn local_file_keeps_only_allowlist_candidates() {
         let mut u = std::collections::BTreeMap::new();

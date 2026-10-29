@@ -9,6 +9,8 @@ use std::sync::mpsc::Sender;
 use std::sync::OnceLock;
 use tauri::AppHandle;
 
+// Only read by the Windows media controls.
+#[cfg_attr(not(windows), allow(dead_code))]
 pub enum Update {
     Track { title: String, artist: String, album: String, art: Option<String>, duration: f64 },
     Playing { playing: bool, pos: f64 },

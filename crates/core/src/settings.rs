@@ -26,6 +26,18 @@ pub struct Settings {
     pub roblox_apply_mods: bool,
     /// FastFlags written to ClientAppSettings.json (local file route).
     pub fast_flags: BTreeMap<String, serde_json::Value>,
+    /// Saved FastFlag sets. Picking one copies it into `fast_flags`.
+    pub roblox_flag_profiles: BTreeMap<String, BTreeMap<String, serde_json::Value>>,
+    /// The profile `fast_flags` came from ("" = none).
+    pub roblox_flag_profile: String,
+    /// Join again after being kicked for idling or losing connection.
+    pub roblox_auto_rejoin: bool,
+    /// Seconds to wait (with a chance to cancel) before rejoining.
+    pub roblox_rejoin_delay: u32,
+    /// Rejoin the same server instead of any server of the game.
+    pub roblox_rejoin_same_server: bool,
+    pub roblox_mod_studio: crate::roblox::mods::ModStudio,
+    pub roblox_mod_presets: BTreeMap<String, crate::roblox::mods::ModStudio>,
 
     // ── Asset proxy (Fleasion-style) ─────────────────────────
     pub proxy_enabled: bool,
@@ -74,6 +86,13 @@ impl Default for Settings {
             roblox_custom_font: None,
             roblox_apply_mods: true,
             fast_flags: BTreeMap::new(),
+            roblox_flag_profiles: BTreeMap::new(),
+            roblox_flag_profile: String::new(),
+            roblox_auto_rejoin: false,
+            roblox_rejoin_delay: 10,
+            roblox_rejoin_same_server: true,
+            roblox_mod_studio: Default::default(),
+            roblox_mod_presets: BTreeMap::new(),
             proxy_enabled: false,
             proxy_port: 58443,
             proxy_clear_cache_on_launch: true,
