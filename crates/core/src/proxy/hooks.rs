@@ -31,11 +31,13 @@ fn request_key(v: &Value) -> Option<String> {
 #[derive(Debug, Default)]
 pub struct BatchRewrite {
     pub body: Vec<u8>,
-    /// requestId → asset id whose location must point at a local file.
-    pub file_overrides: HashMap<String, u64>,
+    /// requestId → the URL its `location` must point at (a local file Arcadia
+    /// serves, or a web link).
+    pub location_overrides: HashMap<String, String>,
     pub replaced: usize,
     pub removed: usize,
     pub files: usize,
+    pub links: usize,
 }
 
 /// Rewrite a `POST /v1/assets/batch` body: swap replaced ids, drop removed
@@ -59,15 +61,21 @@ pub fn rewrite_batch_request(body: &[u8], rules: &HashMap<u64, Action>) -> Optio
             }
             Some((id, Action::File { .. })) => {
                 if let Some(k) = item.get("requestId").and_then(request_key) {
-                    out.file_overrides.insert(k, id);
+                    out.location_overrides.insert(k, file_url(id));
                     out.files += 1;
+                }
+            }
+            Some((_, Action::Link { url })) => {
+                if let Some(k) = item.get("requestId").and_then(request_key) {
+                    out.location_overrides.insert(k, url.clone());
+                    out.links += 1;
                 }
             }
             None => {}
         }
         kept.push(item);
     }
-    if out.replaced + out.removed + out.files == 0 {
+    if out.replaced + out.removed + out.files + out.links == 0 {
         return None;
     }
     out.body = serde_json::to_vec(&Value::Array(kept)).ok()?;
@@ -91,17 +99,17 @@ pub fn rewrite_locations(v: &mut Value, url: &str) {
     }
 }
 
-/// Fix up the batch response so file-replaced entries load from Arcadia.
-pub fn rewrite_batch_response(body: &[u8], file_overrides: &HashMap<String, u64>) -> Option<Vec<u8>> {
-    if file_overrides.is_empty() {
+/// Fix up the batch response so file- and link-replaced entries load from
+/// their new location.
+pub fn rewrite_batch_response(body: &[u8], overrides: &HashMap<String, String>) -> Option<Vec<u8>> {
+    if overrides.is_empty() {
         return None;
     }
     let Value::Array(mut items) = serde_json::from_slice::<Value>(body).ok()? else { return None };
     for item in items.iter_mut() {
-        let Some(id) = item.get("requestId").and_then(request_key).and_then(|k| file_overrides.get(&k)) else {
+        let Some(url) = item.get("requestId").and_then(request_key).and_then(|k| overrides.get(&k)).cloned() else {
             continue;
         };
-        let url = file_url(*id);
         if let Some(o) = item.as_object_mut() {
             // A failed upstream lookup still gets our file.
             o.remove("errors");
@@ -186,6 +194,7 @@ mod tests {
             (111, Action::Replace { with_id: 999 }),
             (222, Action::Remove),
             (333, Action::File { path: "x.png".into() }),
+            (555, Action::Link { url: "https://example.com/a.png".into() }),
         ])
     }
 
@@ -195,22 +204,27 @@ mod tests {
             {"assetId": 111, "requestId": "0"},
             {"assetId": 222, "requestId": "1"},
             {"assetId": 333, "requestId": "2"},
-            {"assetId": 444, "requestId": "3"}
+            {"assetId": 444, "requestId": "3"},
+            {"assetId": 555, "requestId": "4"}
         ]);
         let r = rewrite_batch_request(body.to_string().as_bytes(), &rules()).unwrap();
         let v: Value = serde_json::from_slice(&r.body).unwrap();
-        assert_eq!(v.as_array().unwrap().len(), 3);
+        assert_eq!(v.as_array().unwrap().len(), 4);
         assert_eq!(v[0]["assetId"], 999);
         assert_eq!(v[1]["assetId"], 333);
-        assert_eq!((r.replaced, r.removed, r.files), (1, 1, 1));
-        assert_eq!(r.file_overrides["2"], 333);
+        assert_eq!((r.replaced, r.removed, r.files, r.links), (1, 1, 1, 1));
+        assert_eq!(r.location_overrides["2"], file_url(333));
+        assert_eq!(r.location_overrides["4"], "https://example.com/a.png");
 
         let resp = json!([{"requestId": "0", "location": "https://c0.rbxcdn.com/a"},
-                          {"requestId": "2", "location": "https://c0.rbxcdn.com/b"}]);
-        let out = rewrite_batch_response(resp.to_string().as_bytes(), &r.file_overrides).unwrap();
+                          {"requestId": "2", "location": "https://c0.rbxcdn.com/b"},
+                          {"requestId": "4", "errors": [{"code": 403}]}]);
+        let out = rewrite_batch_response(resp.to_string().as_bytes(), &r.location_overrides).unwrap();
         let v: Value = serde_json::from_slice(&out).unwrap();
         assert_eq!(v[0]["location"], "https://c0.rbxcdn.com/a");
         assert_eq!(v[1]["location"], file_url(333));
+        assert_eq!(v[2]["location"], "https://example.com/a.png");
+        assert!(v[2].get("errors").is_none());
     }
 
     #[test]

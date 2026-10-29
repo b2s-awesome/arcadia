@@ -321,7 +321,7 @@ async fn handle(st: Arc<State>, req: Request<Incoming>, host: String, url: Strin
             headers.insert(hyper::header::ACCEPT_ENCODING, HeaderValue::from_static("identity"));
             let mut up = forward(&st, &method, &url, &headers, Bytes::from(rw.body)).await?;
             let mut out = gunzip_if_needed(&mut up.headers, up.body);
-            if let Some(b) = hooks::rewrite_batch_response(&out, &rw.file_overrides) {
+            if let Some(b) = hooks::rewrite_batch_response(&out, &rw.location_overrides) {
                 out = Bytes::from(b);
             }
             st.inspector.bump(|s| {
@@ -329,7 +329,7 @@ async fn handle(st: Arc<State>, req: Request<Incoming>, host: String, url: Strin
                 s.removed += rw.removed as u64;
             });
             kind = "modified";
-            note = [("replaced", rw.replaced), ("removed", rw.removed), ("file", rw.files)]
+            note = [("replaced", rw.replaced), ("removed", rw.removed), ("file", rw.files), ("link", rw.links)]
                 .iter()
                 .filter(|(_, n)| *n > 0)
                 .map(|(w, n)| format!("{w} {n}"))
@@ -363,6 +363,16 @@ async fn handle(st: Arc<State>, req: Request<Incoming>, host: String, url: Strin
                         kind = "served-file";
                         note = format!("asset {id} ← {path}");
                         return Ok(build(StatusCode::OK, HeaderMap::new(), Bytes::from(data)));
+                    }
+                    Some(Action::Link { url: to }) => {
+                        // assetdelivery normally answers these with a redirect
+                        // to the CDN, so the client already follows one.
+                        st.inspector.bump(|s| s.replaced += 1);
+                        kind = "modified";
+                        note = format!("{id} → {to}");
+                        let mut h = HeaderMap::new();
+                        h.insert(hyper::header::LOCATION, HeaderValue::from_str(&to).context("link isn't a valid URL")?);
+                        return Ok(build(StatusCode::FOUND, h, Bytes::new()));
                     }
                     None => {}
                 }

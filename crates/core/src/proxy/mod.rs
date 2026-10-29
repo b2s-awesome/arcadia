@@ -9,6 +9,7 @@
 //! blind tunnel.
 
 pub mod ca;
+pub mod fleasion;
 pub mod hooks;
 pub mod inspector;
 pub mod rules;

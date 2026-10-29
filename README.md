@@ -35,6 +35,7 @@ Pushing a tag like `v0.1.0` to GitHub runs `.github/workflows/release.yml`, whic
 - **Roblox join buttons:** on first launch Arcadia offers to take over `roblox-player:` links, so Join on roblox.com opens through Arcadia (with your FastFlags, mods and proxy applied). It re-claims the links each launch, since Roblox's own updater tends to take them back.
 - **Mods:** drop files into the mods folder using Roblox's own layout, e.g. `content\sounds\ouch.ogg`. They're copied over Roblox's files on launch and the originals restored when you remove them.
 - **Asset proxy:** turn on "Use the proxy when Roblox starts", add rules in a profile (paste asset IDs, pick Swap / Use a file / Remove), then launch Roblox from Arcadia. The cache is cleared on launch and exit so changes take effect. Profiles can be shared as JSON.
+- **Coming from Fleasion:** Import → "Import everything from Fleasion" brings over every config in `%LOCALAPPDATA%\FleasionNT\configs` as its own profile, keeping which ones were on. You can also open or paste a single Fleasion config. Swap, remove, local-file and CDN-link rules all carry over, with their folders; replacement files are copied into Arcadia's own folder. Asset-type wildcards (such as `"Image"`) aren't supported yet and are skipped.
 
 ## Minecraft launcher
 

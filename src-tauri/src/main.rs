@@ -315,12 +315,52 @@ async fn rules_save(st: State<'_, AppState>, config: RuleConfig) -> Res<()> {
     Ok(())
 }
 
+#[derive(serde::Serialize)]
+struct RulesImported {
+    config: RuleConfig,
+    report: arcadia_core::proxy::rules::ImportReport,
+}
+
+/// Save imported rules, copy their files into Arcadia's folder and hand them
+/// to a running proxy.
+async fn finish_import(
+    st: &State<'_, AppState>,
+    run: impl FnOnce(&mut RuleConfig) -> anyhow::Result<arcadia_core::proxy::rules::ImportReport>,
+) -> Res<RulesImported> {
+    let (config, report) = {
+        let mut r = st.rules.lock();
+        let report = run(&mut r).map_err(err)?;
+        r.adopt_files(&report.profiles);
+        r.save().map_err(err)?;
+        (r.clone(), report)
+    };
+    if let Some(p) = st.proxy.lock().await.as_ref() {
+        p.set_rules(&config);
+    }
+    Ok(RulesImported { config, report })
+}
+
+/// Pasted JSON: an Arcadia export or a Fleasion config.
 #[tauri::command]
-fn rules_import(st: State<'_, AppState>, json: String) -> Res<RuleConfig> {
-    let mut r = st.rules.lock();
-    r.import(&json).map_err(err)?;
-    r.save().map_err(err)?;
-    Ok(r.clone())
+async fn rules_import(st: State<'_, AppState>, json: String) -> Res<RulesImported> {
+    finish_import(&st, |r| r.import(&json, None)).await
+}
+
+/// An opened `.json` file: an Arcadia export or a Fleasion config (named after the file).
+#[tauri::command]
+async fn rules_import_file(st: State<'_, AppState>, path: String) -> Res<RulesImported> {
+    let path = std::path::PathBuf::from(path);
+    let raw = std::fs::read(&path).map_err(err)?;
+    let text = arcadia_core::proxy::fleasion::decode_text(&raw);
+    let name = path.file_stem().map(|s| s.to_string_lossy().to_string());
+    finish_import(&st, |r| r.import(&text, name.as_deref())).await
+}
+
+/// Every config from this PC's Fleasion install, keeping which were on.
+#[tauri::command]
+async fn rules_import_fleasion(st: State<'_, AppState>) -> Res<RulesImported> {
+    let dir = arcadia_core::proxy::fleasion::data_dir();
+    finish_import(&st, |r| r.import_fleasion_folder(&dir)).await
 }
 
 #[tauri::command]
@@ -340,18 +380,7 @@ fn rules_export(st: State<'_, AppState>, profile: Option<String>) -> Res<String>
 /// if the original is moved.
 #[tauri::command]
 fn proxy_import_file(src: String) -> Res<String> {
-    let src = std::path::PathBuf::from(src);
-    let name = src.file_name().ok_or("Pick a file, not a folder")?.to_string_lossy().to_string();
-    let dir = paths::proxy_files_dir();
-    std::fs::create_dir_all(&dir).map_err(err)?;
-    let mut dest = dir.join(&name);
-    let mut i = 2;
-    while dest.exists() {
-        dest = dir.join(format!("{i}-{name}"));
-        i += 1;
-    }
-    std::fs::copy(&src, &dest).map_err(err)?;
-    Ok(dest.to_string_lossy().into())
+    arcadia_core::proxy::rules::adopt_file(std::path::Path::new(&src)).map_err(err)
 }
 
 /// Copy a chosen wallpaper into Arcadia's folder (the only place the UI is
@@ -535,6 +564,8 @@ fn main() {
             rules_get,
             rules_save,
             rules_import,
+            rules_import_file,
+            rules_import_fleasion,
             rules_export,
             proxy_import_file,
             parse_asset_ids,
