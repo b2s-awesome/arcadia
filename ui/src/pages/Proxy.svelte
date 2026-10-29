@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { api, pickFile } from "../lib/api";
   import { app, saveSettings, toast } from "../lib/state.svelte";
-  import type { Action, ProxyStatus, Rule, RuleConfig } from "../lib/types";
+  import type { Action, ProxyStatus, Rule, RuleConfig, RulesImported } from "../lib/types";
   import Toggle from "../components/Toggle.svelte";
   import Modal from "../components/Modal.svelte";
   import Icon from "../components/Icon.svelte";
@@ -36,6 +36,7 @@
   let fKind = $state<Kind>("replace");
   let fWith = $state("");
   let fPath = $state("");
+  let fUrl = $state("");
   let parsedIds: number[] = $state([]);
   $effect(() => {
     const text = fIds;
@@ -49,6 +50,7 @@
     fKind = r?.action.type ?? "replace";
     fWith = r?.action.type === "replace" ? String(r.action.withId) : "";
     fPath = r?.action.type === "file" ? r.action.path : "";
+    fUrl = r?.action.type === "link" ? r.action.url : "";
     editing = { profile, index };
     editorOpen = true;
   }
@@ -57,12 +59,18 @@
     if (p) fPath = await api.importFile(p);
   }
   const canSave = $derived(
-    parsedIds.length > 0 && (fKind === "remove" || (fKind === "replace" && /^\d+$/.test(fWith.trim())) || (fKind === "file" && fPath)),
+    parsedIds.length > 0 && (fKind === "remove" || (fKind === "replace" && /^\d+$/.test(fWith.trim())) || (fKind === "file" && fPath) || (fKind === "link" && /^https?:\/\/\S+$/i.test(fUrl.trim()))),
   );
   function saveRule() {
     if (!editing) return;
     const action: Action =
-      fKind === "replace" ? { type: "replace", withId: Number(fWith.trim()) } : fKind === "file" ? { type: "file", path: fPath } : { type: "remove" };
+      fKind === "replace"
+        ? { type: "replace", withId: Number(fWith.trim()) }
+        : fKind === "file"
+          ? { type: "file", path: fPath }
+          : fKind === "link"
+            ? { type: "link", url: fUrl.trim() }
+            : { type: "remove" };
     const list = config.profiles[editing.profile].rules;
     const name = fName.trim() || `${parsedIds.length} asset${parsedIds.length === 1 ? "" : "s"}`;
     if (editing.index === null) list.push({ id: crypto.randomUUID(), name, enabled: true, assetIds: parsedIds, action });
@@ -78,6 +86,13 @@
   function describe(a: Action) {
     if (a.type === "replace") return `Swap for asset ${a.withId}`;
     if (a.type === "remove") return "Remove";
+    if (a.type === "link") {
+      try {
+        return `Load from ${new URL(a.url).host}`;
+      } catch {
+        return "Load from a link";
+      }
+    }
     return `Use ${a.path.split(/[\\/]/).pop()}`;
   }
 
@@ -96,16 +111,32 @@
   }
   let importOpen = $state(false);
   let importText = $state("");
-  async function doImport() {
+  let importing = $state(false);
+  async function runImport(job: () => Promise<RulesImported>) {
+    importing = true;
     try {
-      config = await api.rulesImport(importText);
+      const { config: c, report: r } = await job();
+      config = c;
       importOpen = false;
       importText = "";
-      toast("Profiles imported");
+      const what = r.profiles.length === 1 ? `“${r.profiles[0]}”` : `${r.profiles.length} profiles`;
+      toast(`Imported ${what} with ${r.rules} rule${r.rules === 1 ? "" : "s"}`);
+      const notes: string[] = [];
+      if (r.skippedTargets) notes.push(`${r.skippedTargets === 1 ? "1 asset-type wildcard (like “Image”) was" : `${r.skippedTargets} asset-type wildcards (like “Image”) were`} skipped`);
+      if (r.missingFiles.length) notes.push(`${r.missingFiles.length} replacement file${r.missingFiles.length === 1 ? " is" : "s are"} missing from this PC`);
+      if (notes.length) toast(notes.join("; ") + ".", "error");
     } catch (e) {
-      toast(`That file isn't an Arcadia profile: ${e}`, "error");
+      toast(String(e), "error");
+    } finally {
+      importing = false;
     }
   }
+  const doImport = () => runImport(() => api.rulesImport(importText));
+  async function importFromFile() {
+    const p = await pickFile([{ name: "Profiles and Fleasion configs", extensions: ["json"] }]);
+    if (p) runImport(() => api.rulesImportFile(p));
+  }
+  const importFleasion = () => runImport(() => api.rulesImportFleasion());
   async function exportProfile(name: string | null) {
     const json = await api.rulesExport(name);
     await navigator.clipboard.writeText(json);
@@ -225,7 +256,7 @@
         <h3>Live FastFlags</h3>
         <Toggle label="Enable live FastFlags" checked={s.proxy_fflags_risk_accepted} onchange={enableLiveFlags} />
       </div>
-      <p class="hint">Delivered through the proxy while Roblox runs, so they skip Roblox's local allowlist. Roblox can ban accounts that use them.</p>
+      <p class="hint">Delivered the way Roblox's servers deliver flags (seeded before launch, then kept up to date through the proxy), so they skip Roblox's local allowlist. Also turns on the frame rate cap from the Roblox page. Roblox can ban accounts that use them.</p>
       {#if s.proxy_fflags_risk_accepted}
         <table class="flags">
           <tbody>
@@ -258,6 +289,7 @@
   <div class="seg full" role="radiogroup" aria-label="What to do">
     <button role="radio" aria-checked={fKind === "replace"} onclick={() => (fKind = "replace")}>Swap for another asset</button>
     <button role="radio" aria-checked={fKind === "file"} onclick={() => (fKind = "file")}>Use a file</button>
+    <button role="radio" aria-checked={fKind === "link"} onclick={() => (fKind = "link")}>Use a link</button>
     <button role="radio" aria-checked={fKind === "remove"} onclick={() => (fKind = "remove")}>Remove</button>
   </div>
   {#if fKind === "replace"}
@@ -267,6 +299,12 @@
       <span class="mono grow small">{fPath || "No file chosen"}</span>
       <button onclick={chooseFile}>Choose file</button>
     </div>
+  {:else if fKind === "link"}
+    <label class="field">
+      Link
+      <input class="mono" bind:value={fUrl} placeholder="https://tr.rbxcdn.com/…" />
+      <span class="faint small">Roblox downloads the replacement straight from this address.</span>
+    </label>
   {:else}
     <p>These assets are stripped from Roblox's requests and never load.</p>
   {/if}
@@ -277,11 +315,16 @@
 </Modal>
 
 <Modal bind:open={importOpen} title="Import profiles">
-  <p>Paste a profile someone shared with you.</p>
-  <textarea rows="9" bind:value={importText}></textarea>
+  <p>Bring in an Arcadia profile or a Fleasion config. Each Fleasion config becomes its own profile.</p>
+  <div class="row import-sources">
+    <button class="ghost" disabled={importing} onclick={importFromFile}><Icon name="download" size={16} /> Choose a .json file</button>
+    <button class="ghost" disabled={importing} onclick={importFleasion}><Icon name="download" size={16} /> Import everything from Fleasion</button>
+  </div>
+  <p class="faint small">Or paste one here:</p>
+  <textarea rows="8" bind:value={importText}></textarea>
   {#snippet actions()}
     <button class="ghost" onclick={() => (importOpen = false)}>Cancel</button>
-    <button disabled={!importText.trim()} onclick={doImport}>Import</button>
+    <button disabled={!importText.trim() || importing} onclick={doImport}>Import</button>
   {/snippet}
 </Modal>
 
@@ -315,6 +358,8 @@
   .act-replace { color: var(--lilac); }
   .act-file { color: var(--mint); }
   .act-remove { color: var(--rose); }
+  .act-link { color: var(--peach); }
+  .import-sources { gap: 8px; flex-wrap: wrap; }
   .none { color: var(--faint); font-size: 0.9rem; margin-top: 0.6rem; }
   .new-profile input { width: 16rem; }
 

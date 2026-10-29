@@ -90,7 +90,11 @@ export interface Preset {
   flags: Record<string, FlagValue>;
 }
 
-export type Action = { type: "replace"; withId: number } | { type: "file"; path: string } | { type: "remove" };
+export type Action =
+  | { type: "replace"; withId: number }
+  | { type: "file"; path: string }
+  | { type: "link"; url: string }
+  | { type: "remove" };
 
 export interface Rule {
   id: string;
@@ -104,6 +108,19 @@ export interface Profile {
   name: string;
   enabled: boolean;
   rules: Rule[];
+}
+
+export interface ImportReport {
+  profiles: string[];
+  rules: number;
+  skippedTargets: number;
+  skippedRules: number;
+  missingFiles: string[];
+}
+
+export interface RulesImported {
+  config: RuleConfig;
+  report: ImportReport;
 }
 
 export interface RuleConfig {

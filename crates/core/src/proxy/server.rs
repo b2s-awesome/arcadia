@@ -10,13 +10,14 @@ use hyper::header::{HeaderMap, HeaderValue};
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-use parking_lot::RwLock;
+use parking_lot::{Mutex, RwLock};
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::net::{TcpListener, TcpStream};
@@ -43,6 +44,12 @@ struct State {
     ca: CertAuthority,
     rules: RwLock<HashMap<u64, Action>>,
     fflags: RwLock<Map<String, Value>>,
+    /// Signature of the flag set Roblox last received in full. While it
+    /// differs from the current set, ClientSettings requests are made
+    /// unconditional so Roblox can't answer "not modified".
+    delivered: Mutex<Option<String>>,
+    /// Off = every connection is a blind tunnel (see `ProxyHook::intercept`).
+    intercept: Arc<AtomicBool>,
     inspector: Inspector,
     upstream: reqwest::Client,
     test_upstream: Option<TestUpstream>,
@@ -72,6 +79,8 @@ impl Proxy {
             ca,
             rules: RwLock::new(RuleConfig::load().compile()),
             fflags: RwLock::new(Map::new()),
+            delivered: Mutex::new(None),
+            intercept: Arc::new(AtomicBool::new(true)),
             inspector: Inspector::default(),
             upstream: b.build()?,
             test_upstream: cfg.test_upstream,
@@ -116,6 +125,15 @@ impl Proxy {
     pub fn set_fflags(&self, flags: Map<String, Value>) {
         *self.state.fflags.write() = flags;
     }
+    /// The switch the launcher uses to turn decryption on or off per launch.
+    pub fn intercept_switch(&self) -> Arc<AtomicBool> {
+        self.state.intercept.clone()
+    }
+    /// A new Roblox is about to start: its first ClientSettings request must
+    /// get the full document with Arcadia's flags in it.
+    pub fn prepare_launch(&self) {
+        *self.state.delivered.lock() = None;
+    }
     pub fn inspector(&self) -> &Inspector {
         &self.state.inspector
     }
@@ -149,7 +167,9 @@ async fn front(st: Arc<State>, req: Request<Incoming>) -> Result<Response<Body>,
         };
         let host = auth.host().to_ascii_lowercase();
         let port = auth.port_u16().unwrap_or(443);
-        let intercept = port == 443 && INTERCEPT_HOSTS.contains(&host.as_str());
+        let intercept = port == 443
+            && INTERCEPT_HOSTS.contains(&host.as_str())
+            && st.intercept.load(Ordering::Relaxed);
         tokio::spawn(async move {
             let up = match hyper::upgrade::on(req).await {
                 Ok(u) => u,
@@ -321,7 +341,7 @@ async fn handle(st: Arc<State>, req: Request<Incoming>, host: String, url: Strin
             headers.insert(hyper::header::ACCEPT_ENCODING, HeaderValue::from_static("identity"));
             let mut up = forward(&st, &method, &url, &headers, Bytes::from(rw.body)).await?;
             let mut out = gunzip_if_needed(&mut up.headers, up.body);
-            if let Some(b) = hooks::rewrite_batch_response(&out, &rw.file_overrides) {
+            if let Some(b) = hooks::rewrite_batch_response(&out, &rw.location_overrides) {
                 out = Bytes::from(b);
             }
             st.inspector.bump(|s| {
@@ -329,7 +349,7 @@ async fn handle(st: Arc<State>, req: Request<Incoming>, host: String, url: Strin
                 s.removed += rw.removed as u64;
             });
             kind = "modified";
-            note = [("replaced", rw.replaced), ("removed", rw.removed), ("file", rw.files)]
+            note = [("replaced", rw.replaced), ("removed", rw.removed), ("file", rw.files), ("link", rw.links)]
                 .iter()
                 .filter(|(_, n)| *n > 0)
                 .map(|(w, n)| format!("{w} {n}"))
@@ -364,24 +384,63 @@ async fn handle(st: Arc<State>, req: Request<Incoming>, host: String, url: Strin
                         note = format!("asset {id} ← {path}");
                         return Ok(build(StatusCode::OK, HeaderMap::new(), Bytes::from(data)));
                     }
+                    Some(Action::Link { url: to }) => {
+                        // assetdelivery normally answers these with a redirect
+                        // to the CDN, so the client already follows one.
+                        st.inspector.bump(|s| s.replaced += 1);
+                        kind = "modified";
+                        note = format!("{id} → {to}");
+                        let mut h = HeaderMap::new();
+                        h.insert(hyper::header::LOCATION, HeaderValue::from_str(&to).context("link isn't a valid URL")?);
+                        return Ok(build(StatusCode::FOUND, h, Bytes::new()));
+                    }
                     None => {}
                 }
             }
         }
 
-        // 4. Live FastFlags.
-        if decrypted && hooks::is_client_settings(&host, &pq) && !st.fflags.read().is_empty() {
+        // 4. ClientSettings: always carry the certificate flag (or Roblox
+        //    stops trusting the proxy after its next settings refresh), plus
+        //    the FPS cap and live FastFlags when they're switched on.
+        if decrypted && hooks::is_client_settings(&host, &pq) {
+            let mut flags = st.fflags.read().clone();
+            flags.insert(crate::roblox::fflags::EMBEDDED_CA_FLAG.into(), Value::String("False".into()));
+            let sig = hooks::flag_signature(&flags);
+            if st.delivered.lock().as_deref() != Some(sig.as_str()) {
+                headers.remove(hyper::header::IF_NONE_MATCH);
+                headers.remove(hyper::header::IF_MODIFIED_SINCE);
+            }
+            // Ask for plain JSON so it can be edited.
             headers.insert(hyper::header::ACCEPT_ENCODING, HeaderValue::from_static("identity"));
+            headers.remove("available-dictionary");
+            headers.remove("dictionary-id");
             let mut up = forward(&st, &method, &url, &headers, body.clone()).await?;
+            if up.status == StatusCode::NOT_MODIFIED {
+                note = "unchanged (Roblox already has Arcadia's flags)".into();
+                return Ok(build(up.status, up.headers, up.body));
+            }
+            let enc = up
+                .headers
+                .get(hyper::header::CONTENT_ENCODING)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if !matches!(enc.as_str(), "" | "identity" | "gzip") {
+                kind = "error";
+                note = format!("couldn't add flags: settings came back encoded as {enc}");
+                return Ok(build(up.status, up.headers, up.body));
+            }
             let raw = gunzip_if_needed(&mut up.headers, up.body.clone());
-            let injected = { hooks::inject_fflags(&raw, &st.fflags.read()) };
-            if let Some((b, n)) = injected {
+            let injected = hooks::inject_fflags(&raw, &flags);
+            if let (Some((b, n)), true) = (injected, up.status.is_success()) {
+                *st.delivered.lock() = Some(sig);
                 st.inspector.bump(|s| s.fflag_injections += n as u64);
                 kind = "modified";
                 note = format!("fastflags +{n}");
                 return Ok(build(up.status, up.headers, Bytes::from(b)));
             }
-            return Ok(build(up.status, up.headers, up.body));
+            note = "couldn't add flags: unexpected settings response".into();
+            return Ok(build(up.status, up.headers, raw));
         }
 
         // 5. Everything else on an intercepted host: untouched.

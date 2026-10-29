@@ -154,7 +154,10 @@ export async function mockInvoke(cmd: string, args: Record<string, unknown> = {}
     case "rules_get": return structuredClone(rules);
     case "rules_save": rules = args.config as RuleConfig; return;
     case "rules_export": return JSON.stringify(rules, null, 2);
-    case "rules_import": return rules;
+    case "rules_import":
+    case "rules_import_file":
+    case "rules_import_fleasion":
+      return { config: structuredClone(rules), report: { profiles: ["Imported"], rules: 3, skippedTargets: 1, skippedRules: 0, missingFiles: [] } };
     case "proxy_import_file": return "C:\\Users\\you\\AppData\\Local\\Arcadia\\proxy\\files\\example.png";
     case "set_wallpaper": return "builtin:aurora";
     case "parse_asset_ids": return ((args.text as string).match(/\d{3,}/g) ?? []).map(Number);

@@ -130,6 +130,7 @@
         if (left === 0) app.playing = null;
       }),
       on<Page>("navigate", (p) => (app.page = p)),
+      on<string>("proxy-notice", (m) => toast(m, "error")),
       on<{ removed: number }>("cache-cleared", (r) => toast(`Cleared ${r.removed} cache item${r.removed === 1 ? "" : "s"}`)),
     ];
     return () => {

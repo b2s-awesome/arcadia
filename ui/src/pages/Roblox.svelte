@@ -158,7 +158,16 @@
     <section class="section">
       <h3>Performance</h3>
       <div class="setting">
-        <div><div class="label">Frame rate cap</div><div class="desc">Roblox caps at 60 by default.</div></div>
+        <div>
+          <div class="label">Frame rate cap</div>
+          <div class="desc">
+            {#if s.proxy_fflags_risk_accepted}
+              Sent to Roblox as a server flag at launch. Roblox caps at 60 by default.
+            {:else}
+              Roblox no longer accepts this flag locally, so it applies only with live FastFlags turned on (Asset proxy page). Roblox's own in-game “Maximum Frame Rate” setting needs nothing.
+            {/if}
+          </div>
+        </div>
         <div class="seg" role="radiogroup" aria-label="Frame rate cap">
           {#each fpsChoices as n}
             <button role="radio" aria-checked={s.roblox_fps_cap === n} onclick={() => { s.roblox_fps_cap = n; saveSettings(); }}>{fpsLabel(n)}</button>

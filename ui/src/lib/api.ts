@@ -2,8 +2,7 @@
 // browser during design work) a mock backend answers instead.
 import type {
   DeviceCode, FoundInstance, Hit, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
-  Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RuleConfig, ScanReport, Settings,
-} from "./types";
+  Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RuleConfig, ScanReport, Settings, RulesImported } from "./types";
 import { mockInvoke, mockListen } from "./mock";
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -83,7 +82,9 @@ export const api = {
   proxyStop: () => call<void>("proxy_stop"),
   rulesGet: () => call<RuleConfig>("rules_get"),
   rulesSave: (config: RuleConfig) => call<void>("rules_save", { config }),
-  rulesImport: (json: string) => call<RuleConfig>("rules_import", { json }),
+  rulesImport: (json: string) => call<RulesImported>("rules_import", { json }),
+  rulesImportFile: (path: string) => call<RulesImported>("rules_import_file", { path }),
+  rulesImportFleasion: () => call<RulesImported>("rules_import_fleasion"),
   rulesExport: (profile: string | null) => call<string>("rules_export", { profile }),
   importFile: (src: string) => call<string>("proxy_import_file", { src }),
   parseIds: (text: string) => call<number[]>("parse_asset_ids", { text }),

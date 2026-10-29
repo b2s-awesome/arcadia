@@ -35,6 +35,7 @@ Pushing a tag like `v0.1.0` to GitHub runs `.github/workflows/release.yml`, whic
 - **Roblox join buttons:** on first launch Arcadia offers to take over `roblox-player:` links, so Join on roblox.com opens through Arcadia (with your FastFlags, mods and proxy applied). It re-claims the links each launch, since Roblox's own updater tends to take them back.
 - **Mods:** drop files into the mods folder using Roblox's own layout, e.g. `content\sounds\ouch.ogg`. They're copied over Roblox's files on launch and the originals restored when you remove them.
 - **Asset proxy:** turn on "Use the proxy when Roblox starts", add rules in a profile (paste asset IDs, pick Swap / Use a file / Remove), then launch Roblox from Arcadia. The cache is cleared on launch and exit so changes take effect. Profiles can be shared as JSON.
+- **Coming from Fleasion:** Import → "Import everything from Fleasion" brings over every config in `%LOCALAPPDATA%\FleasionNT\configs` as its own profile, keeping which ones were on. You can also open or paste a single Fleasion config. Swap, remove, local-file and CDN-link rules all carry over, with their folders; replacement files are copied into Arcadia's own folder. Asset-type wildcards (such as `"Image"`) aren't supported yet and are skipped.
 
 ## Minecraft launcher
 
@@ -71,7 +72,7 @@ Press **Ctrl+K** anywhere for the launcher: a ring of quick actions, or type to 
 Same approach as Fleasion's "Roblox Env Proxy" mode:
 
 1. Arcadia generates a local certificate authority once (`%LOCALAPPDATA%\Arcadia\proxy\ca.pem`).
-2. Before launch it appends that CA to the Roblox copy's `ssl\cacert.pem` and sets `DFFlagHttpUseEmbeddedCaCerts=False` so the client uses that bundle.
+2. Before launch it appends that CA to the Roblox copy's `ssl\cacert.pem`, and makes Roblox use that bundle by setting `DFFlagHttpUseEmbeddedCaCerts=False` in Roblox's cached server flags (`%TEMP%\Roblox\cache\flag_cache.dat`). Roblox ignores this flag in `ClientAppSettings.json` since its FastFlag allowlist, but reads its server-flag cache before going online. The proxy keeps the flag in every ClientSettings response, so it survives Roblox's refreshes. On a PC where Roblox has never run, that cache doesn't exist yet: the first launch passes traffic straight through, and replacements apply from the next one.
 3. Roblox is started with `HTTPS_PROXY=http://127.0.0.1:58443`. No hosts-file edits, no admin rights, nothing else on the PC goes through it.
 4. Only `assetdelivery.roblox.com`, `clientsettingscdn.roblox.com` and `clientsettings.roblox.com` are decrypted. Every other connection (login, chat, purchases) is a blind tunnel that is never read.
 5. Asset rules rewrite `/v1/assets/batch` requests (swap the ID, drop it, or point its `location` at a local file Arcadia serves) and single-asset `/v1/asset?id=` requests. Live FastFlags are merged into the `PCDesktopClient` settings response.

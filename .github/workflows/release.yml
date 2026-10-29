@@ -27,6 +27,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
+          # Tags make a draft release; a manual run on a branch only builds.
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: Arcadia ${{ github.ref_name }}
           releaseDraft: true
+      - name: Keep the installer from a test build
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Arcadia-installer-${{ github.ref_name }}
+          path: target/release/bundle/nsis/*.exe
+          if-no-files-found: error
