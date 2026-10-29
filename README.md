@@ -65,6 +65,24 @@ Four built-in looks, switchable from **Appearance** or the launcher:
 
 On top of any look you can set a wallpaper (five built in, or your own image), its blur and dim, panel opacity, corners, font and accent color, and save the result as a named look. The window is frameless; the top bar holds the page dots, clock, proxy status and window buttons, and can be an island or a flush strip, or hidden.
 
+The startup splash can be Short, Normal, Long or off (**Appearance → Startup**), and any click or key skips it. It's timed from when the logo first appears, so a fast start doesn't cut it short. If animation effects are off in Windows, the logo shows without moving for the same length of time; a switch there plays the animation anyway.
+
+The sidebar is yours too: under **Appearance → Sidebar**, drag entries into any order, hide the ones you don't use (they stay one Ctrl+K away), or switch to icons only. The page dots in the top bar follow the same order.
+
+## Marketplace and addons
+
+Bigger optional tools ship as addons, so the sidebar only holds what you actually use. Open **Marketplace**, add one, and it gets its own sidebar entry; remove it the same way, optionally deleting what it saved. Each addon only loads once it's installed, keeps its data in its own folder (`%LOCALAPPDATA%\Arcadia\addons\<id>\`) and its secrets in Windows Credential Manager, and can't reach another addon's data.
+
+### Profile Studio (first official addon)
+
+A sandbox for your Discord profile. Nothing in it changes your real profile.
+
+- **Preview** the profile popout, the full profile, and a chat message with the member list, in Discord's dark or light theme, with Nitro profile colours, banner, avatar decoration, status and custom status. About me renders Discord markdown, spoilers included.
+- **Pull** a profile from a username, user ID or `discord.com/users/…` link: avatar, banner, banner colour, decoration, names and account age. Discord only allows this with a bot token, so add your own app's token under *Import settings* (it goes in Credential Manager). Username lookups search servers your bot shares with that person and need **Server Members Intent** turned on. Without a token, user IDs are looked up through [Lanyard](https://github.com/Phineas/lanyard), which only knows people in its server. Bio, pronouns and profile colours aren't available to apps, so you add those yourself. Account tokens are never used: that's a self-bot, which Discord bans.
+- **Suggested palettes**: three of them, worked out from the banner, the avatar, and both together. Colours are clustered in OKLab from only the pixels Discord actually shows (the avatar's circle, not its corners), the gradient pair is tuned for legibility, and each palette shows how readable white text is on it. Apply one, or click any swatch to use it for the top, bottom or banner colour.
+- **Shelf**: save as many versions as you like, flip between them, compare a version with its saved copy side by side, and share one as JSON.
+- Discord's own limits are enforced: 32-character names, 40 for pronouns, 190 for About me.
+
 Press **Ctrl+K** anywhere for the launcher: a ring of quick actions, or type to search every installed game and action.
 
 ## How the proxy works

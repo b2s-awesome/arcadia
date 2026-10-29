@@ -1,10 +1,11 @@
 <script lang="ts">
   // The Monogram building itself: the ring draws, the stem rises, the dot
   // drops in with a bounce, then the name slides in.
-  let { size = 120, name = "Arcadia" }: { size?: number; name?: string } = $props();
+  // `still` shows the finished logo with no movement (Windows animations off).
+  let { size = 120, name = "Arcadia", still = false }: { size?: number; name?: string; still?: boolean } = $props();
 </script>
 
-<div class="lockup" style:--s="{size}px">
+<div class="lockup" class:still style:--s="{size}px">
   <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
     <circle class="ring" cx="28" cy="38" r="13" fill="none" stroke="var(--peach)" stroke-width="8" pathLength="100" />
     <rect class="stem" x="37" y="21" width="8" height="34" rx="1" fill="var(--peach)" />
@@ -62,7 +63,8 @@
     to { opacity: 1; transform: none; }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .ring, .stem, .dot, .name { animation: none !important; stroke-dashoffset: 0; transform: none; opacity: 1; }
-  }
+  .still .ring, .still .stem, .still .dot, .still .name { animation: none !important; stroke-dashoffset: 0; transform: none; opacity: 1; }
+  /* No movement, just a soft fade in, so the splash still reads as one. */
+  .still { animation: fade-in 0.4s ease-out both; }
+  @keyframes fade-in { from { opacity: 0; } }
 </style>

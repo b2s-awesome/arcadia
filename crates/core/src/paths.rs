@@ -10,6 +10,7 @@
 //!   Roblox\Versions\version-*  Roblox installs managed by Arcadia
 //!   Roblox\Downloads\          package cache
 //!   Modifications\             user mods overlaid onto Roblox on launch
+//!   addons\<id>\               each marketplace addon's own data
 //! ```
 
 use std::path::PathBuf;
