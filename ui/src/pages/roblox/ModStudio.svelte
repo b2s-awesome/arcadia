@@ -56,6 +56,12 @@
   const cursorImg = $derived(m.cursor && m.cursor !== "custom" ? previews[m.cursor] : null);
   const lockImg = $derived(m.shiftlock && m.shiftlock !== "custom" ? previews[m.shiftlock] : null);
   let locked = $state(false);
+  // The pointer follows the mouse over the preview and rests in the middle.
+  let at = $state<{ x: number; y: number } | null>(null);
+  function track(e: PointerEvent) {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    at = { x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 };
+  }
 
   // ── presets ──
   const presetNames = $derived(Object.keys(s.roblox_mod_presets));
@@ -116,14 +122,11 @@
       aria-label="Preview. Click to toggle shift-lock."
       onclick={() => (locked = !locked)}
       onkeydown={(e) => (e.key === " " || e.key === "Enter") && (locked = !locked)}
+      onpointermove={track}
+      onpointerleave={() => (at = null)}
     >
-      <div class="sky"></div>
-      <div class="sun"></div>
-      <div class="hill a"></div>
-      <div class="hill b"></div>
-      <div class="ground"></div>
-      <div class="char"><span class="head"></span><span class="body"></span></div>
-      <div class="pointer">
+      <div class="bg" aria-hidden="true"><span class="blob a"></span><span class="blob b"></span><span class="blob c"></span></div>
+      <div class="pointer" class:free={at !== null && !locked} style:left="{locked || !at ? 50 : at.x}%" style:top="{locked || !at ? 50 : at.y}%">
         {#if locked}
           {#if lockImg}<img src={lockImg} alt="" />
           {:else if m.shiftlock === "custom" && m.shiftlock_file}<span class="tag">Your picture</span>
@@ -132,7 +135,7 @@
         {:else if m.cursor === "custom" && m.cursor_arrow}<span class="tag">Your picture</span>
         {:else}<Icon name="cursor" size={26} filled />{/if}
       </div>
-      <span class="mode">{locked ? "Shift-lock" : "Pointer"} · click to switch</span>
+      <span class="mode">{locked ? "Shift-lock" : "Pointer"} · move over it, click to switch</span>
     </div>
 
     <div class="opts">
@@ -246,16 +249,24 @@
     position: sticky; top: 0; aspect-ratio: 4 / 3; border-radius: var(--r-lg); overflow: hidden; cursor: pointer;
     border: 1px solid var(--line); isolation: isolate;
   }
-  .sky { position: absolute; inset: 0; background: linear-gradient(180deg, #6fb6ff 0%, #a9d8ff 55%, #dff1ff 100%); }
-  .sun { position: absolute; width: 70px; height: 70px; right: 14%; top: 12%; border-radius: 50%; background: radial-gradient(circle, #fff7d1 30%, #ffe28a 60%, transparent 70%); }
-  .hill { position: absolute; border-radius: 50%; }
-  .hill.a { width: 80%; height: 50%; left: -20%; bottom: 14%; background: #5fb86b; }
-  .hill.b { width: 90%; height: 55%; right: -30%; bottom: 10%; background: #4ea65c; }
-  .ground { position: absolute; left: 0; right: 0; bottom: 0; height: 26%; background: linear-gradient(180deg, #67c06f, #3f9150); }
-  .char { position: absolute; left: 30%; bottom: 20%; display: flex; flex-direction: column; align-items: center; }
-  .char .head { width: 22px; height: 22px; border-radius: 6px; background: #ffd27a; box-shadow: inset 0 -3px 0 rgb(0 0 0 / 0.12); }
-  .char .body { width: 34px; height: 40px; margin-top: 2px; border-radius: 6px; background: #3d7bff; box-shadow: inset 0 -4px 0 rgb(0 0 0 / 0.15); }
-  .pointer { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; color: #fff; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.5)); }
+  /* A slowly drifting background that passes through light, dark and
+     colourful patches, so you can see the cursor against all of them. */
+  .scene { cursor: none; }
+  .bg {
+    position: absolute; inset: -20%;
+    background: linear-gradient(120deg, #7cc4ff, #f4f7fb, #6fcf8f, #1b1d2a, #ffcf6b, #8f6bff, #0e1016, #7cc4ff);
+    background-size: 400% 400%;
+    animation: drift 28s ease-in-out infinite alternate;
+  }
+  .blob { position: absolute; border-radius: 50%; filter: blur(28px); opacity: 0.75; mix-blend-mode: soft-light; }
+  .blob.a { width: 55%; height: 55%; left: 5%; top: 10%; background: #fff; animation: float 17s ease-in-out infinite alternate; }
+  .blob.b { width: 45%; height: 45%; right: 5%; bottom: 10%; background: #000; animation: float 23s ease-in-out infinite alternate-reverse; }
+  .blob.c { width: 35%; height: 35%; left: 40%; top: 40%; background: #ff7bd5; animation: float 19s ease-in-out infinite alternate; }
+  @keyframes drift { 0% { background-position: 0% 50%; } 100% { background-position: 100% 50%; } }
+  @keyframes float { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(30%, -20%) scale(1.25); } }
+  @media (prefers-reduced-motion: reduce) { .bg, .blob { animation: none; } }
+  .pointer { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; color: #fff; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.5)); transition: left 0.35s ease, top 0.35s ease; pointer-events: none; }
+  .pointer.free { transition: none; }
   .pointer img { width: 64px; height: 64px; image-rendering: auto; }
   .pointer :global(svg) { transform: translate(9px, 9px); }
   .default-lock { width: 22px; height: 22px; border-radius: 50%; border: 3px solid rgb(255 255 255 / 0.9); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.4); }
