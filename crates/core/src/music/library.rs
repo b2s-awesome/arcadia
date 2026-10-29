@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Files the engine can play.
-pub const EXTENSIONS: &[&str] = &["mp3", "flac", "wav", "wave", "ogg", "oga", "m4a", "mp4", "m4b", "aac"];
+pub const EXTENSIONS: &[&str] = &["mp3", "flac", "wav", "wave", "ogg", "oga", "opus", "m4a", "mp4", "m4b", "aac"];
 const COVER_NAMES: &[&str] = &["cover", "folder", "front", "album", "albumart", "albumartsmall"];
 const ART_SIZE: u32 = 512;
 

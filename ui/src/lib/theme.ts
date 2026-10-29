@@ -152,8 +152,16 @@ export interface LyricsPrefs {
   offsets: Record<string, number>;
   bar: { position: "bottom" | "top"; size: number; tint: number };
   popup: { tint: number };
+  /** Show romanisation under non-Latin lyrics. */
+  romanise: boolean;
+  /** Show a translation under each line. */
+  translate: boolean;
+  /** Language to translate into (ISO code). */
+  target: string;
+  /** Optional contact email for the free translation service (raises its daily limit). */
+  email: string;
 }
-export const DEFAULT_LYRICS: LyricsPrefs = { skin: "auto", align: "left", size: 52, words: true, online: true, sidecar: false, offsets: {}, bar: { position: "bottom", size: 26, tint: 0.35 }, popup: { tint: 0.16 } };
+export const DEFAULT_LYRICS: LyricsPrefs = { skin: "auto", align: "left", size: 52, words: true, online: true, sidecar: false, offsets: {}, bar: { position: "bottom", size: 26, tint: 0.35 }, popup: { tint: 0.16 }, romanise: false, translate: false, target: "", email: "" };
 
 /** Stats addon. */
 export interface StatsPrefs {
@@ -179,6 +187,24 @@ export interface ThemesPrefs {
 }
 export const DEFAULT_THEMES: ThemesPrefs = { theme: null, snippets: [], css: "", scope: "app", mine: [] };
 
+/** Liquid Glass addon. */
+export interface GlassPrefs {
+  enabled: boolean;
+  /** Everything, or just Music. */
+  scope: "app" | "music";
+  /** Blur behind the glass, px. */
+  frost: number;
+  /** How solid the glass is, 0–0.7. */
+  tint: number;
+  /** Frosted white glass, smoked dark glass, or whichever suits the Look
+   *  (frosted on light looks, smoked on dark ones, so text stays readable). */
+  shade: "auto" | "frost" | "smoke";
+  /** Brightness of the lit edges, 0–1. */
+  edge: number;
+  sheen: boolean;
+}
+export const DEFAULT_GLASS: GlassPrefs = { enabled: true, scope: "app", frost: 24, tint: 0.4, shade: "auto", edge: 0.55, sheen: true };
+
 /** A bundle you made from your addons (and optionally their settings). */
 export interface UserBundle {
   id: string;
@@ -187,7 +213,7 @@ export interface UserBundle {
   /** Settings carried with it, by UiState key. */
   settings: Partial<Record<BundleKey, unknown>> | null;
 }
-export type BundleKey = "fad" | "lyrics" | "stats" | "themes" | "seeThrough" | "music";
+export type BundleKey = "fad" | "lyrics" | "stats" | "themes" | "seeThrough" | "music" | "glass";
 
 export const MUSIC_SECTIONS: { id: MusicSection; label: string }[] = [
   { id: "hero", label: "Now playing / shuffle all" },
@@ -245,6 +271,7 @@ export interface UiState {
   lyrics: LyricsPrefs;
   stats: StatsPrefs;
   themes: ThemesPrefs;
+  glass: GlassPrefs;
   bundles: UserBundle[];
 }
 
@@ -388,6 +415,7 @@ export function defaultUi(): UiState {
     lyrics: normalizeLyrics(undefined),
     stats: normalizeStats(undefined),
     themes: normalizeThemes(undefined),
+    glass: normalizeGlass(undefined),
     bundles: [],
   };
 }
@@ -424,6 +452,7 @@ export function normalizeUi(v: unknown): UiState {
     lyrics: normalizeLyrics(u.lyrics),
     stats: normalizeStats(u.stats),
     themes: normalizeThemes(u.themes),
+    glass: normalizeGlass(u.glass),
     bundles: normalizeBundles(u.bundles),
   };
 }
@@ -464,6 +493,10 @@ export function normalizeLyrics(v: Partial<LyricsPrefs> | undefined): LyricsPref
     offsets,
     bar: { position: pick(v.bar?.position, ["bottom", "top"] as const, d.bar.position), size: num(v.bar?.size, 16, 56, d.bar.size), tint: num(v.bar?.tint, 0, 0.9, d.bar.tint) },
     popup: { tint: num(v.popup?.tint, 0, 0.6, d.popup.tint) },
+    romanise: v.romanise === true,
+    translate: v.translate === true,
+    target: typeof v.target === "string" && /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(v.target) ? v.target : "",
+    email: typeof v.email === "string" ? v.email.slice(0, 120) : "",
   };
 }
 
@@ -485,6 +518,20 @@ export function normalizeThemes(v: Partial<ThemesPrefs> | undefined): ThemesPref
     mine: Array.isArray(v.mine)
       ? v.mine.filter((m) => m && typeof m.id === "string" && typeof m.css === "string").map((m) => ({ id: m.id, name: String(m.name ?? "Snippet").slice(0, 60), css: m.css.slice(0, 50_000), on: m.on !== false }))
       : [],
+  };
+}
+
+export function normalizeGlass(v: Partial<GlassPrefs> | undefined): GlassPrefs {
+  const d = DEFAULT_GLASS;
+  if (!v || typeof v !== "object") return { ...d };
+  return {
+    enabled: v.enabled !== false,
+    scope: pick(v.scope, ["app", "music"] as const, d.scope),
+    frost: num(v.frost, 0, 60, d.frost),
+    tint: num(v.tint, 0, 0.7, d.tint),
+    shade: pick(v.shade, ["auto", "frost", "smoke"] as const, d.shade),
+    edge: num(v.edge, 0, 1, d.edge),
+    sheen: v.sheen !== false,
   };
 }
 

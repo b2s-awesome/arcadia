@@ -6,8 +6,10 @@
   import { ms, seek, time } from "../../music/store.svelte";
   import { lineAt, ly, lyricTime, offsetFor, wordProgress } from "./lyrics.svelte";
 
-  let { lyrics, stamps = false, size = null, align = null, fade = true }: {
+  let { lyrics, stamps = false, size = null, align = null, fade = true, under = null }: {
     lyrics: Lyrics; stamps?: boolean; size?: number | null; align?: "left" | "center" | null; fade?: boolean;
+    /** A second line under each (romanisation, translation, or both). */
+    under?: (string | null)[] | null;
   } = $props();
   const p = $derived(app.ui.lyrics);
   const t = $derived(lyricTime());
@@ -44,15 +46,18 @@
     {@const words = now && p.words && l.words?.length ? wordProgress(l, lyrics.lines[i + 1], t) : null}
     <p data-i={i} class:now class:past={lyrics.synced && i < cur} class:gap={!l.text}>
       {#if stamps && l.t !== null}<span class="ts">[{time(l.t)}]</span>{/if}
-      {#if lyrics.synced}
-        <button class="ln" onclick={() => jump(l.t)} aria-label="Play from {l.text || 'here'}">
-          {#if words}
-            {#each l.words! as w, k}<span class="w" style:--w="{Math.round(words[k] * 100)}%">{w.text}</span>{/each}
-          {:else}{l.text || (now ? "♪" : "")}{/if}
-        </button>
-      {:else}
-        <span class="ln">{l.text}</span>
-      {/if}
+      <span class="col">
+        {#if lyrics.synced}
+          <button class="ln" onclick={() => jump(l.t)} aria-label="Play from {l.text || 'here'}">
+            {#if words}
+              {#each l.words! as w, k}<span class="w" style:--w="{Math.round(words[k] * 100)}%">{w.text}</span>{/each}
+            {:else}{l.text || (now ? "♪" : "")}{/if}
+          </button>
+        {:else}
+          <span class="ln">{l.text}</span>
+        {/if}
+        {#if under?.[i]}<span class="sub">{under[i]}</span>{/if}
+      </span>
     </p>
   {/each}
   <div class="pad" aria-hidden="true"></div>
@@ -74,6 +79,9 @@
   p.now .ln:hover { text-decoration: none; }
   /* Word by word: each word fills with colour as it's sung. */
   .w { background: linear-gradient(90deg, currentColor var(--w), color-mix(in srgb, currentColor 40%, transparent) var(--w)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .col { display: flex; flex-direction: column; min-width: 0; }
+  .center .col { align-items: center; }
+  .sub { font-size: max(13px, 0.42em); font-weight: 600; letter-spacing: 0; line-height: 1.3; opacity: 0.72; margin-top: 0.15em; white-space: pre-line; }
   .ts { font-family: "JetBrains Mono Variable", Consolas, monospace; font-size: 0.75rem; font-weight: 500; color: var(--faint); letter-spacing: 0; flex-shrink: 0; width: 5.4rem; }
   .stamps p { font-weight: 600; letter-spacing: 0; }
   .stamps p.now { font-weight: 800; letter-spacing: -0.01em; }

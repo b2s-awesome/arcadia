@@ -3,7 +3,7 @@
 // names catalogue addons and carries settings; it can't carry code.
 import { app, saveSettingsNow } from "../lib/state.svelte";
 import {
-  normalizeFad, normalizeLyrics, normalizeSeeThrough, normalizeStats, normalizeThemes,
+  normalizeFad, normalizeGlass, normalizeLyrics, normalizeSeeThrough, normalizeStats, normalizeThemes,
   type BundleKey, type UiState, type UserBundle,
 } from "../lib/theme";
 import { CATALOG, addonById } from "./registry";
@@ -18,7 +18,7 @@ export interface SharedBundle {
 const PREFIX = "arc-bundle:v1:";
 
 /** Settings that belong to each addon, by UiState key. */
-const OWNED: Partial<Record<BundleKey, string>> = { fad: "full-app-display", lyrics: "lyrics-plus", stats: "stats", themes: "themes", seeThrough: "see-through" };
+const OWNED: Partial<Record<BundleKey, string>> = { fad: "full-app-display", lyrics: "lyrics-plus", stats: "stats", themes: "themes", seeThrough: "see-through", glass: "liquid-glass" };
 
 /** Install addons (skipping ones already in), then save. */
 export async function installAddons(ids: string[]) {
@@ -56,7 +56,7 @@ export function validate(raw: unknown): SharedBundle {
   const s = r.settings && typeof r.settings === "object" ? (r.settings as Record<string, unknown>) : null;
   const clean: Partial<Record<BundleKey, unknown>> = {};
   if (s) {
-    const fix: Partial<Record<BundleKey, (v: never) => unknown>> = { fad: normalizeFad, lyrics: normalizeLyrics, stats: normalizeStats, themes: normalizeThemes, seeThrough: normalizeSeeThrough };
+    const fix: Partial<Record<BundleKey, (v: never) => unknown>> = { fad: normalizeFad, lyrics: normalizeLyrics, stats: normalizeStats, themes: normalizeThemes, seeThrough: normalizeSeeThrough, glass: normalizeGlass };
     for (const [k, f] of Object.entries(fix) as [BundleKey, (v: never) => unknown][]) {
       if (s[k] && typeof s[k] === "object" && addons.includes(OWNED[k]!)) clean[k] = f(s[k] as never);
     }
@@ -119,4 +119,4 @@ export function fromUser(u: UserBundle): SharedBundle {
   return { v: 1, name: u.name, addons: u.addons, settings: u.settings };
 }
 
-export const SETTING_NAMES: Record<BundleKey, string> = { fad: "Full App Display", lyrics: "Lyrics Plus", stats: "Stats", themes: "Theme, snippets and your CSS", seeThrough: "Translucent window", music: "Music layout" };
+export const SETTING_NAMES: Record<BundleKey, string> = { fad: "Full App Display", lyrics: "Lyrics Plus", stats: "Stats", themes: "Theme, snippets and your CSS", seeThrough: "Translucent window", music: "Music layout", glass: "Liquid Glass" };

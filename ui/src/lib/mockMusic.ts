@@ -286,6 +286,7 @@ export async function mockMusic(cmd: string, args: Record<string, unknown>, emit
   if (cmd.startsWith("lyrics_")) {
     switch (cmd) {
       case "lyrics_get": return mockLyrics(args.id as number);
+      case "lyrics_translate": await new Promise((r) => setTimeout(r, 400)); return (args.lines as string[]).map((l) => (l ? `(${args.to}) ${l}` : ""));
       case "lyrics_save": return { ...(await import("../addons/lyrics/lrc")).parseLrc(args.lrc as string), source: "yours" };
       default: return;
     }

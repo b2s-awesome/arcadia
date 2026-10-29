@@ -159,10 +159,13 @@ export const CATALOG: AddonMeta[] = [
       "Word-by-word highlighting for enhanced LRC",
       "Pop-up lyrics window and a click-through desktop lyrics bar",
       "Tap-along timing editor; per-song offset",
+      "Romanise Korean, Japanese kana, Chinese, Cyrillic and Greek, offline",
+      "Translate lyrics into your language (free, no account)",
       "Works offline with your own .lrc files and tags",
     ],
     permissions: [
       { label: "Internet: LRCLIB", detail: "Looks up lyrics on lrclib.net by title, artist, album and length, when nothing is on your PC. Can be turned off." },
+      { label: "Internet: MyMemory", detail: "Only if you switch Translate on: sends a song's lyric lines to api.mymemory.translated.net, once per song and language." },
       { label: "Files", detail: "Keeps found lyrics in its own folder. Only writes .lrc files beside your songs if you switch that on." },
       { label: "Windows", detail: "Opens the pop-up lyrics window and the desktop bar (always on top; the bar lets clicks through)." },
     ],
@@ -283,6 +286,24 @@ export const CATALOG: AddonMeta[] = [
   },
 ];
 
+CATALOG.push({
+  id: "liquid-glass",
+  name: "Liquid Glass",
+  tagline: "Frosted glass panels with lit edges, over your wallpaper or desktop.",
+  description:
+    "Turns Arcadia's window, sidebar, top bar, sections and the music player into frosted glass, in the style of iOS 27: the blur, a lit edge and a soft sheen. Pick frosted white or smoked dark glass, how much blur and how solid it is, and whether it covers the whole app or just Music. It looks best over a wallpaper, or with the Translucent window addon so your real desktop is behind it.",
+  author: "Arcadia",
+  official: true,
+  version: "1.0.0",
+  icon: "sparkle",
+  art: ["#3b1f63", "#ff8fa8", "#fff1c1"],
+  group: "Customisation",
+  features: ["Frosted or smoked glass", "Blur, tint, edge light and sheen are all adjustable", "Whole app or Music only", "Pairs with Translucent window for real see-through glass"],
+  permissions: [{ label: "Performance", detail: "Blurring large areas costs some graphics power. Lower the blur if scrolling feels heavy on an older PC." }],
+  settings: () => import("./glass/Settings.svelte"),
+  opens: "appearance",
+});
+
 export const BUNDLES: Bundle[] = [
   {
     id: "spice-rack",
@@ -293,7 +314,7 @@ export const BUNDLES: Bundle[] = [
   },
   { id: "listening-tools", name: "Listening tools", description: "Control what plays and how: skip rules, shuffle, loops and queue sorting.", addons: ["trash-bin", "shuffle-plus", "loopy-loop", "sort-play"] },
   { id: "eye-candy", name: "Eye candy", description: "The good-looking ones: full-screen display, lyrics and stats.", addons: ["full-app-display", "lyrics-plus", "stats"] },
-  { id: "rice-kit", name: "Rice kit", description: "Make the whole app yours: a see-through window, theme packs and your own CSS.", addons: ["see-through", "themes"] },
+  { id: "rice-kit", name: "Rice kit", description: "Make the whole app yours: a see-through window, Liquid Glass, theme packs and your own CSS.", addons: ["see-through", "liquid-glass", "themes"] },
 ];
 
 export const addonById = (id: string) => CATALOG.find((a) => a.id === id) ?? null;

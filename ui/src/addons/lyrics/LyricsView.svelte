@@ -12,7 +12,14 @@
   import { artUrl, ms } from "../../music/store.svelte";
   import Lines from "./Lines.svelte";
   import TimingEditor from "./TimingEditor.svelte";
-  import { ly, nudge, offsetFor, reloadLyrics, useLyrics } from "./lyrics.svelte";
+  import { ly, nudge, offsetFor, reloadLyrics, targetLang, useLyrics } from "./lyrics.svelte";
+  import type { LyricsPrefs } from "../../lib/theme";
+
+  const LANGS: [string, string][] = [["en", "English"], ["es", "Spanish"], ["fr", "French"], ["de", "German"], ["it", "Italian"], ["pt", "Portuguese"], ["nl", "Dutch"], ["pl", "Polish"], ["tr", "Turkish"], ["ru", "Russian"], ["uk", "Ukrainian"], ["ar", "Arabic"], ["hi", "Hindi"], ["ja", "Japanese"], ["ko", "Korean"], ["zh", "Chinese"], ["id", "Indonesian"], ["vi", "Vietnamese"], ["th", "Thai"], ["tl", "Filipino"]];
+  function setOpt<K extends keyof LyricsPrefs>(k: K, v: LyricsPrefs[K]) {
+    app.ui.lyrics[k] = v;
+    saveUi();
+  }
 
   onMount(() => useLyrics());
   const p = $derived(app.ui.lyrics);
@@ -64,6 +71,17 @@
         <button onclick={() => nudge(0.1)} aria-label="Lyrics later by a tenth of a second">+</button>
       </span>
     {/if}
+    {#if l && !l.instrumental}
+      <button class:on={p.romanise} aria-pressed={p.romanise} onclick={() => setOpt("romanise", !p.romanise)} title="Show non-Latin lyrics in Latin letters">Romanise</button>
+      <span class="tr" class:on={p.translate}>
+        <button class:on={p.translate} aria-pressed={p.translate} onclick={() => setOpt("translate", !p.translate)}>{ly.translating ? "Translating…" : "Translate"}</button>
+        {#if p.translate}
+          <select aria-label="Translate into" value={targetLang()} onchange={(e) => setOpt("target", (e.currentTarget as HTMLSelectElement).value)}>
+            {#each LANGS as [code, name]}<option value={code}>{name}</option>{/each}
+          </select>
+        {/if}
+      </span>
+    {/if}
     <button onclick={() => (editing = true)} disabled={!t}><Icon name="brush" size={14} /> {l ? "Fix timing" : "Write lyrics"}</button>
     <button onclick={reloadLyrics} disabled={!t} aria-label="Look again"><Icon name="refresh" size={14} />{#if !compact} Look again{/if}</button>
     <span class="grow"></span>
@@ -89,7 +107,7 @@
   {:else if l.instrumental}
     <p class="empty big">♪ Instrumental</p>
   {:else}
-    <Lines lyrics={l} stamps={skin === "tiled"} size={skin === "tiled" ? Math.min(p.size, 26) : skin === "glass" ? Math.min(p.size, 44) : null} />
+    <Lines lyrics={l} under={ly.under} stamps={skin === "tiled"} size={skin === "tiled" ? Math.min(p.size, 26) : skin === "glass" ? Math.min(p.size, 44) : null} />
   {/if}
 {/snippet}
 
@@ -106,7 +124,7 @@
     <section class="k-main">
       {@render tools(false)}
       <div class="k-lines">{@render body()}</div>
-      {#if l}<span class="src muted">{sourceLine} · click a line to play from there</span>{/if}
+      {#if ly.translateError}<span class="src err">{ly.translateError}</span>{:else if l}<span class="src muted">{sourceLine}{p.translate && ly.under ? " · translated by MyMemory" : ""} · click a line to play from there</span>{/if}
     </section>
   {:else if skin === "tiled"}
     <section class="g-pane g-focus">
@@ -152,6 +170,10 @@
   .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
   .tools button { display: inline-flex; align-items: center; gap: 0.35rem; border-radius: 999px; padding: 0.4rem 0.8rem; font-size: 0.82rem; background: transparent; }
   .tools button.on { background: var(--m-accent, var(--peach)); color: var(--m-ink, var(--peach-ink)); border-color: transparent; }
+  .tr { display: inline-flex; align-items: center; gap: 0.2rem; border-radius: 999px; }
+  .tr.on { background: color-mix(in srgb, var(--m-accent, var(--peach)) 18%, transparent); padding-right: 0.2rem; }
+  .tr select { font-size: 0.8rem; padding: 0.2rem 0.3rem; border-radius: 999px; background: transparent; border: 0; }
+  .err { color: var(--rose); font-size: 0.78rem; }
   .off { display: inline-flex; align-items: center; gap: 0.2rem; border: 1px solid var(--line); border-radius: 999px; padding: 0 0.2rem; font-size: 0.82rem; }
   .off button { border: 0; padding: 0.3rem 0.55rem; }
   .off span { min-width: 3.6rem; text-align: center; font-variant-numeric: tabular-nums; }

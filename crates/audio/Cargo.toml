@@ -13,6 +13,7 @@ crossbeam-channel = "0.5"
 symphonia = { version = "0.5.4", default-features = false, features = ["mp3", "aac", "isomp4", "alac", "flac", "pcm", "wav", "vorbis", "ogg", "adpcm"] }
 rubato = "0.16"
 realfft = "3"
+opus-decoder = "0.1"
 cpal = "0.15"
 serde = { version = "1", features = ["derive"] }
 

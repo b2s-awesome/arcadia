@@ -16,7 +16,14 @@ export const ly = $state({
   error: null as string | null,
   /** How many things on screen want lyrics. */
   users: 0,
+  /** Lines under the lyrics: romanisation and/or translation, per line. */
+  under: null as (string | null)[] | null,
+  translating: false,
+  translateError: null as string | null,
 });
+
+/** Language to translate into: the setting, or this PC's language. */
+export const targetLang = () => app.ui.lyrics.target || (typeof navigator !== "undefined" ? navigator.language.slice(0, 2) : "en");
 
 const cache = new Map<number, Lyrics | null>();
 
@@ -52,7 +59,43 @@ function watch() {
       if (!on || id === null) return;
       if (id !== ly.id) load(id);
     });
+    // Romanisation and translation, worked out when the lyrics or the
+    // switches change.
+    $effect(() => {
+      const l = ly.lyrics;
+      const id = ly.id;
+      const p = app.ui.lyrics;
+      const want = { rom: p.romanise, tr: p.translate, to: targetLang(), email: p.email };
+      void extras(id, l, want);
+    });
   });
+}
+
+let extrasRun = 0;
+async function extras(id: number | null, l: Lyrics | null, want: { rom: boolean; tr: boolean; to: string; email: string }) {
+  const run = ++extrasRun;
+  ly.under = null;
+  ly.translateError = null;
+  if (id === null || !l || l.instrumental || (!want.rom && !want.tr)) return;
+  const lines = l.lines.map((x) => x.text);
+  const all = lines.join("\n");
+  const { detectScript, guessLanguage, romanise } = await import("./romanise");
+  const script = detectScript(all);
+  const rom = want.rom && script !== "latin" ? await romanise(lines, script) : null;
+  let tr: string[] | null = null;
+  const from = guessLanguage(all);
+  if (want.tr && from !== want.to) {
+    ly.translating = true;
+    try {
+      tr = await lyricsApi.translate(id, from, want.to, lines, want.email || null);
+    } catch (e) {
+      if (run === extrasRun) ly.translateError = String(e);
+    } finally {
+      if (run === extrasRun) ly.translating = false;
+    }
+  }
+  if (run !== extrasRun) return;
+  ly.under = lines.map((_, i) => [rom?.[i], tr?.[i]].filter((x) => x && x.trim()).join("\n") || null);
 }
 
 /** Call from a component that shows lyrics; returns the cleanup. */

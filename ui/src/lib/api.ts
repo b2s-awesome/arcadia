@@ -226,6 +226,7 @@ export const lyricsApi = {
   get: (id: number, online: boolean, sidecar: boolean) => call<Lyrics | null>("lyrics_get", { id, online, sidecar }),
   save: (id: number, lrc: string, sidecar: boolean) => call<Lyrics>("lyrics_save", { id, lrc, sidecar }),
   forget: (id: number) => call<void>("lyrics_forget", { id }),
+  translate: (id: number, from: string, to: string, lines: string[], email: string | null) => call<string[]>("lyrics_translate", { id, from, to, lines, email }),
   window: (kind: "popup" | "bar", open: boolean, top = false) => call<void>("lyrics_window", { kind, open, top }),
 };
 

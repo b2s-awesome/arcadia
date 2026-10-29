@@ -238,3 +238,27 @@ mod engine {
         assert!(wait_for(&log, |e| matches!(e, Event::Ended)));
     }
 }
+
+mod opus {
+    use arcadia_audio::source::Source;
+
+    #[test]
+    fn ogg_opus_decodes_with_the_right_length_and_sound() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tone.opus");
+        let mut s = Source::open(&path).expect("opens");
+        assert_eq!((s.rate, s.channels), (48_000, 2));
+        let mut all = Vec::new();
+        while let Some(v) = s.read().unwrap() {
+            all.extend(v);
+        }
+        let frames = all.len() / 2;
+        // Two seconds, with the encoder's pre-skip trimmed off.
+        assert!((frames as i64 - 96_000).abs() < 1_000, "{frames} frames");
+        let rms = (all.iter().map(|x| x * x).sum::<f32>() / all.len() as f32).sqrt();
+        assert!(rms > 0.05, "it's a tone, not silence (rms {rms})");
+        // Seeking lands where asked.
+        let at = s.seek(1.0).unwrap();
+        assert!((at - 1.0).abs() < 0.05);
+        assert!(s.read().unwrap().is_some());
+    }
+}

@@ -213,6 +213,101 @@ fn from_hit(h: LrclibHit) -> Option<Lyrics> {
     Some(parse(&text, "lrclib"))
 }
 
+/// MyMemory takes at most 500 bytes a request.
+const TR_BYTES: usize = 450;
+
+/// Lines in groups small enough for one translation request each.
+pub fn translation_chunks(lines: &[String]) -> Vec<Vec<usize>> {
+    let mut out: Vec<Vec<usize>> = Vec::new();
+    let mut cur: Vec<usize> = Vec::new();
+    let mut size = 0;
+    for (i, l) in lines.iter().enumerate() {
+        if l.trim().is_empty() {
+            continue;
+        }
+        let n = l.len() + 1;
+        if !cur.is_empty() && size + n > TR_BYTES {
+            out.push(std::mem::take(&mut cur));
+            size = 0;
+        }
+        cur.push(i);
+        size += n;
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    out
+}
+
+fn clip(s: &str, max: usize) -> &str {
+    if s.len() <= max {
+        return s;
+    }
+    let mut end = max;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MmResponse {
+    response_data: MmData,
+    #[serde(default)]
+    response_status: serde_json::Value,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MmData {
+    translated_text: String,
+}
+
+async fn mymemory(client: &reqwest::Client, text: &str, from: &str, to: &str, email: Option<&str>) -> Result<String> {
+    let mut q: Vec<(&str, &str)> = vec![("q", clip(text, 495)), ("langpair", "")];
+    let pair = format!("{from}|{to}");
+    q[1].1 = &pair;
+    if let Some(e) = email.filter(|e| e.contains('@')) {
+        q.push(("de", e));
+    }
+    let r: MmResponse = client.get("https://api.mymemory.translated.net/get").query(&q).send().await?.error_for_status()?.json().await?;
+    let t = r.response_data.translated_text;
+    let status = r.response_status.as_i64().or_else(|| r.response_status.as_str().and_then(|s| s.parse().ok())).unwrap_or(200);
+    if t.starts_with("MYMEMORY WARNING") || status == 429 {
+        anyhow::bail!("The free translation service's daily limit is used up. Try again tomorrow, or add your email in Lyrics Plus settings for a higher limit.");
+    }
+    if status != 200 {
+        anyhow::bail!("Translation failed: {t}");
+    }
+    Ok(t)
+}
+
+/// Translate lyric lines with MyMemory (free, no account). Empty lines stay
+/// empty; the result has one entry per line.
+pub async fn translate(lines: &[String], from: &str, to: &str, email: Option<&str>) -> Result<Vec<String>> {
+    let client = reqwest::Client::builder()
+        .user_agent(concat!("Arcadia/", env!("CARGO_PKG_VERSION"), " (https://github.com/b2s-awesome/arcadia)"))
+        .timeout(Duration::from_secs(20))
+        .build()?;
+    let mut out = vec![String::new(); lines.len()];
+    for chunk in translation_chunks(lines) {
+        let joined = chunk.iter().map(|&i| lines[i].trim()).collect::<Vec<_>>().join("\n");
+        let t = mymemory(&client, &joined, from, to, email).await?;
+        let parts: Vec<&str> = t.split('\n').collect();
+        if parts.len() == chunk.len() {
+            for (&i, p) in chunk.iter().zip(parts) {
+                out[i] = p.trim().to_string();
+            }
+        } else {
+            // The service merged or split lines: ask line by line instead.
+            for &i in &chunk {
+                out[i] = mymemory(&client, lines[i].trim(), from, to, email).await?.trim().to_string();
+            }
+        }
+    }
+    Ok(out)
+}
+
 impl Library {
     /// Lyrics already on this PC: a `.lrc` beside the file, the file's tags,
     /// or Arcadia's cache (`cache_dir`).
@@ -256,6 +351,16 @@ mod tests {
         let l = parse("One line\n\nAnother\n\n", "tags");
         assert!(!l.synced);
         assert_eq!(l.lines.iter().map(|x| x.text.as_str()).collect::<Vec<_>>(), vec!["One line", "", "Another"]);
+    }
+
+    #[test]
+    fn translation_chunks_fit_and_skip_blanks() {
+        let lines: Vec<String> = (0..40).map(|i| if i % 5 == 0 { String::new() } else { "a line of lyrics that goes on".into() }).collect();
+        let chunks = translation_chunks(&lines);
+        assert!(chunks.iter().all(|c| c.iter().map(|&i| lines[i].len() + 1).sum::<usize>() <= TR_BYTES));
+        let all: Vec<usize> = chunks.concat();
+        assert_eq!(all.len(), 32, "blank lines aren't sent");
+        assert_eq!(clip("日本語", 4), "日");
     }
 
     #[test]

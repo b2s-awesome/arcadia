@@ -79,6 +79,8 @@ pub struct Music {
     p: Mutex<Player>,
     app: AppHandle,
     rules: Mutex<SkipRules>,
+    /// The song the media overlay shows.
+    media_track: Mutex<Option<i64>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -86,7 +88,7 @@ pub struct Music {
 pub struct Status {
     track: Option<Track>,
     playing: bool,
-    pos: f64,
+    pub(crate) pos: f64,
     duration: f64,
     volume: f32,
     shuffle: bool,
@@ -167,6 +169,7 @@ impl Music {
             }),
             app: app.clone(),
             rules: Mutex::new(load_rules()),
+            media_track: Mutex::new(None),
         });
         // Pick up where the last session left off, paused.
         let resume = m.p.lock().queue.current();
@@ -401,7 +404,26 @@ impl Music {
     }
 
     fn changed(&self, app: &AppHandle) {
-        let _ = app.emit("music-status", self.status());
+        let s = self.status();
+        // The Windows media overlay and media keys.
+        let id = s.track.as_ref().map(|t| t.id);
+        let new_track = {
+            let mut last = self.media_track.lock();
+            let changed = *last != id;
+            *last = id;
+            changed
+        };
+        match &s.track {
+            Some(t) => {
+                if new_track {
+                    crate::media_keys::send(crate::media_keys::Update::Track { title: t.title.clone(), artist: t.artist.clone(), album: t.album.clone(), art: t.art.clone(), duration: s.duration });
+                }
+                crate::media_keys::send(crate::media_keys::Update::Playing { playing: s.playing, pos: s.pos });
+            }
+            None if new_track => crate::media_keys::send(crate::media_keys::Update::Stopped),
+            None => {}
+        }
+        let _ = app.emit("music-status", s);
     }
 
     fn on_event(self: Arc<Self>, app: &AppHandle, e: Event) {
@@ -684,6 +706,8 @@ pub async fn music_seek(app: AppHandle, secs: f64) -> Res<()> {
     let m = m(&app)?;
     m.engine.seek(secs.max(0.0));
     m.p.lock().pos = secs.max(0.0);
+    let playing = !m.p.lock().paused;
+    crate::media_keys::send(crate::media_keys::Update::Playing { playing, pos: secs.max(0.0) });
     Ok(())
 }
 

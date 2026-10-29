@@ -13,7 +13,7 @@
 {:else if l?.instrumental}
   <p class="muted">♪ Instrumental</p>
 {:else if l}
-  <Lines lyrics={l} size={30} />
+  <Lines lyrics={l} under={ly.under} size={30} />
 {:else}
   <p class="muted">No lyrics for this song. Open Lyrics in Music to write them.</p>
 {/if}

@@ -93,12 +93,41 @@ pub async fn lyrics_save(app: AppHandle, id: i64, lrc: String, sidecar: bool) ->
     Ok(l)
 }
 
+/// Translate a song's lyric lines (cached per song and language).
+#[tauri::command]
+pub async fn lyrics_translate(app: AppHandle, id: i64, from: String, to: String, lines: Vec<String>, email: Option<String>) -> Res<Vec<String>> {
+    installed(&app, ID)?;
+    let ok = |s: &str| !s.is_empty() && s.len() <= 12 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    if !ok(&from) || !ok(&to) {
+        return Err("Unknown language".into());
+    }
+    let file = cache_dir().join(format!("{id}.tr-{from}-{to}.json"));
+    if let Some(v) = std::fs::read(&file).ok().and_then(|b| serde_json::from_slice::<Vec<String>>(&b).ok()) {
+        if v.len() == lines.len() {
+            return Ok(v);
+        }
+    }
+    let out = lyrics::translate(&lines, &from, &to, email.as_deref()).await.map_err(err)?;
+    let _ = std::fs::create_dir_all(cache_dir());
+    let _ = std::fs::write(&file, serde_json::to_vec(&out).unwrap_or_default());
+    Ok(out)
+}
+
 /// Forget cached lyrics for a song, so they're looked up again.
 #[tauri::command]
 pub async fn lyrics_forget(app: AppHandle, id: i64) -> Res<()> {
     installed(&app, ID)?;
     let _ = std::fs::remove_file(cache_dir().join(format!("{id}.json")));
     let _ = std::fs::remove_file(cache_dir().join(format!("{id}.none")));
+    // Translations of the old lyrics too.
+    if let Ok(rd) = std::fs::read_dir(cache_dir()) {
+        let prefix = format!("{id}.tr-");
+        for e in rd.flatten() {
+            if e.file_name().to_string_lossy().starts_with(&prefix) {
+                let _ = std::fs::remove_file(e.path());
+            }
+        }
+    }
     Ok(())
 }
 

@@ -11,6 +11,8 @@
   import { initPlayer, next as musicNext, toggle as musicToggle } from "./music/store.svelte";
   import { applyLook, defaultLook, PRESETS, SPLASH_MS, wallpaperUrl, type PresetId } from "./lib/theme";
   import { applyThemes, watchSafeMode } from "./addons/themes/themes";
+  import { applyGlass } from "./addons/glass/glass";
+  import "./addons/glass/glass.css";
   import { fad, openFad } from "./addons/fad/state.svelte";
   import { initListening } from "./addons/listening/listening.svelte";
   import LyricsWindow from "./addons/lyrics/LyricsWindow.svelte";
@@ -48,6 +50,8 @@
     applySeeThrough(app.ui);
     // Themes & CSS snippets: a theme pack, snippets and your CSS on top.
     applyThemes(app.ui);
+    // Liquid Glass: frosted panels over the wallpaper or desktop.
+    applyGlass(app.ui);
   });
   const lyricsWin = app.mode === "lyrics-popup" ? "popup" : app.mode === "lyrics-bar" ? "bar" : null;
   const fadOn = $derived(fad.open && app.ui.addons.installed.includes("full-app-display"));

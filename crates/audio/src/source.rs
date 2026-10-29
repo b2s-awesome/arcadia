@@ -3,7 +3,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use std::path::Path;
 use symphonia::core::audio::SampleBuffer;
-use symphonia::core::codecs::{Decoder, DecoderOptions, CODEC_TYPE_NULL};
+use symphonia::core::codecs::{CodecParameters, Decoder, DecoderOptions, CODEC_TYPE_NULL, CODEC_TYPE_OPUS};
 use symphonia::core::errors::Error as SymError;
 use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
 use symphonia::core::io::MediaSourceStream;
@@ -12,11 +12,76 @@ use symphonia::core::probe::Hint;
 use symphonia::core::units::Time;
 
 /// File extensions the engine can decode.
-pub const EXTENSIONS: &[&str] = &["mp3", "flac", "wav", "wave", "ogg", "oga", "m4a", "mp4", "m4b", "aac", "adts"];
+pub const EXTENSIONS: &[&str] = &["mp3", "flac", "wav", "wave", "ogg", "oga", "opus", "m4a", "mp4", "m4b", "aac", "adts"];
+
+/// Symphonia's decoders, plus a pure-Rust Opus decoder (Symphonia
+/// demuxes Ogg Opus but has no Opus decoder).
+enum Dec {
+    Sym(Box<dyn Decoder>),
+    Opus(OpusDec),
+}
+
+enum OpusInner {
+    Plain(opus_decoder::OpusDecoder),
+    Multi(opus_decoder::OpusMultistreamDecoder),
+}
+
+struct OpusDec {
+    inner: OpusInner,
+    channels: usize,
+    /// Encoder delay still to drop at the start (when the reader didn't).
+    pre_skip: u64,
+    pcm: Vec<f32>,
+    /// The OpusHead, to rebuild the decoder on reset.
+    head: Vec<u8>,
+}
+
+impl OpusDec {
+    /// From the OpusHead (RFC 7845 §5.1) in the codec's extra data.
+    fn new(params: &CodecParameters) -> Result<OpusDec> {
+        let head = params.extra_data.as_deref().ok_or_else(|| anyhow!("The Opus header is missing"))?.to_vec();
+        if head.len() < 19 || &head[..8] != b"OpusHead" {
+            bail!("The Opus header is damaged");
+        }
+        let channels = head[9] as usize;
+        let pre_skip = u16::from_le_bytes([head[10], head[11]]) as u64;
+        let family = head[18];
+        let inner = if family == 0 {
+            OpusInner::Plain(opus_decoder::OpusDecoder::new(48_000, channels.clamp(1, 2)).map_err(|e| anyhow!("Opus: {e:?}"))?)
+        } else {
+            if head.len() < 21 + channels {
+                bail!("The Opus channel map is damaged");
+            }
+            let (streams, coupled) = (head[19] as usize, head[20] as usize);
+            let map = head[21..21 + channels].to_vec();
+            OpusInner::Multi(opus_decoder::OpusMultistreamDecoder::new(48_000, channels, streams, coupled, &map).map_err(|e| anyhow!("Opus: {e:?}"))?)
+        };
+        let channels = if family == 0 { channels.clamp(1, 2) } else { channels };
+        Ok(OpusDec { inner, channels, pre_skip, pcm: vec![0.0; 5760 * channels], head })
+    }
+
+    fn reset(&mut self) {
+        let mut p = CodecParameters::new();
+        p.with_extra_data(self.head.clone().into_boxed_slice());
+        if let Ok(fresh) = OpusDec::new(&p) {
+            self.inner = fresh.inner;
+        }
+    }
+
+    /// One packet to interleaved samples.
+    fn decode(&mut self, data: &[u8]) -> Option<Vec<f32>> {
+        let n = match &mut self.inner {
+            OpusInner::Plain(d) => d.decode_float(data, &mut self.pcm, false),
+            OpusInner::Multi(d) => d.decode_float(data, &mut self.pcm, false),
+        }
+        .ok()?;
+        Some(self.pcm[..n * self.channels].to_vec())
+    }
+}
 
 pub struct Source {
     format: Box<dyn FormatReader>,
-    decoder: Box<dyn Decoder>,
+    decoder: Dec,
     track_id: u32,
     pub rate: u32,
     pub channels: usize,
@@ -51,9 +116,19 @@ impl Source {
             .ok_or_else(|| anyhow!("{} has no audio in it", file_name(path)))?;
         let track_id = track.id;
         let params = track.codec_params.clone();
-        let decoder = symphonia::default::get_codecs()
-            .make(&params, &DecoderOptions::default())
-            .map_err(|e| anyhow!("{} uses a codec Arcadia can't decode yet ({e})", file_name(path)))?;
+        let decoder = if params.codec == CODEC_TYPE_OPUS {
+            Dec::Opus(OpusDec::new(&params).with_context(|| file_name(path))?)
+        } else {
+            Dec::Sym(
+                symphonia::default::get_codecs()
+                    .make(&params, &DecoderOptions::default())
+                    .map_err(|e| anyhow!("{} uses a codec Arcadia can't decode yet ({e})", file_name(path)))?,
+            )
+        };
+        let opus_channels = match &decoder {
+            Dec::Opus(o) => Some(o.channels),
+            Dec::Sym(_) => None,
+        };
         let duration = match (params.n_frames, params.sample_rate) {
             (Some(n), Some(r)) if r > 0 => Some(n as f64 / r as f64),
             _ => None,
@@ -63,7 +138,7 @@ impl Source {
             decoder,
             track_id,
             rate: params.sample_rate.unwrap_or(0),
-            channels: params.channels.map(|c| c.count()).unwrap_or(0),
+            channels: opus_channels.unwrap_or_else(|| params.channels.map(|c| c.count()).unwrap_or(0)),
             duration,
             pending: Vec::new(),
             skip: 0,
@@ -129,7 +204,7 @@ impl Source {
                 }
                 Err(SymError::ResetRequired) => {
                     // A chained stream changed parameters; carry on with a fresh decoder.
-                    self.decoder.reset();
+                    self.reset_decoder();
                     continue;
                 }
                 Err(e) => return Err(anyhow!("Couldn't read the file: {e}")),
@@ -137,7 +212,30 @@ impl Source {
             if packet.track_id() != self.track_id {
                 continue;
             }
-            let decoded = match self.decoder.decode(&packet) {
+            let dec = match &mut self.decoder {
+                Dec::Opus(o) => {
+                    let Some(mut v) = o.decode(&packet.data) else { continue };
+                    let ch = o.channels;
+                    // Trim encoder delay and end padding, as the reader marks
+                    // them; or the header's pre-skip if it didn't.
+                    let frames = v.len() / ch;
+                    let start = if packet.trim_start > 0 { o.pre_skip = 0; packet.trim_start as usize } else { std::mem::take(&mut o.pre_skip) as usize };
+                    let end = packet.trim_end as usize;
+                    let keep_to = frames.saturating_sub(end);
+                    let from = start.min(keep_to);
+                    v.truncate(keep_to * ch);
+                    v.drain(..from * ch);
+                    if v.is_empty() {
+                        continue;
+                    }
+                    if self.rate == 0 {
+                        self.rate = 48_000;
+                    }
+                    return Ok(Some(v));
+                }
+                Dec::Sym(d) => d,
+            };
+            let decoded = match dec.decode(&packet) {
                 Ok(d) => d,
                 // A damaged frame: skip it, as every player does.
                 Err(SymError::DecodeError(_)) | Err(SymError::IoError(_)) => continue,
@@ -171,7 +269,11 @@ impl Source {
             .format
             .seek(SeekMode::Accurate, SeekTo::Time { time, track_id: Some(self.track_id) })
             .map_err(|e| anyhow!("Couldn't seek: {e}"))?;
-        self.decoder.reset();
+        self.reset_decoder();
+        if let Dec::Opus(o) = &mut self.decoder {
+            // Only the very start carries the encoder delay.
+            o.pre_skip = 0;
+        }
         self.pending.clear();
         self.eof = false;
         // The reader lands on a packet boundary at or before the target;
@@ -185,6 +287,15 @@ impl Source {
             }
             None => secs,
         })
+    }
+}
+
+impl Source {
+    fn reset_decoder(&mut self) {
+        match &mut self.decoder {
+            Dec::Sym(d) => d.reset(),
+            Dec::Opus(o) => o.reset(),
+        }
     }
 }
 

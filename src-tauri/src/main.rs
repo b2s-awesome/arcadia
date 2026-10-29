@@ -18,6 +18,7 @@ use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 mod addon_cmds;
 mod minecraft_cmds;
 mod lyrics_cmds;
+mod media_keys;
 mod music_cmds;
 mod streaming_cmds;
 
@@ -564,6 +565,7 @@ fn main() {
             match music_cmds::Music::start(&h) {
                 Ok(m) => {
                     app.manage(m);
+                    media_keys::start(&h);
                 }
                 Err(e) => log::error!("music player didn't start: {e:#}"),
             }
@@ -712,6 +714,7 @@ fn main() {
             lyrics_cmds::lyrics_get,
             lyrics_cmds::lyrics_save,
             lyrics_cmds::lyrics_forget,
+            lyrics_cmds::lyrics_translate,
             lyrics_cmds::lyrics_window,
             streaming_cmds::streaming_status,
             streaming_cmds::streaming_install,
