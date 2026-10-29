@@ -17,9 +17,29 @@ use tokio::net::TcpListener;
 async fn upstream_handler(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
     let path = req.uri().path_and_query().unwrap().to_string();
     let method = req.method().clone();
+    let enc = req.headers().get("content-encoding").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     let body = req.into_body().collect().await.unwrap().to_bytes();
     let out = if method == hyper::Method::POST && path.starts_with("/v1/assets/batch") {
-        let items: Vec<Value> = serde_json::from_slice(&body).unwrap();
+        // Like Roblox's server: honour Content-Encoding, reject what doesn't parse.
+        let plain = match enc.as_str() {
+            "gzip" => {
+                let mut v = Vec::new();
+                std::io::Read::read_to_end(&mut flate2::read::GzDecoder::new(&body[..]), &mut v).ok();
+                v
+            }
+            "zstd" => {
+                let mut v = Vec::new();
+                let mut d = ruzstd::decoding::StreamingDecoder::new(&body[..]).unwrap();
+                std::io::Read::read_to_end(&mut d, &mut v).ok();
+                v
+            }
+            _ => body.to_vec(),
+        };
+        let Ok(items) = serde_json::from_slice::<Vec<Value>>(&plain) else {
+            let mut r = Response::new(Full::new(Bytes::from_static(b"bad batch body")));
+            *r.status_mut() = hyper::StatusCode::BAD_REQUEST;
+            return Ok(r);
+        };
         let resp: Vec<Value> = items
             .iter()
             .map(|i| json!({"requestId": i["requestId"], "location": format!("https://c0.rbxcdn.com/{}", i["assetId"]), "assetTypeId": 1}))
@@ -133,6 +153,46 @@ async fn proxy_end_to_end() {
     assert_eq!(r[1]["location"], file_url(333));
     assert_eq!(r[2]["location"], "https://c0.rbxcdn.com/444");
 
+    // ── compressed batches, as Roblox sends them ──
+    let gz = |v: &Value| {
+        let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        std::io::Write::write_all(&mut e, v.to_string().as_bytes()).unwrap();
+        e.finish().unwrap()
+    };
+    let zs = |v: &Value| ruzstd::encoding::compress_to_vec(v.to_string().as_bytes(), ruzstd::encoding::CompressionLevel::Fastest);
+    // No rule matches: must reach Roblox's server exactly as sent.
+    let untouched = json!([{"assetId": 444, "requestId": "0"}]);
+    for (enc, body) in [("gzip", gz(&untouched)), ("zstd", zs(&untouched))] {
+        let resp = client
+            .post("https://assetdelivery.roblox.com/v1/assets/batch")
+            .header("content-encoding", enc)
+            .header("content-type", "application/json")
+            .body(body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200, "{enc} batch without rules must pass through intact");
+        let r: Vec<Value> = resp.json().await.unwrap();
+        assert_eq!(r[0]["location"], "https://c0.rbxcdn.com/444");
+    }
+    // Rules match: decoded, rewritten and sent on as plain JSON.
+    for (enc, body) in [("gzip", gz(&batch)), ("zstd", zs(&batch))] {
+        let r: Vec<Value> = client
+            .post("https://assetdelivery.roblox.com/v1/assets/batch")
+            .header("content-encoding", enc)
+            .header("content-type", "application/json")
+            .body(body)
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(r.len(), 3, "{enc}: {r:?}");
+        assert_eq!(r[0]["location"], "https://c0.rbxcdn.com/999", "{enc}");
+        assert_eq!(r[1]["location"], file_url(333), "{enc}");
+    }
+
     // ── local file served at the rewritten location ──
     let f = client.get(file_url(333)).send().await.unwrap().bytes().await.unwrap();
     assert_eq!(&f[..], b"MY-CUSTOM-SKYBOX");
@@ -190,8 +250,9 @@ async fn proxy_end_to_end() {
     drop(strict);
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     let stats = proxy.inspector().stats();
-    assert_eq!(stats.replaced, 2);
-    assert_eq!(stats.removed, 2);
+    // plain batch + single GET, then the gzip and zstd rule batches add one each
+    assert_eq!(stats.replaced, 4);
+    assert_eq!(stats.removed, 4);
     assert_eq!(stats.served_files, 1);
     assert_eq!(stats.fflag_injections, 2); // the FPS flag + the certificate flag
     let log = proxy.inspector().snapshot();

@@ -242,20 +242,37 @@ const HOP: &[&str] = &[
     "host", "content-length", "proxy-authorization",
 ];
 
-fn gunzip_if_needed(headers: &mut HeaderMap, body: Bytes) -> Bytes {
-    let gz = headers
+/// Decode a gzip or zstd body (recognised by its Content-Encoding or by its
+/// magic bytes). `None` if it isn't encoded that way or won't decode.
+/// Roblox compresses asset batch requests with either.
+pub(crate) fn decode_body(headers: &HeaderMap, body: &[u8]) -> Option<Vec<u8>> {
+    let enc = headers
         .get(hyper::header::CONTENT_ENCODING)
         .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| v.eq_ignore_ascii_case("gzip"));
-    if !gz {
-        return body;
-    }
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
     let mut out = Vec::new();
-    if flate2::read::GzDecoder::new(&body[..]).read_to_end(&mut out).is_ok() {
-        headers.remove(hyper::header::CONTENT_ENCODING);
-        Bytes::from(out)
-    } else {
-        body
+    if enc == "gzip" || body.starts_with(&[0x1f, 0x8b]) {
+        flate2::read::GzDecoder::new(body).read_to_end(&mut out).ok()?;
+        return Some(out);
+    }
+    if enc == "zstd" || body.starts_with(&[0x28, 0xb5, 0x2f, 0xfd]) {
+        ruzstd::decoding::StreamingDecoder::new(body).ok()?.read_to_end(&mut out).ok()?;
+        return Some(out);
+    }
+    None
+}
+
+/// Decode the body if it's compressed, and drop the Content-Encoding header
+/// to match. Bodies that aren't (or can't be) decoded are returned as they are.
+fn decode_if_needed(headers: &mut HeaderMap, body: Bytes) -> Bytes {
+    match decode_body(headers, &body) {
+        Some(plain) => {
+            headers.remove(hyper::header::CONTENT_ENCODING);
+            Bytes::from(plain)
+        }
+        None => body,
     }
 }
 
@@ -331,16 +348,21 @@ async fn handle(st: Arc<State>, req: Request<Incoming>, host: String, url: Strin
 
         // 2. Asset batch requests.
         if decrypted && host == ASSET_HOST && method == Method::POST && pq.to_ascii_lowercase().starts_with("/v1/assets/batch") {
-            let raw = gunzip_if_needed(&mut headers, body.clone());
+            // Read a decoded copy, but leave Roblox's own request (body and
+            // Content-Encoding) intact unless a rule actually changes it.
+            let original_headers = headers.clone();
+            let raw = decode_if_needed(&mut headers, body.clone());
             req_preview = preview(&raw);
             let rewrite = { hooks::rewrite_batch_request(&raw, &st.rules.read()) };
             let Some(rw) = rewrite else {
-                let up = forward(&st, &method, &url, &headers, body.clone()).await?;
+                let up = forward(&st, &method, &url, &original_headers, body.clone()).await?;
                 return Ok(build(up.status, up.headers, up.body));
             };
+            // The rewritten body goes upstream as plain JSON.
+            headers.remove(hyper::header::CONTENT_ENCODING);
             headers.insert(hyper::header::ACCEPT_ENCODING, HeaderValue::from_static("identity"));
             let mut up = forward(&st, &method, &url, &headers, Bytes::from(rw.body)).await?;
-            let mut out = gunzip_if_needed(&mut up.headers, up.body);
+            let mut out = decode_if_needed(&mut up.headers, up.body);
             if let Some(b) = hooks::rewrite_batch_response(&out, &rw.location_overrides) {
                 out = Bytes::from(b);
             }
@@ -430,7 +452,7 @@ async fn handle(st: Arc<State>, req: Request<Incoming>, host: String, url: Strin
                 note = format!("couldn't add flags: settings came back encoded as {enc}");
                 return Ok(build(up.status, up.headers, up.body));
             }
-            let raw = gunzip_if_needed(&mut up.headers, up.body.clone());
+            let raw = decode_if_needed(&mut up.headers, up.body.clone());
             let injected = hooks::inject_fflags(&raw, &flags);
             if let (Some((b, n)), true) = (injected, up.status.is_success()) {
                 *st.delivered.lock() = Some(sig);
