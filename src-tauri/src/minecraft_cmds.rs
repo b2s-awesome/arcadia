@@ -207,7 +207,7 @@ struct Exited {
 }
 
 #[tauri::command]
-pub async fn mc_play(app: AppHandle, id: String) -> Res<()> {
+pub async fn mc_play(app: AppHandle, id: String, join: Option<String>) -> Res<()> {
     let st = app.state::<AppState>();
     if st.mc_running.lock().contains_key(&id) {
         return Err("This instance is already running".into());
@@ -216,7 +216,7 @@ pub async fn mc_play(app: AppHandle, id: String) -> Res<()> {
     let session = auth::session(&s.minecraft_client_id, None).await.map_err(err)?;
     let mut inst = instance::get(&id).map_err(err)?;
     let on = on_progress(&app);
-    let ready = launch::prepare(&mut inst, &session, &on).await.map_err(err)?;
+    let ready = launch::prepare(&mut inst, &session, join.as_deref().filter(|j| !j.trim().is_empty()), &on).await.map_err(err)?;
 
     let mut cmd = tokio::process::Command::new(&ready.java);
     cmd.args(&ready.args).current_dir(&ready.game_dir).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
@@ -245,6 +245,7 @@ pub async fn mc_play(app: AppHandle, id: String) -> Res<()> {
     }
 
     let started = std::time::Instant::now();
+    let started_at = std::time::SystemTime::now();
     inst.last_played = Some(instance::now());
     let _ = instance::save(&inst);
     let h = app.clone();
@@ -256,6 +257,12 @@ pub async fn mc_play(app: AppHandle, id: String) -> Res<()> {
         if let Ok(mut i) = instance::get(&iid) {
             i.playtime_secs += secs;
             let _ = instance::save(&i);
+        }
+        // A crash: say what went wrong, from the crash report or the log.
+        if code.is_some_and(|c| c != 0) {
+            if let Some(c) = crate::mc_extra_cmds::diagnose_after(&iid, started_at) {
+                let _ = h.emit("mc-crash", c);
+            }
         }
         let _ = h.emit("mc-exited", Exited { instance: iid, code, seconds: secs });
     });

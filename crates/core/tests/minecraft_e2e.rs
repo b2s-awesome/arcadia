@@ -162,7 +162,7 @@ async fn install_fabric_build_launch_and_import_mrpack() {
     let ev = events.clone();
     let on: OnProgress = Arc::new(move |p| ev.lock().unwrap().push(p.message));
     let session = launch::Session { name: "Alex".into(), uuid: "u-1".into(), access_token: "TOKEN".into(), xuid: "x".into(), client_id: "cid".into() };
-    let ready = launch::prepare(&mut inst, &session, &on).await.unwrap();
+    let ready = launch::prepare(&mut inst, &session, None, &on).await.unwrap();
 
     assert!(ready.java.exists());
     let a = &ready.args;
@@ -182,7 +182,7 @@ async fn install_fabric_build_launch_and_import_mrpack() {
 
     // Second prepare: nothing to download, still works offline from cache.
     files.lock().unwrap().remove("/mc/manifest.json");
-    launch::prepare(&mut inst, &session, &on).await.unwrap();
+    launch::prepare(&mut inst, &session, None, &on).await.unwrap();
 
     // ── Modrinth pack import ──
     let sodium = jar(&[("fabric.mod.json", br#"{"id":"sodium","name":"Sodium","version":"0.6.0"}"#)]);

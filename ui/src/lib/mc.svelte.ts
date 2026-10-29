@@ -2,9 +2,9 @@
 // standalone window.
 import { mc, on } from "./api";
 import { toast } from "./state.svelte";
-import type { McAccount, McInstance, McProgress } from "./types";
+import type { McAccount, McCrashInfo, McInstance, McProgress } from "./types";
 
-export type McTab = "instances" | "modpacks" | "import" | "security" | "accounts";
+export type McTab = "instances" | "modpacks" | "skins" | "import" | "security" | "accounts";
 
 const MAX_LOG = 3000;
 
@@ -17,6 +17,10 @@ export const mcs = $state({
   progress: null as McProgress | null,
   logs: {} as Record<string, string[]>,
   consoleFor: null as string | null,
+  /** The last crash, explained. */
+  crash: null as McCrashInfo | null,
+  /** Ask the instance view to open a section (e.g. "logs"). */
+  openSection: null as string | null,
   loaded: false,
 });
 
@@ -50,10 +54,13 @@ export async function initMinecraft() {
     l.push(line);
     if (l.length > MAX_LOG) l.splice(0, l.length - MAX_LOG);
   });
+  on<McCrashInfo>("mc-crash", (c) => (mcs.crash = c));
   on<{ instance: string; code: number | null; seconds: number }>("mc-exited", ({ instance, code }) => {
     mcs.running = mcs.running.filter((r) => r !== instance);
     const name = mcs.instances.find((i) => i.id === instance)?.name ?? "Minecraft";
-    if (code && code !== 0) {
+    if (code && code !== 0 && mcs.crash?.instance === instance) {
+      // The crash dialog explains it.
+    } else if (code && code !== 0) {
       toast(`${name} closed with an error (code ${code}). Open its console to see why.`, "error");
       mcs.consoleFor = instance;
     }

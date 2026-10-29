@@ -65,6 +65,30 @@ A Prism-style launcher built into Arcadia. Open it from the sidebar, or pop it o
 - **Modpacks** from Modrinth and CurseForge, installed directly. No other launcher needed.
 - **Import** `.mrpack` files, CurseForge `.zip` packs, Prism Launcher and MultiMC instances, and CurseForge app instances. Instances from Prism and the CurseForge app are found automatically.
 - **Mods:** search and install mods, resource packs and shaders (dependencies included), turn mods on and off, and check that each file matches a Modrinth or CurseForge upload.
+- **Each instance** has collapsible tabs:
+  - **Content:** mods, updates, resource packs, shaders and add content.
+  - **Play:** worlds, servers and screenshots.
+  - **Logs & crashes.**
+  - **Settings:** general, Java & launch, and export & share.
+- **Updates:** finds newer Modrinth versions of mods, resource packs and shaders for the instance's Minecraft version and loader. Files are matched by SHA-1, so this works whoever installed them. Update one, or all.
+- **Worlds:** game mode, version, size and seed, with one-click zip backups, restore (the current world is backed up first) and delete-with-backup.
+- **Servers:** the instance's Multiplayer list, with live player counts, message of the day and ping. **Join** starts the game and connects straight away, using Quick Play on 1.20+ and `--server` before that. An instance can also join a server every time it starts.
+- **Screenshots** in a grid with a viewer, and **resource and shader packs** you can turn on and off, add or remove.
+- **Logs & crashes:** live output, saved logs and crash reports, with search and filters. When the game crashes, Arcadia explains it in plain words and gives a fix. It recognises:
+  - missing or wrong dependencies (Fabric and Forge/NeoForge)
+  - incompatible or duplicate mods
+  - running out of memory
+  - the wrong Java
+  - graphics drivers
+  - mixin failures
+  - suspected mods
+  - missing libraries
+- **Java:** automatic by default, or pick Java 8, 16, 17 or 21 from Mojang, or your own `javaw.exe`.
+- **Export:** a `.mrpack` that Arcadia, Prism and the Modrinth app import. Modrinth files are linked rather than packed in, or everything goes inside for an offline copy. You choose whether to include config, packs, options and worlds.
+- **Skins:**
+  - A skin library with a 3D preview you can drag to turn, outer-layer and walking toggles, and classic or slim arms.
+  - Add skin files, or copy any player's skin by name.
+  - **Wear** a skin and pick your **cape** through Mojang's own profile API.
 - **Security:** checks installed mods against known incidents (fractureiser, BleedingPipe, Log4Shell), looks for files fractureiser leaves behind, and recommends PipeBlocker for old Forge packs. Log4Shell is always patched.
 
 Two keys are needed and are entered under **Accounts and setup**:

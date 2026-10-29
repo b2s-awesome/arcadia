@@ -55,6 +55,16 @@ pub struct Instance {
     pub source: Option<PackSource>,
     #[serde(default)]
     pub manual_downloads: Vec<ManualDownload>,
+    /// "" picks the Java this Minecraft version asks for; otherwise one of
+    /// Mojang's runtimes ("jre-legacy", "java-runtime-gamma",
+    /// "java-runtime-delta") or "custom" to use `java_path`.
+    #[serde(default)]
+    pub java: String,
+    #[serde(default)]
+    pub java_path: Option<String>,
+    /// Server to join when the game starts ("" = none).
+    #[serde(default)]
+    pub auto_join: String,
 }
 
 pub fn now() -> u64 {
@@ -139,6 +149,9 @@ pub fn create(name: &str, mc: &str, loader: Loader, loader_version: Option<Strin
         created: now(),
         last_played: None,
         playtime_secs: 0,
+        java: String::new(),
+        java_path: None,
+        auto_join: String::new(),
         source: None,
         manual_downloads: vec![],
     };
