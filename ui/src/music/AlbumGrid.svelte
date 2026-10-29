@@ -2,7 +2,7 @@
   import Icon from "../components/Icon.svelte";
   import { app } from "../lib/state.svelte";
   import Art from "./Art.svelte";
-  import { openMenu, trackMenu } from "./menu.svelte";
+  import { openMenu, trackMenu } from "./contextMenu.svelte";
   import { go, play, type Album } from "./store.svelte";
 
   /** `row`: one scrolling line (Home); otherwise a wrapping grid. */

@@ -2,7 +2,7 @@
   import Icon from "../components/Icon.svelte";
   import { cycleRepeat, ms, next, prev, setShuffle, toggle } from "./store.svelte";
   import { app } from "../lib/state.svelte";
-  import { openMenu } from "./menu.svelte";
+  import { openMenu } from "./contextMenu.svelte";
   import { SHUFFLE, SHUFFLE_MODES, setShuffleMode } from "../addons/listening/listening.svelte";
   let { big = false }: { big?: boolean } = $props();
   const s = $derived(ms.status);

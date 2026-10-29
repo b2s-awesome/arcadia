@@ -11,7 +11,7 @@
   import { artUrl, initMusic, ms, next, prev, quality, setShuffle, cycleRepeat, time, toggle } from "../../music/store.svelte";
   import { LYRICS, currentLine, useLyrics } from "../lyrics/lyrics.svelte";
   import Visualiser from "./Visualiser.svelte";
-  import { closeFad, fad, toggleFullscreen } from "./fad.svelte";
+  import { closeFad, fad, toggleFullscreen } from "./state.svelte";
 
   const p = $derived(app.ui.fad);
   const skin = $derived(skinFor(p.skin, app.ui.music.layout));

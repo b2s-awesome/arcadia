@@ -2,7 +2,7 @@
   // "Sort & Play ▾" for any list of songs.
   import Icon from "../../components/Icon.svelte";
   import type { Track } from "../../lib/types";
-  import { openMenu } from "../../music/menu.svelte";
+  import { openMenu } from "../../music/contextMenu.svelte";
   import { SORTS, sortAndPlay } from "./listening.svelte";
   let { tracks, cls = "ghosty" }: { tracks: Track[]; cls?: string } = $props();
 </script>

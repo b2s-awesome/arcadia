@@ -2,7 +2,7 @@
   // Loopy Loop + Bookmarks: how to use it, and every bookmark.
   import { onMount } from "svelte";
   import { ms, time } from "../../music/store.svelte";
-  import { ask } from "../../music/menu.svelte";
+  import { ask } from "../../music/contextMenu.svelte";
   import { clearLoop, initListening, lx, playBookmark, removeBookmark, renameBookmark } from "./listening.svelte";
 
   onMount(() => {

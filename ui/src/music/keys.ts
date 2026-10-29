@@ -2,7 +2,7 @@
 import { ms, next, prev, seek, setVolume, toggle } from "./store.svelte";
 import { app } from "../lib/state.svelte";
 import { LOOP, addBookmark, clearLoop, setA, setB } from "../addons/listening/listening.svelte";
-import { openFad } from "../addons/fad/fad.svelte";
+import { openFad } from "../addons/fad/state.svelte";
 
 export function musicKeys(e: KeyboardEvent, extra: (e: KeyboardEvent) => boolean = () => false): void {
   const t = e.target as HTMLElement | null;

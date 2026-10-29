@@ -4,7 +4,7 @@
   import Icon from "../../components/Icon.svelte";
   import type { Track } from "../../lib/types";
   import Art from "../Art.svelte";
-  import { openMenu, trackMenu, type MenuItem } from "../menu.svelte";
+  import { openMenu, trackMenu, type MenuItem } from "../contextMenu.svelte";
   import { longTime, play, shuffleAll } from "../store.svelte";
   import { app } from "../../lib/state.svelte";
   import SortPlay from "../../addons/listening/SortPlay.svelte";

@@ -3,7 +3,7 @@
   import Toggle from "../../components/Toggle.svelte";
   import { app, saveUi } from "../../lib/state.svelte";
   import type { FadPrefs } from "../../lib/theme";
-  import { openFad } from "./fad.svelte";
+  import { openFad } from "./state.svelte";
 
   const p = $derived(app.ui.fad);
   function set<K extends keyof FadPrefs>(k: K, v: FadPrefs[K]) {

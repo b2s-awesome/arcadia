@@ -1,7 +1,7 @@
 <script lang="ts">
   import { app } from "../lib/state.svelte";
   import { LOOP, addBookmark, bookmarksFor, clearLoop, lx, playBookmark, setA, setB } from "../addons/listening/listening.svelte";
-  import { openMenu } from "./menu.svelte";
+  import { openMenu } from "./contextMenu.svelte";
   import { ms, seek, time } from "./store.svelte";
   let { times = true, thin = false }: { times?: boolean; thin?: boolean } = $props();
   let dragging = $state(false);

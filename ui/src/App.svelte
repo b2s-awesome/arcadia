@@ -11,7 +11,7 @@
   import { initPlayer, next as musicNext, toggle as musicToggle } from "./music/store.svelte";
   import { applyLook, defaultLook, PRESETS, SPLASH_MS, wallpaperUrl, type PresetId } from "./lib/theme";
   import { applyThemes, watchSafeMode } from "./addons/themes/themes";
-  import { fad, openFad } from "./addons/fad/fad.svelte";
+  import { fad, openFad } from "./addons/fad/state.svelte";
   import { initListening } from "./addons/listening/listening.svelte";
   import LyricsWindow from "./addons/lyrics/LyricsWindow.svelte";
   import type { Activity, Progress } from "./lib/types";

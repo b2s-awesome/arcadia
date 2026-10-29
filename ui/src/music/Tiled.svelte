@@ -12,7 +12,7 @@
   import { musicKeys } from "./keys";
   import { back, cycleRepeat, go, lib, ms, next, prev, quality, setShuffle, type MusicView } from "./store.svelte";
   import { visibleTabs } from "./streaming.svelte";
-  import { openFad } from "../addons/fad/fad.svelte";
+  import { openFad } from "../addons/fad/state.svelte";
 
   const prefs = $derived(app.ui.music);
   const t = $derived(ms.status?.track ?? null);

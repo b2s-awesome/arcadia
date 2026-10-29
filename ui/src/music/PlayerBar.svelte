@@ -6,7 +6,7 @@
   import Volume from "./Volume.svelte";
   import { albumKey, back, go, ms, setFavourite } from "./store.svelte";
   import { app } from "../lib/state.svelte";
-  import { openFad } from "../addons/fad/fad.svelte";
+  import { openFad } from "../addons/fad/state.svelte";
   const t = $derived(ms.status?.track ?? null);
 </script>
 

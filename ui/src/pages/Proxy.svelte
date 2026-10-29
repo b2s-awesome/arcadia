@@ -1,5 +1,10 @@
+<script lang="ts" module>
+  let lastTab = "profiles";
+</script>
+
 <script lang="ts">
   import { onMount } from "svelte";
+  import TreeTabs, { type TreeNode } from "../components/TreeTabs.svelte";
   import { api, pickFile } from "../lib/api";
   import { app, saveSettings, toast } from "../lib/state.svelte";
   import type { Action, ProxyStatus, Rule, RuleConfig, RulesImported } from "../lib/types";
@@ -26,6 +31,22 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => api.rulesSave($state.snapshot(config)).catch((e) => toast(String(e), "error")), 250);
   }
+
+  // ── Tabs: settings, each profile (Fleasion configs can be many), live flags ──
+  let tab = $state(lastTab);
+  $effect(() => {
+    lastTab = tab;
+  });
+  const tree: TreeNode[] = $derived([
+    { id: "settings", label: "Proxy & cache", icon: "proxy" },
+    { id: "profiles", label: "Profiles", icon: "library", badge: config.profiles.length || "", children: config.profiles.map((p) => ({ id: `p:${p.name}`, label: p.name, badge: p.rules.length, dim: !p.enabled })) },
+    { id: "live", label: "Live FastFlags", icon: "sliders", badge: s.proxy_fflags_risk_accepted ? Object.keys(s.proxy_fflag_overrides).length || "" : "off" },
+  ]);
+  // A deleted or renamed profile's tab falls back to the list.
+  $effect(() => {
+    if (tab.startsWith("p:") && !config.profiles.some((p) => `p:${p.name}` === tab)) tab = "profiles";
+  });
+  const onlyProfile = $derived(tab.startsWith("p:") ? tab.slice(2) : null);
 
   // ── Rule editor ──
   type Kind = Action["type"];
@@ -104,6 +125,7 @@
     config.profiles.push({ name, enabled: true, rules: [] });
     newProfile = "";
     persist();
+    tab = `p:${name}`;
   }
   function deleteProfile(i: number) {
     config.profiles.splice(i, 1);
@@ -190,6 +212,18 @@
       </dl>
     {/if}
 
+    <div class="split">
+    <TreeTabs key="proxy" label="Asset proxy" nodes={tree} bind:selected={tab} search={config.profiles.length > 6}>
+      {#snippet foot()}
+        <div class="tree-foot">
+          <input placeholder="New profile" bind:value={newProfile} onkeydown={(e) => e.key === "Enter" && addProfile()} aria-label="New profile name" />
+          <button class="ghost" onclick={addProfile} disabled={!newProfile.trim()} aria-label="Create profile"><Icon name="plus" size={15} /></button>
+        </div>
+        <button class="ghost wide" onclick={() => (importOpen = true)}><Icon name="download" size={15} /> Import Fleasion / profiles</button>
+      {/snippet}
+    </TreeTabs>
+    <div class="panes">
+    {#if tab === "settings"}
     <section class="section">
       <div class="setting">
         <div><div class="label">Use the proxy when Roblox starts</div><div class="desc">Roblox launched from Arcadia routes asset requests through it. Nothing else on your PC is affected.</div></div>
@@ -204,10 +238,12 @@
         />
       </div>
     </section>
+    {/if}
 
+    {#if tab === "profiles" || onlyProfile !== null}
     <section class="section">
       <div class="row spread">
-        <h3>Replacement profiles</h3>
+        <h3>{onlyProfile ?? "Replacement profiles"}</h3>
         <div class="row">
           <button class="ghost" onclick={() => (importOpen = true)}><Icon name="download" size={16} /> Import</button>
           <button class="ghost" onclick={() => exportProfile(null)}><Icon name="upload" size={16} /> Export all</button>
@@ -216,6 +252,7 @@
       <p class="hint">Turn whole profiles on and off, or single rules within them. When two rules target the same asset, the lower profile wins.</p>
 
       {#each config.profiles as profile, pi (profile.name)}
+        {#if onlyProfile === null || onlyProfile === profile.name}
         <div class="profile" class:off={!profile.enabled}>
           <div class="profile-head">
             <Toggle label="Enable {profile.name}" bind:checked={profile.enabled} onchange={persist} />
@@ -244,13 +281,13 @@
             <p class="none">No rules yet. Add one with the asset IDs you want to change.</p>
           {/if}
         </div>
+        {/if}
       {/each}
-      <div class="row new-profile">
-        <input placeholder="New profile name" bind:value={newProfile} onkeydown={(e) => e.key === "Enter" && addProfile()} aria-label="New profile name" />
-        <button onclick={addProfile} disabled={!newProfile.trim()}>Create profile</button>
-      </div>
+      {#if !config.profiles.length}<p class="none">No profiles yet. Create one, or import your Fleasion configs.</p>{/if}
     </section>
+    {/if}
 
+    {#if tab === "live"}
     <section class="section">
       <div class="row spread">
         <h3>Live FastFlags</h3>
@@ -276,6 +313,9 @@
         </table>
       {/if}
     </section>
+    {/if}
+    </div>
+    </div>
   </div>
 </div>
 
@@ -338,6 +378,13 @@
 </Modal>
 
 <style>
+  .split { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 1.6rem; align-items: start; }
+  .panes { min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+  .panes .section { margin-top: 0; }
+  .tree-foot { display: flex; gap: 0.3rem; margin-bottom: 0.4rem; }
+  .tree-foot input { flex: 1; min-width: 0; font-size: 0.85rem; padding: 0.35rem 0.55rem; }
+  .wide { width: 100%; display: inline-flex; align-items: center; gap: 0.4rem; justify-content: center; font-size: 0.84rem; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 0 0 0.5rem; }
   .stats div { padding: 0.2rem 0; }
   .stats dt { color: var(--muted); font-size: 0.85rem; }
@@ -361,7 +408,6 @@
   .act-link { color: var(--peach); }
   .import-sources { gap: 8px; flex-wrap: wrap; }
   .none { color: var(--faint); font-size: 0.9rem; margin-top: 0.6rem; }
-  .new-profile input { width: 16rem; }
 
   .flags { width: 100%; border-collapse: collapse; }
   .flags td { padding: 0.3rem 0.5rem 0.3rem 0; border-top: 1px solid var(--line-soft); }

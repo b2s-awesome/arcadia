@@ -2,7 +2,7 @@
   import Icon from "../../components/Icon.svelte";
   import { app } from "../../lib/state.svelte";
   import Art from "../Art.svelte";
-  import { ask } from "../menu.svelte";
+  import { ask } from "../contextMenu.svelte";
   import { go, longTime, ms, newPlaylist } from "../store.svelte";
 
   let { row = false }: { row?: boolean } = $props();

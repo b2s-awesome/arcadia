@@ -3,7 +3,7 @@
   // Shown in Appearance → Addons and in the Marketplace's Themes tab.
   import Toggle from "../../components/Toggle.svelte";
   import { app, saveUi, toast } from "../../lib/state.svelte";
-  import { ask } from "../../music/menu.svelte";
+  import { ask } from "../../music/contextMenu.svelte";
   import { PACKS, SNIPPETS, inSafeMode } from "./themes";
 
   let { wide = false }: { wide?: boolean } = $props();

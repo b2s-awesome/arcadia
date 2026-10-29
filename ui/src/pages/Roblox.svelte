@@ -1,5 +1,11 @@
+<script lang="ts" module>
+  // The open tab, kept while switching pages.
+  let lastTab = "client";
+</script>
+
 <script lang="ts">
   import { onMount } from "svelte";
+  import TreeTabs, { type TreeNode } from "../components/TreeTabs.svelte";
   import { api, pickFile } from "../lib/api";
   import { app, saveSettings, toast } from "../lib/state.svelte";
   import type { FlagValue, Preset, RobloxStatus } from "../lib/types";
@@ -18,6 +24,22 @@
   });
 
   const upToDate = $derived(latest && status?.installedVersion === latest);
+
+  let tab = $state(lastTab);
+  $effect(() => {
+    lastTab = tab;
+  });
+  const flagCount = $derived(Object.keys(s.fast_flags).length);
+  const tree: TreeNode[] = $derived([
+    { id: "client", label: "Client", icon: "roblox" },
+    { id: "performance", label: "Performance", icon: "sparkle" },
+    { id: "fflags", label: "FastFlags", icon: "sliders", badge: flagCount || "", children: [
+      { id: "fflags-presets", label: "Presets", badge: presets.filter(presetOn).length || "" },
+      { id: "fflags-mine", label: "Your flags", badge: flagCount || "" },
+    ] },
+    { id: "mods", label: "Mods", icon: "brush" },
+  ]);
+  const show = (id: string) => tab === id || tab.startsWith(id + "-") || id.startsWith(tab + "-");
 
   async function launch() {
     launching = true;
@@ -128,6 +150,10 @@
       </div>
     {/if}
 
+    <div class="split">
+    <TreeTabs key="roblox" label="Roblox settings" nodes={tree} bind:selected={tab} />
+    <div class="panes">
+    {#if show("client")}
     <section class="section">
       <h3>Client</h3>
       <div class="setting">
@@ -154,7 +180,9 @@
         <button onclick={reinstall}>Reinstall</button>
       </div>
     </section>
+    {/if}
 
+    {#if show("performance")}
     <section class="section">
       <h3>Performance</h3>
       <div class="setting">
@@ -188,13 +216,16 @@
         <Toggle label="Multiple Roblox windows" bind:checked={s.roblox_multi_instance} onchange={saveSettings} />
       </div>
     </section>
+    {/if}
 
+    {#if show("fflags-presets") || show("fflags-mine")}
     <section class="section">
       <div class="row spread">
-        <h3>FastFlags</h3>
+        <h3>{tab === "fflags-presets" ? "FastFlag presets" : tab === "fflags-mine" ? "Your FastFlags" : "FastFlags"}</h3>
         <button class="ghost" onclick={() => (importing = true)}>Import JSON</button>
       </div>
       <p class="hint">Written to <span class="mono">ClientAppSettings.json</span> each launch. Roblox only honours flags on its allowlist this way; for anything else use live FastFlags on the Asset proxy page.</p>
+      {#if tab !== "fflags-mine"}
       <div class="presets">
         {#each presets as p}
           <label class="preset">
@@ -203,6 +234,8 @@
           </label>
         {/each}
       </div>
+      {/if}
+      {#if tab !== "fflags-presets"}
       <table class="flags">
         <tbody>
           {#each Object.entries(s.fast_flags) as [k, v] (k)}
@@ -219,8 +252,11 @@
           </tr>
         </tbody>
       </table>
+      {/if}
     </section>
+    {/if}
 
+    {#if show("mods")}
     <section class="section">
       <div class="row spread">
         <h3>Mods</h3>
@@ -243,6 +279,9 @@
         <button onclick={clearCache}>Clear cache</button>
       </div>
     </section>
+    {/if}
+    </div>
+    </div>
   </div>
 </div>
 
@@ -256,6 +295,10 @@
 </Modal>
 
 <style>
+  .split { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 1.6rem; align-items: start; }
+  .panes { min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+  .panes .section { margin-top: 0; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
   .notice {
     display: flex; align-items: center; justify-content: space-between; gap: 1rem;
     padding: 0.9rem 1.1rem; border-radius: var(--r-md);

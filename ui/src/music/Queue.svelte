@@ -3,7 +3,7 @@
   import { music } from "../lib/api";
   import { toast } from "../lib/state.svelte";
   import Art from "./Art.svelte";
-  import { openMenu, trackMenu } from "./menu.svelte";
+  import { openMenu, trackMenu } from "./contextMenu.svelte";
   import { ms, time } from "./store.svelte";
   import { app } from "../lib/state.svelte";
   import { SORT, queueTool } from "../addons/listening/listening.svelte";
