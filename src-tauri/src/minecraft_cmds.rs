@@ -323,48 +323,74 @@ pub async fn mc_verify(app: AppHandle, id: String) -> Res<Vec<security::Verified
 
 /// Open Minecraft according to the user's setting: as a page in Arcadia,
 /// or as the standalone launcher window.
-pub fn open_minecraft(app: &AppHandle, force_window: bool) {
+///
+/// Never call this from a *synchronous* `#[tauri::command]`: those run on the
+/// main thread, and on Windows building a WebView2 window there deadlocks the
+/// event loop (the old "Pop out" crash). Async commands, the tray, `setup`
+/// and the single-instance callback are all fine.
+pub fn open_minecraft(app: &AppHandle, force_window: bool) -> Res<()> {
     let mode = settings(app).minecraft_open_mode;
     if !force_window && mode != "window" {
         crate::show_main(app);
-        let _ = app.emit("navigate", "minecraft");
-        return;
+        let _ = app.emit_to("main", "navigate", "minecraft");
+        return Ok(());
     }
     if let Some(w) = app.get_webview_window("minecraft") {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
-        return;
+        return Ok(());
     }
-    let _ = WebviewWindowBuilder::new(app, "minecraft", WebviewUrl::App("index.html?mode=minecraft".into()))
+    let see_through = app.state::<AppState>().see_through;
+    let builder = WebviewWindowBuilder::new(app, "minecraft", WebviewUrl::App("index.html?mode=minecraft".into()));
+    let builder = if see_through {
+        builder.transparent(true)
+    } else {
+        builder.background_color(tauri::window::Color(11, 11, 13, 255))
+    };
+    builder
         .title("Minecraft")
         .inner_size(1180.0, 760.0)
         .min_inner_size(900.0, 580.0)
         .decorations(false)
+        // Belt and braces: the UI also reads this if the query string is lost.
+        .initialization_script("window.__ARCADIA_MODE__ = 'minecraft';")
         .center()
-        .build();
+        .build()
+        .map(|_| ())
+        .map_err(|e| {
+            log::error!("couldn't open the Minecraft window: {e}");
+            format!("Couldn't open the Minecraft window: {e}")
+        })
 }
 
 #[tauri::command]
-pub fn open_minecraft_launcher(app: AppHandle) {
-    open_minecraft(&app, false);
+pub async fn open_minecraft_launcher(app: AppHandle) -> Res<()> {
+    open_minecraft(&app, false)
 }
 
 /// "Pop out": move the launcher into its own window.
 #[tauri::command]
-pub fn minecraft_pop_out(app: AppHandle) {
-    open_minecraft(&app, true);
-    let _ = app.emit("navigate", "library");
+pub async fn minecraft_pop_out(app: AppHandle) -> Res<()> {
+    open_minecraft(&app, true)?;
+    // Only the hub changes page; the new window ignores navigation anyway.
+    let _ = app.emit_to("main", "navigate", "library");
+    Ok(())
 }
 
 /// "Dock": close the standalone window and show the launcher inside Arcadia.
 #[tauri::command]
-pub fn minecraft_dock(app: AppHandle) {
+pub async fn minecraft_dock(app: AppHandle) {
     crate::show_main(&app);
-    let _ = app.emit("navigate", "minecraft");
-    if let Some(w) = app.get_webview_window("minecraft") {
-        let _ = w.destroy();
-    }
+    let _ = app.emit_to("main", "navigate", "minecraft");
+    // This command is invoked *by* the window being destroyed. Let the IPC
+    // reply reach it first, then tear it down.
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+        if let Some(w) = app.get_webview_window("minecraft") {
+            let _ = w.destroy();
+        }
+    });
 }
 
 /// Open a web page (mod pages, manual downloads, incident write-ups).

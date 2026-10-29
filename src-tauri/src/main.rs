@@ -15,6 +15,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
+mod addon_cmds;
 mod minecraft_cmds;
 
 pub(crate) struct AppState {
@@ -26,6 +27,10 @@ pub(crate) struct AppState {
     exe: String,
     /// Running Minecraft instances: instance id → process id.
     mc_running: Mutex<std::collections::HashMap<String, u32>>,
+    /// Windows were created see-through this run (Translucent window addon).
+    /// Transparency can only be chosen when a window is made, so turning the
+    /// addon on or off takes a restart.
+    see_through: bool,
 }
 
 pub(crate) type Res<T> = Result<T, String>;
@@ -40,8 +45,10 @@ fn get_settings(st: State<'_, AppState>) -> Settings {
     st.settings.lock().clone()
 }
 
+/// Saves settings, then tells the *other* windows to reload them, so the hub
+/// and the popped-out Minecraft window never overwrite each other's changes.
 #[tauri::command]
-async fn save_settings(st: State<'_, AppState>, settings: Settings) -> Res<()> {
+async fn save_settings(app: AppHandle, window: tauri::Window, st: State<'_, AppState>, settings: Settings) -> Res<()> {
     settings.save().map_err(err)?;
     let boot = settings.run_on_boot.then(|| format!("\"{}\" --tray", st.exe));
     arcadia_core::registry::set_run_on_boot("Arcadia", boot.as_deref()).map_err(err)?;
@@ -52,6 +59,7 @@ async fn save_settings(st: State<'_, AppState>, settings: Settings) -> Res<()> {
             .store(settings.proxy_inspector_enabled, Ordering::Relaxed);
     }
     *st.settings.lock() = settings;
+    let _ = app.emit("settings-changed", window.label());
     Ok(())
 }
 
@@ -72,8 +80,7 @@ async fn launch_game(app: AppHandle, st: State<'_, AppState>, id: String) -> Res
         return launch_roblox(app, None).await.map(|_| ());
     }
     if game.launch == LaunchTarget::Minecraft {
-        minecraft_cmds::open_minecraft(&app, false);
-        return Ok(());
+        return minecraft_cmds::open_minecraft(&app, false);
     }
     library::launch(&game.launch).map_err(err)?;
     let settings = st.settings.lock().clone();
@@ -455,7 +462,12 @@ pub(crate) fn show_main(app: &AppHandle) {
 /// Handle a command line (first start, or forwarded from a second start).
 fn handle_args(app: &AppHandle, args: &[String]) -> bool {
     if args.iter().any(|a| a == "--minecraft") {
-        minecraft_cmds::open_minecraft(app, true);
+        if let Err(e) = minecraft_cmds::open_minecraft(app, true) {
+            // No launcher window: fall back to the hub so the user sees something.
+            show_main(app);
+            let _ = app.emit_to("main", "navigate", "minecraft");
+            log::error!("{e}");
+        }
         return true;
     }
     if let Some(uri) = args.iter().skip(1).find(|a| roblox::is_roblox_uri(a)).cloned() {
@@ -477,6 +489,9 @@ fn main() {
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_default();
 
+    let settings = Settings::load();
+    let see_through = addon_cmds::see_through_wanted(&settings);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             if !handle_args(app, &argv) {
@@ -485,16 +500,27 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
-            settings: Mutex::new(Settings::load()),
+            settings: Mutex::new(settings),
             games: Mutex::new(Vec::new()),
             rules: Mutex::new(RuleConfig::load()),
             proxy: tokio::sync::Mutex::new(None),
             sessions: Arc::new(AtomicUsize::new(0)),
             exe,
             mc_running: Mutex::new(Default::default()),
+            see_through,
         })
-        .setup(|app| {
+        .setup(move |app| {
             let h = app.handle().clone();
+            // The main window comes from tauri.conf.json, but is built here so
+            // it can be see-through when the Translucent window addon is on.
+            let conf = app.config().app.windows.iter().find(|w| w.label == "main").cloned().expect("main window config");
+            let builder = tauri::WebviewWindowBuilder::from_config(&h, &conf)?;
+            let builder = if see_through {
+                builder.transparent(true)
+            } else {
+                builder.background_color(tauri::window::Color(11, 11, 13, 255))
+            };
+            builder.build()?;
             let show = MenuItem::with_id(app, "show", "Open Arcadia", true, None::<&str>)?;
             let play = MenuItem::with_id(app, "roblox", "Launch Roblox", true, None::<&str>)?;
             let cache_item = MenuItem::with_id(app, "cache", "Clear Roblox cache", true, None::<&str>)?;
@@ -623,6 +649,17 @@ fn main() {
             minecraft_cmds::open_url,
             inspector_snapshot,
             inspector_clear,
+            addon_cmds::addon_get,
+            addon_cmds::addon_set,
+            addon_cmds::addon_keys,
+            addon_cmds::addon_clear,
+            addon_cmds::addon_secret_set,
+            addon_cmds::addon_secrets,
+            addon_cmds::discord_lookup,
+            addon_cmds::discord_image,
+            addon_cmds::window_effects_status,
+            addon_cmds::window_effect_set,
+            addon_cmds::app_restart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Arcadia");

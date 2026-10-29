@@ -161,5 +161,8 @@ input[type="range"] { padding: 0; border: 0; background: transparent; accent-col
 ::-webkit-scrollbar-track { background: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { transition: none !important; animation: none !important; }
+  /* .motion-ok opts a subtree back in (the splash, when the user asks). */
+  *:not(.motion-ok, .motion-ok *), *:not(.motion-ok, .motion-ok *)::before, *:not(.motion-ok, .motion-ok *)::after {
+    transition: none !important; animation: none !important;
+  }
 }

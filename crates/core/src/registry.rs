@@ -128,3 +128,11 @@ mod imp {
 }
 
 pub use imp::*;
+
+/// The Windows build number (e.g. 22631), for features that depend on it.
+pub fn windows_build() -> Option<u32> {
+    read_string(Hive::LocalMachine, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentBuildNumber")?
+        .trim()
+        .parse()
+        .ok()
+}

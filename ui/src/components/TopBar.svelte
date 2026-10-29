@@ -2,18 +2,12 @@
   import { onMount } from "svelte";
   import { api, win } from "../lib/api";
   import { app, type Page } from "../lib/state.svelte";
+  import { visibleNav } from "../lib/nav";
   import Icon from "./Icon.svelte";
   import Logo from "./Logo.svelte";
 
-  const pages: { id: Page; label: string }[] = [
-    { id: "library", label: "Library" },
-    { id: "minecraft", label: "Minecraft" },
-    { id: "roblox", label: "Roblox" },
-    { id: "proxy", label: "Asset proxy" },
-    { id: "inspector", label: "Inspector" },
-    { id: "appearance", label: "Appearance" },
-    { id: "settings", label: "Settings" },
-  ];
+  // Same entries and order as the sidebar, then Settings.
+  const pages: { id: Page; label: string }[] = $derived([...visibleNav(app.ui), { id: "settings", label: "Settings" }]);
 
   let now = $state(new Date());
   let proxyPort: number | null = $state(null);

@@ -7,6 +7,8 @@
   } from "../lib/theme";
   import Toggle from "../components/Toggle.svelte";
   import Icon from "../components/Icon.svelte";
+  import { allNav } from "../lib/nav";
+  import { addonById } from "../addons/registry";
 
   const look = $derived(app.ui.look);
   const presetIds = Object.keys(PRESETS) as PresetId[];
@@ -78,6 +80,46 @@
     { id: "soft", label: "Soft" },
     { id: "round", label: "Round" },
   ];
+  // ── Sidebar ──────────────────────────────────────────────
+  const railItems = $derived(allNav(app.ui));
+  const hiddenCount = $derived(railItems.filter((n) => app.ui.rail.hidden.includes(n.id)).length);
+  function moveTo(id: string, to: number) {
+    const ids = railItems.map((n) => n.id as string);
+    const from = ids.indexOf(id);
+    if (from < 0 || to < 0 || to >= ids.length || from === to) return;
+    ids.splice(to, 0, ...ids.splice(from, 1));
+    app.ui.rail.order = ids;
+    saveUi();
+  }
+  function toggleHidden(id: string) {
+    const h = app.ui.rail.hidden;
+    app.ui.rail.hidden = h.includes(id) ? h.filter((x) => x !== id) : [...h, id];
+    saveUi();
+  }
+  function resetRail() {
+    app.ui.rail = { order: [], hidden: [], compact: false };
+    saveUi();
+  }
+  let dragging: string | null = $state(null);
+  let dropAt: number | null = $state(null);
+  function onDrop(i: number) {
+    if (dragging) moveTo(dragging, i);
+    dragging = null;
+    dropAt = null;
+  }
+
+  // ── Addons with settings here ─────────────────────────────
+  const settingAddons = $derived(app.ui.addons.installed.map(addonById).filter((a) => a?.settings));
+
+  // ── Splash ───────────────────────────────────────────────
+  const motionOff = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const splashLengths = [
+    { id: "off", label: "Off" },
+    { id: "short", label: "Short" },
+    { id: "normal", label: "Normal" },
+    { id: "long", label: "Long" },
+  ] as const;
+
   const opacity = $derived(look.panelOpacity ?? PRESETS[look.preset].panelOpacity);
 </script>
 
@@ -107,6 +149,83 @@
         </div>
       {/if}
     </section>
+
+    <section class="section">
+      <div class="row spread"><h3>Sidebar</h3>
+        {#if app.ui.rail.order.length || app.ui.rail.hidden.length || app.ui.rail.compact}
+          <button class="ghost small" onclick={resetRail}>Reset</button>
+        {/if}
+      </div>
+      <p class="hint">Drag to reorder, or use the arrows. Hidden pages stay one Ctrl+K away; Settings and Search always stay at the bottom.</p>
+      <ul class="rail-edit" aria-label="Sidebar entries">
+        {#each railItems as n, i (n.id)}
+          {@const hidden = app.ui.rail.hidden.includes(n.id)}
+          <li
+            class:hidden
+            class:dragging={dragging === n.id}
+            class:drop={dropAt === i && dragging !== n.id}
+            draggable="true"
+            ondragstart={(e) => { dragging = n.id; e.dataTransfer?.setData("text/plain", n.id); }}
+            ondragover={(e) => { e.preventDefault(); dropAt = i; }}
+            ondragleave={() => { if (dropAt === i) dropAt = null; }}
+            ondrop={(e) => { e.preventDefault(); onDrop(i); }}
+            ondragend={() => { dragging = null; dropAt = null; }}
+          >
+            <span class="grip" aria-hidden="true"><Icon name="grip" size={16} /></span>
+            <Icon name={n.icon} size={17} />
+            <span class="rail-label">{n.label}</span>
+            {#if n.addon}<span class="pill">Addon</span>{/if}
+            <span class="grow"></span>
+            <button class="ghost icon" disabled={i === 0} onclick={() => moveTo(n.id, i - 1)} aria-label="Move {n.label} up"><Icon name="up" size={15} /></button>
+            <button class="ghost icon" disabled={i === railItems.length - 1} onclick={() => moveTo(n.id, i + 1)} aria-label="Move {n.label} down"><Icon name="down" size={15} /></button>
+            <button class="ghost icon" onclick={() => toggleHidden(n.id)} aria-label={hidden ? `Show ${n.label}` : `Hide ${n.label}`} title={hidden ? "Show" : "Hide"}>
+              <Icon name={hidden ? "eye-off" : "eye"} size={16} />
+            </button>
+          </li>
+        {/each}
+      </ul>
+      <div class="setting">
+        <div><div class="label">Icons only</div><div class="desc">A narrow sidebar; hover an icon to see its name.{hiddenCount ? ` ${hiddenCount} hidden.` : ""}</div></div>
+        <Toggle label="Icons only" checked={app.ui.rail.compact} onchange={(v) => { app.ui.rail.compact = v; saveUi(); }} />
+      </div>
+    </section>
+
+    <section class="section">
+      <h3>Startup</h3>
+      <div class="setting">
+        <div><div class="label">Splash screen</div><div class="desc">The logo builds itself while {app.ui.brand.name.trim() || "Arcadia"} opens. Click or press any key to skip it.</div></div>
+        <div class="row">
+          <div class="seg" role="radiogroup" aria-label="Splash length">
+            {#each splashLengths as l}
+              <button role="radio" aria-checked={app.ui.splash.length === l.id} onclick={() => { app.ui.splash.length = l.id; saveUi(); }}>{l.label}</button>
+            {/each}
+          </div>
+          <button class="ghost small" disabled={app.ui.splash.length === "off"} onclick={() => app.splashRun++}>Preview</button>
+        </div>
+      </div>
+      <div class="setting">
+        <div>
+          <div class="label">Animate even with Windows animations off</div>
+          <div class="desc">
+            {motionOff
+              ? "Windows animation effects are off on this PC, so the logo shows without moving. Turn this on to see it build anyway."
+              : "If you turn off animation effects in Windows, the logo shows without moving. Turn this on to keep the animation."}
+          </div>
+        </div>
+        <Toggle label="Animate even with Windows animations off" checked={app.ui.splash.animateAlways} onchange={(v) => { app.ui.splash.animateAlways = v; saveUi(); }} />
+      </div>
+    </section>
+
+    {#each settingAddons as a (a!.id)}
+      <section class="section" id="addon-{a!.id}">
+        <div class="row spread"><h3>{a!.name}</h3><span class="pill">Addon</span></div>
+        {#await a!.settings!()}
+          <p class="hint">Loading…</p>
+        {:then mod}
+          <mod.default />
+        {/await}
+      </section>
+    {/each}
 
     <section class="section">
       <h3>Look</h3>
@@ -334,6 +453,20 @@
   .slider input { width: 180px; }
   .val { width: 3.2rem; text-align: right; color: var(--muted); }
 
+  .rail-edit { list-style: none; margin: 0 0 0.4rem; padding: 0; display: grid; gap: 2px; max-width: 520px; }
+  .rail-edit li {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.35rem 0.4rem 0.35rem 0.5rem; border-radius: var(--r-md);
+    border: 1px solid transparent; background: transparent; cursor: grab;
+  }
+  .rail-edit li:hover { background: var(--raised); border-color: var(--line-soft); }
+  .rail-edit li.hidden .rail-label, .rail-edit li.hidden > :global(svg) { opacity: 0.45; }
+  .rail-edit li.dragging { opacity: 0.4; }
+  .rail-edit li.drop { box-shadow: inset 0 2px 0 var(--peach); }
+  .rail-label { font-weight: 600; font-size: 0.92rem; }
+  .grip { color: var(--faint); display: grid; }
+  button.icon { padding: 0.25rem; display: grid; place-items: center; border-radius: var(--r-sm); }
+  button.small { padding: 0.25rem 0.6rem; font-size: 0.82rem; }
   .swatches { display: flex; flex-wrap: wrap; gap: 0.45rem; justify-content: flex-end; max-width: 360px; }
   .sw { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 1px solid var(--line); }
   .sw[aria-checked="true"] { box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--text); }

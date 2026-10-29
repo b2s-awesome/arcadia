@@ -76,11 +76,13 @@ let settings: Settings = {
   ui: (() => {
     const q = new URLSearchParams(location.search);
     const preset = q.get("look");
-    return preset ? { brand: { name: q.get("name") ?? "Arcadia", tagline: q.get("tag") ?? "Games and Roblox" }, look: { preset, ...(q.get("wall") ? { wallpaper: `builtin:${q.get("wall")}` } : {}) }, saved: [
+    const addons = q.get("addons");
+    const base = preset ? { brand: { name: q.get("name") ?? "Arcadia", tagline: q.get("tag") ?? "Games and Roblox" }, look: { preset, ...(q.get("wall") ? { wallpaper: `builtin:${q.get("wall")}` } : {}) }, saved: [
       { name: "Gruvbox night", look: { preset: "gruvbox" } },
       { name: "Glass", look: { preset: "frost" } },
       { name: "Zen", look: { preset: "obsidian" } },
     ], applied: "Gruvbox night" } : null;
+    return addons ? { ...(base ?? {}), addons: { installed: addons.split(",") } } : base;
   })(),
 };
 
@@ -117,9 +119,50 @@ entries.push(
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const addonStore = new Map<string, unknown>();
+const mockSecrets = new Set<string>();
+
+/** Stand-in artwork for a pretend Discord lookup. */
+function mockImage(url: string): string {
+  const svg = url === "mock:banner"
+    ? `<svg xmlns="http://www.w3.org/2000/svg" width="680" height="240"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#1f1147"/><stop offset=".55" stop-color="#6a2c91"/><stop offset="1" stop-color="#f08a5d"/></linearGradient></defs><rect width="680" height="240" fill="url(#g)"/><circle cx="560" cy="60" r="70" fill="#ffd28a" opacity=".55"/><path d="M0 200 Q170 140 340 190 T680 170 V240 H0z" fill="#12082b" opacity=".7"/></svg>`
+    : `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#9ad1d4"/><circle cx="128" cy="104" r="52" fill="#f6e7d8"/><path d="M40 256 Q128 150 216 256z" fill="#2f6f73"/><circle cx="108" cy="100" r="7" fill="#1b1b1b"/><circle cx="148" cy="100" r="7" fill="#1b1b1b"/><path d="M80 70 Q128 20 176 70 Q150 52 128 56 Q104 52 80 70z" fill="#e85d75"/></svg>`;
+  return `data:image/svg+xml;base64,${btoa(svg)}`;
+}
+
 export async function mockInvoke(cmd: string, args: Record<string, unknown> = {}): Promise<unknown> {
   await sleep(60);
   switch (cmd) {
+    case "addon_get": return structuredClone(addonStore.get(`${args.addon}/${args.key}`) ?? null);
+    case "addon_set": {
+      const k = `${args.addon}/${args.key}`;
+      if (args.value == null) addonStore.delete(k); else addonStore.set(k, structuredClone(args.value));
+      return;
+    }
+    case "addon_keys": return [...addonStore.keys()].filter((k) => k.startsWith(`${args.addon}/`)).map((k) => k.split("/")[1]).sort();
+    case "addon_clear": for (const k of [...addonStore.keys()]) if (k.startsWith(`${args.addon}/`)) addonStore.delete(k); mockSecrets.clear(); return;
+    case "addon_secret_set": if (args.value) mockSecrets.add(args.name as string); else mockSecrets.delete(args.name as string); return;
+    case "addon_secrets": return [...mockSecrets];
+    case "discord_lookup": {
+      await sleep(500);
+      const q = String(args.query).trim().replace(/^@/, "").toLowerCase();
+      if (!/^\d{17,20}$/.test(q) && !mockSecrets.has("bot_token")) {
+        throw "Finding someone by username needs a bot token (Discord doesn't offer a public username search). Add one under “Import settings”, or paste a user ID.";
+      }
+      return {
+        id: "175928847299117063", username: /^\d+$/.test(q) ? "sample.person" : q, displayName: "Sample Person",
+        avatarUrl: "mock:avatar", avatarAnimated: false, bannerUrl: "mock:banner", bannerAnimated: false,
+        accentColor: "#2b2d6e", decorationUrl: null, createdAt: 1462015105796, bot: false, source: "discord", notes: [],
+      };
+    }
+    case "discord_image": return mockImage(String(args.url));
+    case "window_effects_status": {
+      const ui = (settings.ui ?? {}) as { addons?: { installed?: string[] }; seeThrough?: { enabled?: boolean } };
+      const wanted = !!ui.addons?.installed?.includes("see-through") && ui.seeThrough?.enabled !== false;
+      return { active: new URLSearchParams(location.search).has("fxactive") && wanted, wanted, build: 22631, os: "windows" };
+    }
+    case "window_effect_set": return;
+    case "app_restart": location.reload(); return;
     case "get_settings": return structuredClone(settings);
     case "save_settings": settings = args.settings as Settings; return;
     case "scan_library": return { games, launchers: ["minecraft", "roblox", "steam", "epic", "battlenet", "gog", "ea", "ubisoft"], warnings: [] };

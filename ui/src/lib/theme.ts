@@ -40,12 +40,57 @@ export interface Brand {
 
 export const DEFAULT_BRAND: Brand = { name: "Arcadia", tagline: "Games and Roblox" };
 
+/** The vertical sidebar: which entries show, in what order. */
+export interface RailPrefs {
+  /** Entry ids top to bottom: pages, "marketplace" and "addon:<id>". */
+  order: string[];
+  hidden: string[];
+  /** Icons only, with labels on hover. */
+  compact: boolean;
+}
+
+/** The logo animation at startup. */
+export interface SplashPrefs {
+  length: "off" | "short" | "normal" | "long";
+  /** Play the animation even when Windows animations are turned off. */
+  animateAlways: boolean;
+}
+
+/** How long the splash stays up, from first paint, in ms. The logo
+ *  animation itself takes about 1.3 s. */
+export const SPLASH_MS: Record<Exclude<SplashPrefs["length"], "off">, number> = { short: 1500, normal: 2600, long: 4000 };
+
+/** Translucent window addon: the desktop shows through, blurred by Windows. */
+export interface SeeThroughPrefs {
+  enabled: boolean;
+  effect: "acrylic" | "mica" | "mica-dark" | "tabbed" | "blur";
+  /** Acrylic/Blur tint colour and how strong it is (0–1). */
+  tint: string;
+  strength: number;
+  /** Opacity of the app's panel over the blur, 0.15–1. */
+  panel: number;
+  /** Keep Arcadia's wallpaper, faintly, instead of the real desktop. */
+  keepWallpaper: boolean;
+}
+
+export const DEFAULT_SEE_THROUGH: SeeThroughPrefs = {
+  enabled: true, effect: "acrylic", tint: "#0e0e12", strength: 0.35, panel: 0.6, keepWallpaper: false,
+};
+
+export interface AddonPrefs {
+  installed: string[];
+}
+
 export interface UiState {
   brand: Brand;
   look: Look;
   bar: BarPrefs;
   saved: SavedLook[];
   applied: string | null;
+  rail: RailPrefs;
+  addons: AddonPrefs;
+  splash: SplashPrefs;
+  seeThrough: SeeThroughPrefs;
 }
 
 interface Preset {
@@ -179,6 +224,10 @@ export function defaultUi(): UiState {
     bar: { show: true, style: "island", clock24: false, seconds: false, date: true },
     saved: [],
     applied: null,
+    rail: { order: [], hidden: [], compact: false },
+    addons: { installed: [] },
+    splash: { length: "normal", animateAlways: false },
+    seeThrough: { ...DEFAULT_SEE_THROUGH },
   };
 }
 
@@ -190,10 +239,43 @@ export function normalizeUi(v: unknown): UiState {
   const preset = u.look?.preset && u.look.preset in PRESETS ? u.look.preset : "obsidian";
   const look = { ...defaultLook(preset), ...(u.look ?? {}), preset };
   const brand = { ...DEFAULT_BRAND, ...(u.brand ?? {}) };
-  return { brand, look, bar: { ...d.bar, ...(u.bar ?? {}) }, saved: Array.isArray(u.saved) ? u.saved : [], applied: u.applied ?? null };
+  const strs = (a: unknown): string[] => (Array.isArray(a) ? a.filter((x): x is string => typeof x === "string") : []);
+  const rail: RailPrefs = {
+    order: strs(u.rail?.order),
+    hidden: strs(u.rail?.hidden),
+    compact: u.rail?.compact === true,
+  };
+  return {
+    brand,
+    look,
+    bar: { ...d.bar, ...(u.bar ?? {}) },
+    saved: Array.isArray(u.saved) ? u.saved : [],
+    applied: u.applied ?? null,
+    rail,
+    addons: { installed: strs(u.addons?.installed) },
+    splash: {
+      length: (["off", "short", "normal", "long"] as const).includes(u.splash?.length as SplashPrefs["length"]) ? u.splash!.length : d.splash.length,
+      animateAlways: u.splash?.animateAlways === true,
+    },
+    seeThrough: normalizeSeeThrough(u.seeThrough),
+  };
 }
 
-function rgba(color: string, alpha: number): string {
+function normalizeSeeThrough(v: Partial<SeeThroughPrefs> | undefined): SeeThroughPrefs {
+  const d = DEFAULT_SEE_THROUGH;
+  if (!v || typeof v !== "object") return { ...d };
+  const num = (x: unknown, lo: number, hi: number, def: number) => (typeof x === "number" && isFinite(x) ? Math.min(hi, Math.max(lo, x)) : def);
+  return {
+    enabled: v.enabled !== false,
+    effect: (["acrylic", "mica", "mica-dark", "tabbed", "blur"] as const).includes(v.effect as SeeThroughPrefs["effect"]) ? v.effect! : d.effect,
+    tint: typeof v.tint === "string" && /^#[0-9a-f]{6}$/i.test(v.tint) ? v.tint : d.tint,
+    strength: num(v.strength, 0, 1, d.strength),
+    panel: num(v.panel, 0.15, 1, d.panel),
+    keepWallpaper: v.keepWallpaper === true,
+  };
+}
+
+export function rgba(color: string, alpha: number): string {
   const m = /^#([0-9a-f]{6})$/i.exec(color);
   if (!m) return color;
   const n = parseInt(m[1], 16);

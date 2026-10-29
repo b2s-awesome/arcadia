@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { mc } from "../lib/api";
-  import { activeAccount, initMinecraft, mcs, type McTab } from "../lib/mc.svelte";
+  import { activeAccount, dock, initMinecraft, mcs, popOut, type McTab } from "../lib/mc.svelte";
   import Icon from "../components/Icon.svelte";
   import Instances from "./Instances.svelte";
   import Modpacks from "./Modpacks.svelte";
@@ -51,9 +50,9 @@
     <div class="row">
       <button onclick={() => (creating = true)}><Icon name="plus" size={16} /> New instance</button>
       {#if standalone}
-        <button class="ghost" onclick={() => mc.dock()} title="Close this window and show the launcher inside Arcadia">Back to Arcadia</button>
+        <button class="ghost" onclick={dock} title="Close this window and show the launcher inside Arcadia">Back to Arcadia</button>
       {:else}
-        <button class="ghost" onclick={() => mc.popOut()} title="Open the launcher in its own window">Pop out</button>
+        <button class="ghost" onclick={popOut} title="Open the launcher in its own window">Pop out</button>
       {/if}
     </div>
   </header>
