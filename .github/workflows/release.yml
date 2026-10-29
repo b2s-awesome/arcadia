@@ -23,6 +23,22 @@ jobs:
           npm ci --prefix ui
       - name: Test core
         run: cargo test -p arcadia-core -p arcadia-audio
+      # On failure, the end of the output becomes one annotation, so it can
+      # be read without the full log.
+      - name: Check the app
+        shell: pwsh
+        run: |
+          function Check($name, [scriptblock]$cmd) {
+            $out = & $cmd 2>&1 | Out-String
+            Write-Output $out
+            if ($LASTEXITCODE -ne 0) {
+              $tail = ($out -split "`r?`n" | Select-Object -Last 60) -join '%0A'
+              Write-Output "::error title=$name failed::$tail"
+              exit 1
+            }
+          }
+          Check "UI build" { npm run build --prefix ui }
+          Check "cargo check" { cargo check -p arcadia --message-format short }
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

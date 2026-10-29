@@ -6,7 +6,7 @@
   import { app } from "../lib/state.svelte";
   import type { Track } from "../lib/types";
   import Art from "./Art.svelte";
-  import { openMenu, trackMenu, type MenuItem } from "./menu.svelte";
+  import { openMenu, trackMenu, type MenuItem } from "./contextMenu.svelte";
   import { albumKey, go, ms, play, setFavourite, time } from "./store.svelte";
 
   let {

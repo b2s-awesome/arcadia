@@ -4,7 +4,9 @@
   "description": "Main window",
   "windows": [
     "main",
-    "minecraft"
+    "minecraft",
+    "lyrics-popup",
+    "lyrics-bar"
   ],
   "permissions": [
     "core:default",
@@ -14,6 +16,7 @@
     "core:window:allow-close",
     "core:window:allow-start-dragging",
     "core:window:allow-is-maximized",
-    "core:window:allow-set-title"
+    "core:window:allow-set-title",
+    "core:window:allow-set-fullscreen"
   ]
 }

@@ -4,10 +4,10 @@
   import type { Track } from "../../lib/types";
   import TrackList from "../TrackList.svelte";
   import Collection from "./Collection.svelte";
-  import { ask } from "../menu.svelte";
+  import { ask } from "../contextMenu.svelte";
   import { back, ms, play, playlistTracks, reloadLibrary, reloadPlaylists } from "../store.svelte";
   import { streaming } from "../../lib/api";
-  import { downloadTracks } from "../menu.svelte";
+  import { downloadTracks } from "../contextMenu.svelte";
   import { initStreaming, streamingOn, sx } from "../streaming.svelte";
   import Icon from "../../components/Icon.svelte";
 

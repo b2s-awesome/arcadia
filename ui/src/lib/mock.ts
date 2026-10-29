@@ -83,7 +83,10 @@ let settings: Settings = {
       { name: "Glass", look: { preset: "frost" } },
       { name: "Zen", look: { preset: "obsidian" } },
     ], applied: "Gruvbox night" } : null;
-    return addons ? { ...(base ?? {}), addons: { installed: addons.split(",") } } : base;
+    // uix: extra UI state as JSON, for previews (e.g. {"stats":{"skin":"glass"}}).
+    const extra = q.get("uix") ? (JSON.parse(q.get("uix")!) as Record<string, unknown>) : {};
+    const ui = addons ? { ...(base ?? {}), addons: { installed: addons.split(",") } } : base;
+    return ui || q.get("uix") ? { ...(ui ?? {}), ...extra } : null;
   })(),
 };
 
@@ -133,7 +136,7 @@ function mockImage(url: string): string {
 
 export async function mockInvoke(cmd: string, args: Record<string, unknown> = {}): Promise<unknown> {
   await sleep(60);
-  if (cmd.startsWith("music_") || cmd.startsWith("streaming_")) return mockMusic(cmd, args, emit);
+  if (cmd.startsWith("music_") || cmd.startsWith("streaming_") || cmd.startsWith("lyrics_")) return mockMusic(cmd, args, emit);
   switch (cmd) {
     case "addon_get": return structuredClone(addonStore.get(`${args.addon}/${args.key}`) ?? null);
     case "addon_set": {

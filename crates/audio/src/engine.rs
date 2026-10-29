@@ -36,6 +36,7 @@ enum Cmd {
     Pause(bool),
     Stop,
     Output(OutputInfo),
+    Loop(Option<(u64, f64, f64)>),
 }
 
 pub struct Engine {
@@ -43,6 +44,7 @@ pub struct Engine {
     out: Sender<OutCmd>,
     shared: Arc<Shared>,
     info: Arc<Mutex<Option<OutputInfo>>>,
+    analyser: Mutex<Option<crate::spectrum::Analyser>>,
 }
 
 impl Engine {
@@ -104,7 +106,7 @@ impl Engine {
             .name("arcadia-audio-decode".into())
             .spawn(move || Decoder::new(sh, rx, Box::new(move |e| on_event(e))).run())
             .expect("spawn audio decoder thread");
-        Engine { tx, out, shared, info }
+        Engine { tx, out, shared, info, analyser: Mutex::new(None) }
     }
 
     /// Play `path` from `start` seconds. `token` identifies it in events.
@@ -137,6 +139,29 @@ impl Engine {
     }
     pub fn output(&self) -> Option<OutputInfo> {
         self.info.lock().clone()
+    }
+
+    /// Loop `token` between `a` and `b` seconds, sample-accurately, or stop
+    /// looping with `None`.
+    pub fn set_loop(&self, ab: Option<(u64, f64, f64)>) {
+        let _ = self.tx.send(Cmd::Loop(ab));
+    }
+
+    /// Levels for the visualiser (see [`crate::spectrum`]). The first call
+    /// starts collecting samples; [`Engine::stop_spectrum`] stops.
+    pub fn spectrum(&self, bands: usize) -> Vec<f32> {
+        self.shared.tap.store(true, Ordering::Relaxed);
+        let Some(rate) = self.output().map(|o| o.rate) else { return vec![0.0; bands] };
+        let samples = if self.is_paused() { Vec::new() } else { self.shared.ring.lock().tapped() };
+        let mut a = self.analyser.lock();
+        a.get_or_insert_with(|| crate::spectrum::Analyser::new(crate::output::TAP_LEN)).bands(&samples, rate, bands)
+    }
+
+    pub fn stop_spectrum(&self) {
+        self.shared.tap.store(false, Ordering::Relaxed);
+        let mut r = self.shared.ring.lock();
+        r.tap.clear();
+        r.tap_at = 0;
     }
 }
 
@@ -175,6 +200,8 @@ struct Decoder {
     last_pos: Instant,
     buf: Vec<f32>,
     marks: Vec<Mark>,
+    /// A–B loop on a track: token, A and B in seconds.
+    ab: Option<(u64, f64, f64)>,
 }
 
 impl Decoder {
@@ -196,6 +223,7 @@ impl Decoder {
             last_pos: Instant::now(),
             buf: Vec::new(),
             marks: Vec::new(),
+            ab: None,
         }
     }
 
@@ -248,6 +276,9 @@ impl Decoder {
             }
             Cmd::Load { token, path, start, paused } => {
                 self.flush();
+                if self.ab.is_some_and(|(t, ..)| t != token) {
+                    self.ab = None;
+                }
                 self.cur = Some((token, path.clone()));
                 self.next = None;
                 self.shared.paused.store(paused, Ordering::Relaxed);
@@ -287,7 +318,17 @@ impl Decoder {
                 self.shared.paused.store(p, Ordering::Relaxed);
                 (self.emit)(Event::Paused(p));
             }
+            Cmd::Loop(ab) => {
+                self.ab = ab.filter(|&(_, a, b)| b > a + 0.05);
+                // Already past B (or the buffer is): start the loop now.
+                if let (Some((t, a, b)), Some((now_t, pos))) = (self.ab, self.position()) {
+                    if t == now_t && pos > b {
+                        self.handle(Cmd::Seek(a));
+                    }
+                }
+            }
             Cmd::Stop => {
+                self.ab = None;
                 if let Some(p) = self.pipe.as_mut() {
                     p.stop();
                 }
@@ -343,9 +384,10 @@ impl Decoder {
         self.buf.clear();
         self.marks.clear();
         pipe.fill(CHUNK_FRAMES, &mut self.buf, &mut self.marks);
-        let frames = (self.buf.len() / ch) as u64;
+        let mut frames = (self.buf.len() / ch) as u64;
         // Marks refer to frames in this chunk.
-        let marks = std::mem::take(&mut self.marks);
+        let mut marks = std::mem::take(&mut self.marks);
+        let jump = self.loop_cut(&mut frames, &mut marks, ch);
         for m in marks {
             // A gapless switch also means the queued track is now current.
             if let Mark::Start { token, .. } = &m {
@@ -359,6 +401,43 @@ impl Decoder {
         }
         self.shared.ring.lock().data.extend(self.buf.iter());
         self.written += frames;
+        // Back to A, straight after B: the next chunk carries on from there.
+        if let Some(a) = jump {
+            let r = self.pipe.as_mut().map(|p| p.seek(a)).unwrap_or(Ok(None));
+            match r {
+                Ok(Some(m)) => self.place(m, true),
+                Ok(None) => {}
+                Err(e) => {
+                    self.ab = None;
+                    log::warn!("loop: {e}");
+                }
+            }
+        }
+    }
+
+    /// With an A–B loop on the track being decoded, cut this chunk at B and
+    /// say where to go back to.
+    fn loop_cut(&mut self, frames: &mut u64, marks: &mut Vec<Mark>, ch: usize) -> Option<f64> {
+        let (tok, a, b) = self.ab?;
+        let rate = self.out.as_ref()?.rate as f64;
+        let seg = self.segs.last()?;
+        // A new track starts in this chunk: the loop's track is done.
+        if seg.token != tok || marks.iter().any(|m| matches!(m, Mark::Start { .. })) {
+            return None;
+        }
+        let head = seg.pos + self.written.saturating_sub(seg.start) as f64 / rate;
+        if head + *frames as f64 / rate < b {
+            return None;
+        }
+        let cut = (((b - head) * rate).max(0.0) as u64).min(*frames);
+        // The track ends before B: let it.
+        if marks.iter().any(|m| matches!(m, Mark::End { at } if (*at as u64) < cut)) {
+            return None;
+        }
+        marks.retain(|m| !matches!(m, Mark::End { .. }));
+        self.buf.truncate(cut as usize * ch);
+        *frames = cut;
+        Some(a)
     }
 
     fn position(&self) -> Option<(u64, f64)> {

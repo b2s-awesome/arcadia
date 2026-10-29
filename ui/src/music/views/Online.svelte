@@ -5,7 +5,7 @@
   import { toast } from "../../lib/state.svelte";
   import type { OnlineFound, OnlineItem, OnlineSource } from "../../lib/types";
   import TrackList from "../TrackList.svelte";
-  import { ask, openMenu, type MenuItem } from "../menu.svelte";
+  import { ask, openMenu, type MenuItem } from "../contextMenu.svelte";
   import { go, lib, ms, play, time } from "../store.svelte";
   import { downloadOnline, importLink, initStreaming, install, newPlaylistOnline, playlistOnline, playOnline, queueOnline, sx } from "../streaming.svelte";
 

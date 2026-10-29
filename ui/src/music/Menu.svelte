@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "../components/Icon.svelte";
-  import { menu, prompt, type MenuItem } from "./menu.svelte";
+  import { menu, prompt, type MenuItem } from "./contextMenu.svelte";
 
   let sub: { items: MenuItem[]; y: number } | null = $state(null);
   let box: HTMLDivElement | undefined = $state();

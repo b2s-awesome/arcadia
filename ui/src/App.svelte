@@ -10,6 +10,12 @@
   import Music from "./music/Music.svelte";
   import { initPlayer, next as musicNext, toggle as musicToggle } from "./music/store.svelte";
   import { applyLook, defaultLook, PRESETS, SPLASH_MS, wallpaperUrl, type PresetId } from "./lib/theme";
+  import { applyThemes, watchSafeMode } from "./addons/themes/themes";
+  import { applyGlass } from "./addons/glass/glass";
+  import "./addons/glass/glass.css";
+  import { fad, openFad } from "./addons/fad/state.svelte";
+  import { initListening } from "./addons/listening/listening.svelte";
+  import LyricsWindow from "./addons/lyrics/LyricsWindow.svelte";
   import type { Activity, Progress } from "./lib/types";
   import Icon from "./components/Icon.svelte";
   import Logo from "./components/Logo.svelte";
@@ -42,6 +48,19 @@
     applyLook(app.ui.look);
     // The Translucent window addon adjusts the panel on top of the look.
     applySeeThrough(app.ui);
+    // Themes & CSS snippets: a theme pack, snippets and your CSS on top.
+    applyThemes(app.ui);
+    // Liquid Glass: frosted panels over the wallpaper or desktop.
+    applyGlass(app.ui);
+  });
+  const lyricsWin = app.mode === "lyrics-popup" ? "popup" : app.mode === "lyrics-bar" ? "bar" : null;
+  const fadOn = $derived(fad.open && app.ui.addons.installed.includes("full-app-display"));
+  // The listening addons' trash and bookmarks, once installed.
+  $effect(() => {
+    if (app.settings && app.mode === "hub") {
+      void app.ui.addons.installed.length;
+      initListening();
+    }
   });
   const brandName = $derived(app.ui.brand.name.trim() || "Arcadia");
   $effect(() => {
@@ -114,6 +133,7 @@
   // Installed addons can be opened from the launcher too.
   const actions: LauncherAction[] = $derived([
     ...baseActions,
+    ...(app.ui.addons.installed.includes("full-app-display") ? [{ id: "fad", label: "Full App Display", hint: "What's playing, full screen", icon: "fullscreen", run: () => { app.page = "music"; openFad(); } }] : []),
     ...app.ui.addons.installed.flatMap((id) => {
       const a = addonById(id);
       return a ? [{ id: `addon-${id}`, label: a.name, hint: a.tagline, icon: a.icon, run: go(a.load ? `addon:${id}` : (a.opens ?? "appearance")) }] : [];
@@ -159,8 +179,14 @@
   let myLabel = "main";
   onMount(() => {
     loadSettings();
+    if (lyricsWin) {
+      // Follow setting changes made in the main window (style, size, tint).
+      const off = on<string>("settings-changed", () => reloadSettings());
+      return () => off.then((f) => f());
+    }
     loadFxStatus();
     if (app.mode === "hub") initPlayer();
+    watchSafeMode(() => toast("Safe mode: your CSS and snippets are off for this run"));
     windowLabel().then((l) => (myLabel = l));
     const key = (e: KeyboardEvent) => {
       if (splash) {
@@ -203,6 +229,9 @@
   });
 </script>
 
+{#if lyricsWin}
+  {#if app.settings}<LyricsWindow kind={lyricsWin} />{/if}
+{:else}
 <div class="desktop" class:has-bar={app.ui.bar.show && app.mode === "hub"}>
   <div class="wall" style:background-image={wall ? `url("${wall}")` : undefined} aria-hidden="true"></div>
 
@@ -308,6 +337,9 @@
   </div>
 
   <Launcher {actions} />
+  {#if fadOn}
+    {#await import("./addons/fad/Fad.svelte") then m}<m.default />{/await}
+  {/if}
   {/if}
 
   {#if splash}
@@ -326,6 +358,7 @@
     {/each}
   </div>
 </div>
+{/if}
 
 <style>
   .desktop {

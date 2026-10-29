@@ -58,14 +58,15 @@ Some CurseForge mods don't allow other launchers to download them. Arcadia lists
 
 A music player for the songs on your PC, built into Arcadia (inspired by Riff and MyRiff).
 
-- **Native audio engine** in Rust: MP3, AAC/M4A, ALAC, FLAC, WAV and Ogg Vorbis. Playback is **gapless**: the next song is decoded straight onto the end of the current one, and MP3/AAC encoder padding is trimmed, so live albums and DJ mixes don't click between tracks. Songs that match the device's sample rate pass through without resampling; others are resampled with a high-quality FFT resampler. It follows the Windows default output (plug in headphones and it moves), or stays on a device you pick.
+- **Native audio engine** in Rust: MP3, AAC/M4A, ALAC, FLAC, WAV, Ogg Vorbis and Opus (a pure-Rust Opus decoder). Playback is **gapless**: the next song is decoded straight onto the end of the current one, and MP3/AAC encoder padding is trimmed, so live albums and DJ mixes don't click between tracks. Songs that match the device's sample rate pass through without resampling; others are resampled with a high-quality FFT resampler. It follows the Windows default output (plug in headphones and it moves), or stays on a device you pick.
 - **Library:** add folders, and Arcadia reads tags and cover art (embedded, or `cover.jpg`/`folder.jpg` beside the files), keeps a small database and only rereads files that changed. An unplugged drive doesn't wipe its songs. Albums, artists, songs, favourites, play counts and search.
 - **Playlists and queue:** create, rename, reorder by dragging; Play next / Add to queue from any song; shuffle keeps the current song playing; repeat all or one. The queue and position are restored next time.
 - **Two layouts**, switched under Customise: **Tonal** (covers, colour taken from what's playing, player bar top or bottom) and **Tiled** (panes with gaps, keyboard first: space, n/p, s, r, q, /). Customise also sets cover size, compact rows, and which Home sections show, in what order.
 - **Everywhere:** the top bar shows what's playing with play/pause and next, and Ctrl+K can play/pause or skip.
 - Keys: space play/pause, ←/→ seek 5 s, Shift+←/→ previous/next, ↑/↓ volume, / search.
+- **Media keys and the Windows media overlay:** the keyboard's play/pause, next and previous keys work from anywhere, and the volume flyout and lock screen show the song, artist and cover with working controls.
 
-Opus files aren't supported by the engine yet; lyrics and Discord presence come in later updates.
+Discord presence comes in a later update. Lyrics, stats and the other Spicetify-style extras are addons (below).
 
 ### Streaming & downloads (addon)
 
@@ -97,6 +98,24 @@ The sidebar is yours too: under **Appearance → Sidebar**, drag entries into an
 ## Marketplace and addons
 
 Bigger optional tools ship as addons, so the sidebar only holds what you actually use. Open **Marketplace**, add one, and it gets its own sidebar entry; remove it the same way, optionally deleting what it saved. Each addon only loads once it's installed, keeps its data in its own folder (`%LOCALAPPDATA%\Arcadia\addons\<id>\`) and its secrets in Windows Credential Manager, and can't reach another addon's data.
+
+### Spicetify-style addons
+
+The things people install Spicetify for, rebuilt natively. Add them one by one, or all at once with the **Spice rack** bundle. The visual ones follow your Music layout (Tonal or Tiled), or you can pick a look in their settings, including Liquid Glass.
+
+- **Full App Display:** what's playing, full screen. *Ambient* (blurred cover, huge title), *Tiled* (panes with a live spectrum visualiser from the audio engine, which only runs while it's on screen) or *Liquid Glass* (big clock and a glass card). Shows the current lyric line with Lyrics Plus. Press **F** in Music; Esc leaves, double-click toggles full screen.
+- **Lyrics Plus:** a Lyrics tab in Music and in Now Playing. Lyrics come from a `.lrc` beside the song, the song's own tags, your own timing, or [LRCLIB](https://lrclib.net) (free and open; can be turned off), and scroll in time, word by word for enhanced LRC. Click a line to jump there, nudge the timing per song, or **Fix timing** by tapping along. **Pop out** opens a small always-on-top glass window; the **Desktop bar** floats one line over everything, games included, and lets clicks through. Optionally saves found lyrics as `.lrc` beside your songs. **Romanise** shows Korean, Japanese kana, Chinese (pinyin), Cyrillic and Greek in Latin letters (offline); **Translate** adds a translation under each line from [MyMemory](https://mymemory.translated.net) (free, no account, cached per song).
+- **Stats:** listening time, top artists/songs/albums, when in the day you listen, a 26-week heatmap, sources and formats, skips, streaks and new finds, for 4 weeks, 6 months, a year or all time. Arcadia keeps a play log in the music library (what, when, how long, skipped or not); nothing leaves the PC. Recap cards, terminal tables or glass widgets with a daily goal ring.
+- **Trash Bin + Auto Skip:** trash a song or an artist from its menu and Arcadia passes over them when it moves on by itself (gapless included). Auto skip can also pass over explicit songs (iTunes advisory tag, or "(Explicit)" in the title), anything under 30 seconds, live versions and remixes. Picking a song yourself always plays it.
+- **Shuffle+:** right-click the shuffle button for *Spread artists*, *Fewer repeats* (recently played songs drift later), *Favour less played* or *True random*. The current song keeps playing when you switch.
+- **Loopy Loop + Bookmarks:** sample-accurate A–B loops done in the audio engine (`[` sets A, `]` sets B, `\` stops, or right-click the seek bar), and bookmarks (`M`) that show on the seek bar and play from the moment.
+- **Sort & Play:** a Sort & Play button on songs, albums, artists and playlists (most/least played, recently added/played, longest/shortest, title, artist, favourites first, album shuffle), plus queue tools: remove duplicates, clear what's played, shuffle what's left.
+- **Liquid Glass:** frosted or smoked glass panels with lit edges and a sheen, iOS 27 style, over your wallpaper (or your real desktop with Translucent window), for the whole app or just Music. Blur, tint and edge light are adjustable; text colours follow the glass so it stays readable.
+- **Themes & CSS snippets:** six theme packs on top of your Look (Peach Rice, Gruvbox Hard, Nord Frost, Rosé Night, Paper, OLED), one-click snippets, and your own CSS for the whole app or Music only, applied as you type. Save your CSS as a snippet. Hold **Shift** while Arcadia starts to skip snippets and CSS for that run. Also in the Marketplace's Themes tab.
+
+### Bundles
+
+**Marketplace → Bundles** has official bundles (Spice rack, Listening tools, Eye candy, Rice kit), each installable in one click with anything you don't want unticked. Make your own from the addons you have, optionally with their settings and your theme and CSS, and share it as a code (`arc-bundle:v1:…`) or a `.arcbundle` file. Adding someone's bundle shows every addon and setting it changes first. Bundles only name addons from the Marketplace and carry settings; they can't carry code.
 
 ### Translucent window
 
@@ -162,4 +181,4 @@ src-tauri/            desktop shell: commands, tray, single-instance, protocol h
 ui/                   Svelte 5 UI (runs in a browser with a mock backend: npm run dev)
 ```
 
-Run tests with `cargo test -p arcadia-core`.
+Run tests with `cargo test -p arcadia-core -p arcadia-audio`.

@@ -12,6 +12,7 @@
   import { musicKeys } from "./keys";
   import { back, cycleRepeat, go, lib, ms, next, prev, quality, setShuffle, type MusicView } from "./store.svelte";
   import { visibleTabs } from "./streaming.svelte";
+  import { openFad } from "../addons/fad/state.svelte";
 
   const prefs = $derived(app.ui.music);
   const t = $derived(ms.status?.track ?? null);
@@ -19,7 +20,7 @@
   let q = $state("");
   let filterEl: HTMLInputElement | undefined = $state();
 
-  const icons: Record<string, string> = { home: "library", online: "search", songs: "music", albums: "cube", artists: "profile", playlists: "music", favourites: "heart", downloads: "download" };
+  const icons: Record<string, string> = { home: "library", online: "search", songs: "music", albums: "cube", artists: "profile", playlists: "music", favourites: "heart", downloads: "download", lyrics: "lyrics", stats: "chart" };
   // Same order and visibility as the Tonal tabs; playlists are listed below anyway.
   const lists = $derived(visibleTabs().filter((t) => t.id !== "playlists").map((t) => ({ kind: t.id as MusicView["kind"], label: t.label.toLowerCase(), icon: icons[t.id] })));
   const title = $derived.by(() => {
@@ -123,9 +124,10 @@
   <footer class="pane bottom" aria-label="Transport">
     <Transport />
     <div class="seekw"><Seek /></div>
+    {#if app.ui.addons.installed.includes("full-app-display")}<button class="ic" aria-label="Full App Display (f)" title="Full App Display (f)" onclick={openFad} disabled={!t}><Icon name="fullscreen" size={15} /></button>{/if}
     <Volume />
     <div class="hints faint">
-      <span><b>space</b> play</span><span><b>n/p</b> next/prev</span><span><b>←/→</b> seek</span><span><b>s</b> shuffle</span><span><b>r</b> repeat</span><span><b>q</b> queue</span><span><b>/</b> filter</span>
+      <span><b>space</b> play</span><span><b>n/p</b> next/prev</span><span><b>←/→</b> seek</span><span><b>s</b> shuffle</span><span><b>r</b> repeat</span><span><b>q</b> queue</span><span><b>/</b> filter</span>{#if app.ui.addons.installed.includes("full-app-display")}<span><b>f</b> full screen</span>{/if}{#if app.ui.addons.installed.includes("loopy-loop")}<span><b>[ ]</b> loop A/B</span><span><b>m</b> bookmark</span>{/if}
     </div>
   </footer>
 </div>

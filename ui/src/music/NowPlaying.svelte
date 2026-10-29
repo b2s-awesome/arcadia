@@ -10,7 +10,10 @@
 
   const t = $derived(ms.status?.track ?? null);
   const out = $derived(ms.status?.output ?? null);
-  let tab: "next" | "about" = $state("next");
+  import { app } from "../lib/state.svelte";
+  import NowLyrics from "../addons/lyrics/NowLyrics.svelte";
+  let tab: "next" | "lyrics" | "about" = $state("next");
+  const hasLyrics = $derived(app.ui.addons.installed.includes("lyrics-plus"));
   const rateNote = $derived.by(() => {
     if (!t?.sampleRate || !out) return null;
     const k = (r: number) => `${+(r / 1000).toFixed(1)} kHz`;
@@ -39,11 +42,14 @@
     <section class="right">
       <div class="seg" role="radiogroup" aria-label="Now Playing">
         <button role="radio" aria-checked={tab === "next"} onclick={() => (tab = "next")}>Up next</button>
+        {#if hasLyrics}<button role="radio" aria-checked={tab === "lyrics"} onclick={() => (tab = "lyrics")}>Lyrics</button>{/if}
         <button role="radio" aria-checked={tab === "about"} onclick={() => (tab = "about")}>Details</button>
       </div>
       <div class="panel mscroll">
         {#if tab === "next"}
           <Queue />
+        {:else if tab === "lyrics" && hasLyrics}
+          <NowLyrics />
         {:else}
           <dl>
             <dt>Format</dt><dd>{quality(t)}{t.channels ? ` · ${t.channels === 1 ? "mono" : t.channels === 2 ? "stereo" : `${t.channels} channels`}` : ""}{t.bitrate ? ` · ${t.bitrate} kbps` : ""}</dd>

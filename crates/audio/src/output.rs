@@ -21,6 +21,34 @@ use std::time::Duration;
 pub struct Ring {
     pub data: VecDeque<f32>,
     pub played: u64,
+    /// The last few thousand frames sent to the device, mixed to mono, for
+    /// the visualiser. Only filled while someone is looking.
+    pub tap: Vec<f32>,
+    pub tap_at: usize,
+}
+
+/// Frames kept for the visualiser.
+pub const TAP_LEN: usize = 2048;
+
+impl Ring {
+    pub fn tap_push(&mut self, s: f32) {
+        if self.tap.len() < TAP_LEN {
+            self.tap.push(s);
+        } else {
+            self.tap[self.tap_at] = s;
+        }
+        self.tap_at = (self.tap_at + 1) % TAP_LEN;
+    }
+    /// The tapped frames, oldest first.
+    pub fn tapped(&self) -> Vec<f32> {
+        if self.tap.len() < TAP_LEN {
+            return self.tap.clone();
+        }
+        let mut v = Vec::with_capacity(TAP_LEN);
+        v.extend_from_slice(&self.tap[self.tap_at..]);
+        v.extend_from_slice(&self.tap[..self.tap_at]);
+        v
+    }
 }
 
 pub struct Shared {
@@ -28,11 +56,13 @@ pub struct Shared {
     pub paused: AtomicBool,
     /// Linear gain, as f32 bits.
     pub volume: AtomicU32,
+    /// Fill `Ring::tap`.
+    pub tap: AtomicBool,
 }
 
 impl Shared {
     pub fn new() -> Arc<Shared> {
-        Arc::new(Shared { ring: Mutex::new(Ring::default()), paused: AtomicBool::new(true), volume: AtomicU32::new(1f32.to_bits()) })
+        Arc::new(Shared { ring: Mutex::new(Ring::default()), paused: AtomicBool::new(true), volume: AtomicU32::new(1f32.to_bits()), tap: AtomicBool::new(false) })
     }
     pub fn volume(&self) -> f32 {
         f32::from_bits(self.volume.load(Ordering::Relaxed))
@@ -108,11 +138,17 @@ fn stream<T: SizedSample + FromSample<f32>>(dev: &cpal::Device, config: &cpal::S
             let frames = data.len() / ch;
             let avail = ring.data.len() / ch;
             let n = frames.min(avail);
+            let tap = shared.tap.load(Ordering::Relaxed);
             for f in 0..frames {
                 gain += (target - gain) * k;
+                let mut mono = 0.0;
                 for c in 0..ch {
                     let s = if f < n { ring.data.pop_front().unwrap_or(0.0) } else { 0.0 };
+                    mono += s;
                     data[f * ch + c] = T::from_sample((s * gain).clamp(-1.0, 1.0));
+                }
+                if tap && f < n {
+                    ring.tap_push(mono / ch as f32);
                 }
             }
             ring.played += n as u64;

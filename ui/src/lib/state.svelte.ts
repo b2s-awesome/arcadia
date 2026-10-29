@@ -7,13 +7,15 @@ export type CorePage = "library" | "music" | "minecraft" | "roblox" | "proxy" | 
 /** A built-in page, or an installed addon's page ("addon:<id>"). */
 export type Page = CorePage | `addon:${string}`;
 
-/** Which window this webview is. The Minecraft window gets both a query
- *  string and an injected global, in case the query is dropped. */
-function windowMode(): "hub" | "minecraft" {
+export type WindowMode = "hub" | "minecraft" | "lyrics-popup" | "lyrics-bar";
+/** Which window this webview is. Other windows get both a query string and
+ *  an injected global, in case the query is dropped. */
+function windowMode(): WindowMode {
   if (typeof window === "undefined") return "hub";
   const injected = (window as unknown as { __ARCADIA_MODE__?: string }).__ARCADIA_MODE__;
   const query = new URLSearchParams(location.search).get("mode");
-  return injected === "minecraft" || query === "minecraft" ? "minecraft" : "hub";
+  const m = injected ?? query;
+  return m === "minecraft" || m === "lyrics-popup" || m === "lyrics-bar" ? m : "hub";
 }
 
 export const app = $state({
@@ -29,6 +31,9 @@ export const app = $state({
   /** Bumped to show the startup splash again (e.g. a preview). */
   splashRun: 0,
 });
+
+/** An addon whose settings Appearance should open and scroll to. */
+export const focus = $state({ addon: null as string | null });
 
 let tid = 1;
 export function toast(text: string, tone: Toast["tone"] = "ok") {

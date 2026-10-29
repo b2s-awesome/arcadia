@@ -11,6 +11,7 @@ pub mod engine;
 pub mod output;
 pub mod pipeline;
 pub mod source;
+pub mod spectrum;
 
 pub use engine::{Engine, Event};
 pub use output::{devices, OutputInfo};

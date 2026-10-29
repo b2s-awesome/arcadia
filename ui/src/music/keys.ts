@@ -1,5 +1,8 @@
 // Keyboard control for the Music page. Ignored while typing.
 import { ms, next, prev, seek, setVolume, toggle } from "./store.svelte";
+import { app } from "../lib/state.svelte";
+import { LOOP, addBookmark, clearLoop, setA, setB } from "../addons/listening/listening.svelte";
+import { openFad } from "../addons/fad/state.svelte";
 
 export function musicKeys(e: KeyboardEvent, extra: (e: KeyboardEvent) => boolean = () => false): void {
   const t = e.target as HTMLElement | null;
@@ -28,6 +31,20 @@ export function musicKeys(e: KeyboardEvent, extra: (e: KeyboardEvent) => boolean
       break;
     case "ArrowDown":
       setVolume(Math.max(0, (s?.volume ?? 0.8) - 0.05));
+      break;
+    case "[":
+    case "]":
+    case "\\":
+    case "m":
+      if (!app.ui.addons.installed.includes(LOOP) || !s?.track) return;
+      if (e.key === "[") setA();
+      else if (e.key === "]") setB();
+      else if (e.key === "m") addBookmark();
+      else clearLoop();
+      break;
+    case "f":
+      if (!app.ui.addons.installed.includes("full-app-display") || !s?.track) return;
+      openFad();
       break;
     default:
       return;

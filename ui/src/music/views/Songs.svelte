@@ -3,6 +3,8 @@
   import Icon from "../../components/Icon.svelte";
   import { lib, ms, play, shuffleAll } from "../store.svelte";
   import type { Track } from "../../lib/types";
+  import { app } from "../../lib/state.svelte";
+  import SortPlay from "../../addons/listening/SortPlay.svelte";
 
   let { favourites = false }: { favourites?: boolean } = $props();
   type Sort = "title" | "artist" | "album" | "added" | "plays";
@@ -27,6 +29,7 @@
   <span class="muted">{base.length.toLocaleString()}</span>
   <span class="grow"></span>
   <button class="ghosty" onclick={() => shuffleAll(sorted)} disabled={!sorted.length}><Icon name="shuffle" size={15} /> Shuffle</button>
+  {#if app.ui.addons.installed.includes("sort-play")}<SortPlay tracks={sorted} />{/if}
   <label class="sort"><span class="muted">Sort</span>
     <select bind:value={sort}>
       <option value="artist">Artist</option><option value="title">Title</option><option value="album">Album</option>

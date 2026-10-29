@@ -3,7 +3,7 @@
 import type {
   DeviceCode, FoundInstance, Hit, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
   Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RuleConfig, ScanReport, Settings, RulesImported,
-  MusicPlaylist, MusicScanReport, MusicStatus, QueueView, RepeatMode, Track,
+  MusicPlaylist, MusicScanReport, MusicStatus, QueueView, RepeatMode, Track, ShuffleMode, ListenStats, Lyrics,
   DownloadJob, OnlineFound, OnlineItem, OnlineSource, StreamingConfig, StreamingStatus, SyncedSource } from "./types";
 import { mockInvoke, mockListen } from "./mock";
 
@@ -212,6 +212,22 @@ export const music = {
   playlistDelete: (id: number) => call<void>("music_playlist_delete", { id }),
   playlistSet: (id: number, ids: number[]) => call<void>("music_playlist_set", { id, ids }),
   playlistAdd: (id: number, ids: number[]) => call<void>("music_playlist_add", { id, ids }),
+  reloadRules: () => call<void>("music_reload_rules"),
+  shuffleMode: (mode: ShuffleMode) => call<void>("music_shuffle_mode", { mode }),
+  loop: (a: number | null, b: number | null) => call<void>("music_loop", { a, b }),
+  spectrum: (bands: number) => call<number[]>("music_spectrum", { bands }),
+  spectrumStop: () => call<void>("music_spectrum_stop"),
+  queueTool: (tool: "dedupe" | "clearPlayed" | "shuffleRest") => call<void>("music_queue_tool", { tool }),
+  stats: (since: number | null, days = 182) => call<ListenStats>("music_stats", { since, tz: new Date().getTimezoneOffset(), days }),
+};
+
+/** Lyrics Plus addon. */
+export const lyricsApi = {
+  get: (id: number, online: boolean, sidecar: boolean) => call<Lyrics | null>("lyrics_get", { id, online, sidecar }),
+  save: (id: number, lrc: string, sidecar: boolean) => call<Lyrics>("lyrics_save", { id, lrc, sidecar }),
+  forget: (id: number) => call<void>("lyrics_forget", { id }),
+  translate: (id: number, from: string, to: string, lines: string[], email: string | null) => call<string[]>("lyrics_translate", { id, from, to, lines, email }),
+  window: (kind: "popup" | "bar", open: boolean, top = false) => call<void>("lyrics_window", { kind, open, top }),
 };
 
 /** Streaming & downloads addon. */

@@ -3,8 +3,10 @@
   import { music } from "../lib/api";
   import { toast } from "../lib/state.svelte";
   import Art from "./Art.svelte";
-  import { openMenu, trackMenu } from "./menu.svelte";
+  import { openMenu, trackMenu } from "./contextMenu.svelte";
   import { ms, time } from "./store.svelte";
+  import { app } from "../lib/state.svelte";
+  import { SORT, queueTool } from "../addons/listening/listening.svelte";
 
   /** `upcoming`: only what's after the current track. */
   let { upcoming = false }: { upcoming?: boolean } = $props();
@@ -20,6 +22,13 @@
 <div class="q">
   <div class="head">
     <span class="muted">{Math.max(0, ms.queue.tracks.length - idx - 1)} up next · {time(left)}</span>
+    {#if app.ui.addons.installed.includes(SORT)}
+      <button class="clear" aria-haspopup="menu" disabled={ms.queue.tracks.length <= 1} onclick={(e) => openMenu(e, [
+        { label: "Remove duplicates", icon: "copy", run: () => queueTool("dedupe") },
+        { label: "Clear what's played", icon: "undo", run: () => queueTool("clearPlayed") },
+        { label: "Shuffle what's left", icon: "shuffle", run: () => queueTool("shuffleRest") },
+      ])}>Tools</button>
+    {/if}
     <button class="clear" onclick={() => run(music.queueClear())} disabled={ms.queue.tracks.length <= 1}>Clear</button>
   </div>
   {#if !items.length}

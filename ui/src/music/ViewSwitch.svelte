@@ -12,7 +12,9 @@
   import Downloads from "./views/Downloads.svelte";
   import { streamingOn } from "./streaming.svelte";
   import { ms } from "./store.svelte";
+  import { app } from "../lib/state.svelte";
   const v = $derived(ms.view);
+  const has = (id: string) => app.ui.addons.installed.includes(id);
 </script>
 
 {#if v.kind === "home"}<Home />
@@ -26,7 +28,9 @@
 {:else if v.kind === "playlist"}<Playlist id={v.id} />
 {:else if v.kind === "search"}<Search q={v.q} />
 {:else if v.kind === "online"}{#if streamingOn()}<Online />{:else}<p class="muted">Add Streaming & downloads from the Marketplace to search online.</p>{/if}
-{:else if v.kind === "downloads"}{#if streamingOn()}<Downloads />{:else}<p class="muted">Add Streaming & downloads from the Marketplace to download music.</p>{/if}{/if}
+{:else if v.kind === "downloads"}{#if streamingOn()}<Downloads />{:else}<p class="muted">Add Streaming & downloads from the Marketplace to download music.</p>{/if}
+{:else if v.kind === "lyrics"}{#if has("lyrics-plus")}{#await import("../addons/lyrics/LyricsView.svelte") then m}<m.default />{/await}{:else}<p class="muted">Add Lyrics Plus from the Marketplace for synced lyrics.</p>{/if}
+{:else if v.kind === "stats"}{#if has("stats")}{#await import("../addons/stats/StatsView.svelte") then m}<m.default />{/await}{:else}<p class="muted">Add Stats from the Marketplace to see your listening.</p>{/if}{/if}
 
 <style>
   .ph { margin-bottom: 1rem; }

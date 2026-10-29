@@ -3,6 +3,7 @@ import type { Track } from "../lib/types";
 import { streaming } from "../lib/api";
 import { app, toast } from "../lib/state.svelte";
 import { addToPlaylist, addToQueue, go, albumKey, ms, newPlaylist, playNext, setFavourite } from "./store.svelte";
+import { LOOP, TRASH, addBookmark, isOn, isTrashed, trashArtist, trashSongs, untrashArtist, untrashSong, lx } from "../addons/listening/listening.svelte";
 
 export interface MenuItem {
   label: string;
@@ -75,6 +76,28 @@ export function trackMenu(tracks: Track[], extra: MenuItem[] = []): MenuItem[] {
       { label: "Go to album", run: () => go({ kind: "album", key: albumKey(one) }) },
       { label: "Go to artist", run: () => go({ kind: "artist", name: one.albumArtist }) },
     ] : []),
+    ...addonItems(tracks),
     ...extra,
   ];
+}
+
+/** What installed listening addons add to a song's menu. */
+function addonItems(tracks: Track[]): MenuItem[] {
+  const one = tracks.length === 1 ? tracks[0] : null;
+  const out: MenuItem[] = [];
+  if (isOn(TRASH)) {
+    out.push({ label: "", sep: true });
+    if (one && isTrashed(one)) {
+      if (lx.rules.trashSongs.includes(one.id)) out.push({ label: "Take out of the trash", icon: "undo", run: () => untrashSong(one.id) });
+      const a = lx.rules.trashArtists.find((x) => x.toLowerCase() === one.artist.toLowerCase());
+      if (a) out.push({ label: `Take ${a} out of the trash`, icon: "undo", run: () => untrashArtist(a) });
+    } else {
+      out.push({ label: one ? "Trash this song" : `Trash these ${tracks.length}`, icon: "trash", danger: true, run: () => trashSongs(tracks) });
+      if (one) out.push({ label: `Trash ${one.artist}`, icon: "trash", danger: true, run: () => trashArtist(one.artist) });
+    }
+  }
+  if (isOn(LOOP) && one && ms.status?.track?.id === one.id) {
+    out.push({ label: "Bookmark this moment", icon: "bookmark", run: () => addBookmark() });
+  }
+  return out;
 }
