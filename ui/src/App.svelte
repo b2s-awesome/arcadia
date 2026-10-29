@@ -2,15 +2,19 @@
   import { onMount } from "svelte";
   import { api, fileUrl, on, win, windowLabel } from "./lib/api";
   import { mcs, popOut } from "./lib/mc.svelte";
-  import { lib } from "./lib/games.svelte";
   import { app, loadSettings, reloadSettings, saveSettings, saveUi, toast, type Page } from "./lib/state.svelte";
   import { visibleNav } from "./lib/nav";
   import { applySeeThrough, loadFxStatus } from "./lib/seeThrough.svelte";
   import { addonById } from "./addons/registry";
   import Marketplace from "./pages/Marketplace.svelte";
   import Music from "./music/Music.svelte";
-  import { initPlayer, next as musicNext, toggle as musicToggle } from "./music/store.svelte";
-  import { applyLook, defaultLook, PRESETS, SPLASH_MS, wallpaperUrl, type PresetId } from "./lib/theme";
+  import { initPlayer, ms, next as musicNext, prev as musicPrev, setVolume, toggle as musicToggle } from "./music/store.svelte";
+  import { applyFeel, applyLook, defaultLook, PRESETS, SPLASH_MS, wallpaperUrl, type PresetId } from "./lib/theme";
+  import { play as playSound } from "./lib/sounds";
+  import { installMotion } from "./lib/motion";
+  import { handleKey, onAction, pageAction, syncGlobal } from "./lib/keys.svelte";
+  import { lib as gamesLib, launch as launchGame, lastOf } from "./lib/games.svelte";
+  import Home from "./pages/Home.svelte";
   import { applyThemes, watchSafeMode } from "./addons/themes/themes";
   import { applyGlass } from "./addons/glass/glass";
   import "./addons/glass/glass.css";
@@ -47,6 +51,8 @@
   // Apply the look whenever it changes.
   $effect(() => {
     applyLook(app.ui.look);
+    // Motion, text size, font and icons (after the look, which sets the font).
+    applyFeel(app.ui.feel);
     // The Translucent window addon adjusts the panel on top of the look.
     applySeeThrough(app.ui);
     // Themes & CSS snippets: a theme pack, snippets and your CSS on top.
@@ -101,7 +107,9 @@
   const go = (p: Page) => () => { app.page = p; };
   const baseActions: LauncherAction[] = [
     { id: "play", label: "Play Roblox", hint: "Update if needed and launch", icon: "play", ring: true, run: () => { api.robloxPlay(null).catch((e) => toast(String(e), "error")); } },
+    { id: "home", label: "Home", hint: "Your dashboard", icon: "sparkle", ring: true, run: go("home") },
     { id: "library", label: "Library", hint: "All your games", icon: "library", ring: true, run: go("library") },
+    { id: "bigpicture", label: "Big Picture", hint: "Your library full screen, for a controller", icon: "fullscreen", run: () => { gamesLib.bigPicture = true; } },
     { id: "proxy", label: "Asset proxy", hint: "Swap and remove assets", icon: "proxy", ring: true, run: go("proxy") },
     { id: "inspector", label: "Inspector", hint: "Live proxy requests", icon: "inspector", ring: true, run: go("inspector") },
     { id: "look", label: "Next look", hint: "Cycle through the presets", icon: "sparkle", ring: true, run: cycleLook },
@@ -177,9 +185,81 @@
     if (splashReady) splash = false;
   }
 
+  // Shortcut actions (Appearance → Keyboard).
+  onAction(async (id) => {
+    const page = pageAction(id);
+    if (page) {
+      app.page = page;
+      return;
+    }
+    const { getCurrentWindow } = await import("@tauri-apps/api/window").catch(() => ({ getCurrentWindow: null }));
+    switch (id) {
+      case "launcher": app.launcher = !app.launcher; break;
+      case "settings": app.page = "settings"; break;
+      case "show": {
+        const w = getCurrentWindow?.();
+        await w?.show().catch(() => {});
+        await w?.unminimize().catch(() => {});
+        await w?.setFocus().catch(() => {});
+        break;
+      }
+      case "bigpicture": gamesLib.bigPicture = !gamesLib.bigPicture; break;
+      case "music:toggle": musicToggle(); break;
+      case "music:next": musicNext(); break;
+      case "music:prev": musicPrev(); break;
+      case "music:up": setVolume(Math.min(1, (ms.status?.volume ?? 0.8) + 0.05)); break;
+      case "music:down": setVolume(Math.max(0, (ms.status?.volume ?? 0.8) - 0.05)); break;
+      case "roblox:play": api.robloxPlay(null).catch((e) => toast(String(e), "error")); break;
+      case "game:last": {
+        const g = [...gamesLib.games].filter((x) => lastOf(x) > 0).sort((a, b) => lastOf(b) - lastOf(a))[0];
+        if (g) launchGame(g);
+        else toast("Play something from the Library first");
+        break;
+      }
+    }
+  });
+  // Global hotkeys follow the key settings.
+  $effect(() => {
+    if (!app.settings) return;
+    void JSON.stringify(app.ui.keys);
+    syncGlobal();
+  });
+
+  // Interface sounds.
+  $effect(() => {
+    const click = (e: MouseEvent) => {
+      const f = app.ui.feel;
+      if (f.sounds === "off") return;
+      const el = (e.target as HTMLElement | null)?.closest("button, [role=tab], [role=radio], a, summary, input[type=checkbox]") as HTMLElement | null;
+      if (!el || (el as HTMLButtonElement).disabled) return;
+      if (el.getAttribute("role") === "switch") playSound(el.getAttribute("aria-checked") === "true" ? "on" : "off", f);
+      else if (el.classList.contains("play")) playSound("launch", f);
+      else playSound("click", f);
+    };
+    // After the click handler has flipped a switch.
+    const later = (e: MouseEvent) => queueMicrotask(() => click(e));
+    document.addEventListener("click", later, true);
+    return () => document.removeEventListener("click", later, true);
+  });
+  let toastCount = 0;
+  $effect(() => {
+    const n = app.toasts.length;
+    if (n > toastCount) {
+      const t = app.toasts[n - 1];
+      playSound(t.tone === "error" ? "error" : "ok", app.ui.feel);
+    }
+    toastCount = n;
+  });
+  $effect(() => installMotion(() => app.ui.feel));
+
   let myLabel = "main";
   onMount(() => {
-    loadSettings();
+    loadSettings().then(async () => {
+      // Another PC left a newer setup in the sync folder?
+      if (app.mode !== "hub" || !app.settings?.sync_folder) return;
+      const m = await api.syncCheck().catch(() => null);
+      if (m) toast(`A newer setup from ${m.computer} is in your sync folder. Use it from Appearance → Backup & sync.`);
+    });
     if (lyricsWin) {
       // Follow setting changes made in the main window (style, size, tint).
       const off = on<string>("settings-changed", () => reloadSettings());
@@ -194,10 +274,13 @@
         skipSplash();
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "k" || e.key === " ")) {
+      // Ctrl+Space stays as a second way to open the launcher.
+      if ((e.ctrlKey || e.metaKey) && e.key === " " && !e.altKey) {
         e.preventDefault();
         app.launcher = !app.launcher;
+        return;
       }
+      handleKey(e);
     };
     window.addEventListener("keydown", key);
     if (new URLSearchParams(location.search).has("launcher")) setTimeout(() => (app.launcher = true), 300);
@@ -307,7 +390,8 @@
       {#if app.settings}
         {#key app.page}
           <div class="view">
-            {#if app.page === "library"}<Library />
+            {#if app.page === "home"}<Home />
+            {:else if app.page === "library"}<Library />
             {:else if app.page === "music"}<Music />
             {:else if app.page === "minecraft"}<Minecraft />
             {:else if app.page === "roblox"}<Roblox />
@@ -341,7 +425,7 @@
   {#if fadOn}
     {#await import("./addons/fad/Fad.svelte") then m}<m.default />{/await}
   {/if}
-  {#if lib.bigPicture}
+  {#if gamesLib.bigPicture}
     {#await import("./pages/library/BigPicture.svelte") then m}<m.default />{/await}
   {/if}
   {/if}

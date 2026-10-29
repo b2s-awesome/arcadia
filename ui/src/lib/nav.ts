@@ -13,6 +13,7 @@ export interface NavItem {
 }
 
 export const CORE_NAV: NavItem[] = [
+  { id: "home", label: "Home", icon: "sparkle" },
   { id: "library", label: "Library", icon: "library" },
   { id: "music", label: "Music", icon: "music" },
   { id: "minecraft", label: "Minecraft", icon: "cube" },
@@ -38,8 +39,11 @@ export function allNav(ui: UiState): NavItem[] {
       pool.delete(id);
     }
   }
-  // Anything new (a fresh install, a page added in an update) goes last.
-  return [...out, ...pool.values()];
+  // Home goes first the first time it appears; anything else new (a fresh
+  // install, a page added in an update) goes last.
+  const home = pool.get("home");
+  pool.delete("home");
+  return [...(home ? [home] : []), ...out, ...pool.values()];
 }
 
 /** The entries actually shown. */

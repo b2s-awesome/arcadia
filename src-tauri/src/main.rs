@@ -17,6 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
 mod addon_cmds;
 mod minecraft_cmds;
+mod custom_cmds;
 mod library_cmds;
 mod lyrics_cmds;
 mod mc_extra_cmds;
@@ -55,7 +56,9 @@ fn get_settings(st: State<'_, AppState>) -> Settings {
 /// Saves settings, then tells the *other* windows to reload them, so the hub
 /// and the popped-out Minecraft window never overwrite each other's changes.
 #[tauri::command]
-async fn save_settings(app: AppHandle, window: tauri::Window, st: State<'_, AppState>, settings: Settings) -> Res<()> {
+async fn save_settings(app: AppHandle, window: tauri::Window, st: State<'_, AppState>, mut settings: Settings) -> Res<()> {
+    // The UI may hold an older sync time than the backend just wrote.
+    settings.sync_last = settings.sync_last.max(st.settings.lock().sync_last);
     settings.save().map_err(err)?;
     let boot = settings.run_on_boot.then(|| format!("\"{}\" --tray", st.exe));
     arcadia_core::registry::set_run_on_boot("Arcadia", boot.as_deref()).map_err(err)?;
@@ -67,6 +70,7 @@ async fn save_settings(app: AppHandle, window: tauri::Window, st: State<'_, AppS
     }
     *st.settings.lock() = settings;
     let _ = app.emit("settings-changed", window.label());
+    custom_cmds::sync_soon(&app);
     Ok(())
 }
 
@@ -605,8 +609,16 @@ fn main() {
                 }
             }
         })
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             get_settings,
+            custom_cmds::backup_parts,
+            custom_cmds::backup_export,
+            custom_cmds::backup_inspect,
+            custom_cmds::backup_restore,
+            custom_cmds::sync_now,
+            custom_cmds::sync_check,
+            custom_cmds::sync_restore,
             save_settings,
             scan_library,
             launch_game,

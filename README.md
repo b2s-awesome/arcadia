@@ -147,6 +147,37 @@ The startup splash can be Short, Normal, Long or off (**Appearance → Startup**
 
 The sidebar is yours too: under **Appearance → Sidebar**, drag entries into any order, hide the ones you don't use (they stay one Ctrl+K away), or switch to icons only. The page dots in the top bar follow the same order.
 
+Appearance is split into collapsible sections: Look, Feel, Layout, Keyboard, Profiles & backup, Name & startup, and Addons.
+
+- **Home:** a dashboard of widgets. Press **Customise** to add, remove, resize (S/M/L) and drag them around. Arcadia can open on Home. The widgets are:
+  - Greeting
+  - Continue playing
+  - Now playing
+  - Roblox
+  - Minecraft
+  - Most played
+  - Pinned games
+  - Listening
+  - Notes
+  - Clock
+- **Motion & sound:**
+  - Motion can be full, calm (slower, and looping animations hold still) or off, with an animation speed control.
+  - Interface sounds come in soft, clicky or retro sets, made on the fly with Web Audio, with a volume control.
+- **Fonts & icons:**
+  - Text size (85–130%).
+  - Any installed font, with an install check and a preview.
+  - Icon line weight and round or square line ends.
+- **Keyboard:** change every shortcut by pressing the new keys. It warns when two actions share a combo. Shortcuts marked **Anywhere** work as global hotkeys while you're in a game or another app. They cover:
+  - search and launch, Big Picture and bringing Arcadia to the front
+  - each page
+  - music play/pause, next, previous and volume
+  - Play Roblox, and your last game
+- **Profiles:** save your whole setup (look, layout, Home, keys, feel, addon settings) under a name and switch between setups in a click.
+- **Backup & sync:**
+  - Back up to one `.arcadia` file and restore it, choosing which parts. What you had before is backed up first.
+  - Or pick a sync folder (OneDrive, Dropbox…). Arcadia keeps the latest copy there and offers it on your other PCs.
+  - Logins, addon secrets and, unless you ask, API keys never leave the PC.
+
 ## Marketplace and addons
 
 Bigger optional tools ship as addons, so the sidebar only holds what you actually use. Open **Marketplace**, add one, and it gets its own sidebar entry; remove it the same way, optionally deleting what it saved. Each addon only loads once it's installed, keeps its data in its own folder (`%LOCALAPPDATA%\Arcadia\addons\<id>\`) and its secrets in Windows Credential Manager, and can't reach another addon's data.

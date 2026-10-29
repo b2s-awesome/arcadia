@@ -73,6 +73,12 @@ pub struct Settings {
     /// Track how long you play games Arcadia launches.
     pub track_playtime: bool,
 
+    // ── Backup & sync ────────────────────────────────────────
+    /// A folder (OneDrive, Dropbox…) that keeps the latest copy of your setup.
+    pub sync_folder: String,
+    /// When this PC last wrote or restored the sync copy.
+    pub sync_last: u64,
+
     /// One-time settings migrations already applied.
     pub migrations: u32,
 }
@@ -114,6 +120,8 @@ impl Default for Settings {
             minecraft_default_memory_mb: 4096,
             steamgriddb_key: String::new(),
             track_playtime: true,
+            sync_folder: String::new(),
+            sync_last: 0,
             migrations: CURRENT_MIGRATION,
         }
     }

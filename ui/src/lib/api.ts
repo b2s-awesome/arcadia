@@ -72,8 +72,17 @@ export const win = {
   },
 };
 
+export interface BackupManifest { app: string; created: number; computer: string; parts: string[]; keys: boolean; files: number }
+
 export const api = {
   getSettings: () => call<Settings>("get_settings"),
+  backupParts: () => call<{ id: string; label: string }[]>("backup_parts"),
+  backupExport: (dest: string, parts: string[], keys: boolean) => call<BackupManifest>("backup_export", { dest, parts, keys }),
+  backupInspect: (path: string) => call<BackupManifest>("backup_inspect", { path }),
+  backupRestore: (path: string, parts: string[]) => call<number>("backup_restore", { path, parts }),
+  syncNow: () => call<BackupManifest>("sync_now"),
+  syncCheck: () => call<BackupManifest | null>("sync_check"),
+  syncRestore: () => call<number>("sync_restore"),
   saveSettings: (settings: Settings) => call<void>("save_settings", { settings }),
 
   scanLibrary: () => call<ScanReport>("scan_library"),

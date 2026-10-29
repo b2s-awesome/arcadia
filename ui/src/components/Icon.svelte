@@ -76,6 +76,11 @@
   };
 </script>
 
-<svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke={filled ? "none" : "currentColor"} stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke={filled ? "none" : "currentColor"} stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="ico">
   <path d={paths[name] ?? ""} />
 </svg>
+
+<style>
+  /* Line weight and ends follow Appearance → Fonts & icons. */
+  .ico { stroke-width: var(--icon-stroke, 1.8); stroke-linecap: var(--icon-caps, round); stroke-linejoin: var(--icon-join, round); }
+</style>

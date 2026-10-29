@@ -3,7 +3,7 @@ import type { Settings } from "./types";
 import { normalizeUi, type UiState } from "./theme";
 
 type Toast = { id: number; text: string; tone: "ok" | "error" };
-export type CorePage = "library" | "music" | "minecraft" | "roblox" | "proxy" | "inspector" | "appearance" | "settings" | "marketplace";
+export type CorePage = "home" | "library" | "music" | "minecraft" | "roblox" | "proxy" | "inspector" | "appearance" | "settings" | "marketplace";
 /** A built-in page, or an installed addon's page ("addon:<id>"). */
 export type Page = CorePage | `addon:${string}`;
 
@@ -45,6 +45,8 @@ export function toast(text: string, tone: Toast["tone"] = "ok") {
 export async function loadSettings() {
   app.settings = await api.getSettings();
   app.ui = normalizeUi(app.settings.ui);
+  // Start on Home if asked (unless a page was given, e.g. by a shortcut).
+  if (app.ui.home.start && app.mode === "hub" && !new URLSearchParams(location.search).get("page")) app.page = "home";
 }
 
 /** Persist the appearance state into settings.ui. */

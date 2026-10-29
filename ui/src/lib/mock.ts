@@ -200,6 +200,8 @@ let settings: Settings = {
   minecraft_default_memory_mb: 4096,
   steamgriddb_key: "",
   track_playtime: true,
+  sync_folder: "",
+  sync_last: 0,
   ui: (() => {
     const q = new URLSearchParams(location.search);
     const preset = q.get("look");
@@ -298,6 +300,17 @@ export async function mockInvoke(cmd: string, args: Record<string, unknown> = {}
     case "save_settings": settings = args.settings as Settings; return;
     case "scan_library": return { games, launchers: ["minecraft", "roblox", "steam", "epic", "battlenet", "gog", "ea", "ubisoft"], warnings: [] };
     case "launch_game": return;
+    case "backup_parts": return [
+      { id: "settings", label: "Settings, looks and layout" }, { id: "library", label: "Library info, collections and your art" },
+      { id: "addons", label: "Addon data" }, { id: "roblox", label: "Roblox accounts list and play history" },
+      { id: "skins", label: "Minecraft skin library" }, { id: "proxy", label: "Asset proxy rules" },
+    ];
+    case "backup_export": await sleep(700); return { app: "0.1.0", created: Date.now() / 1000, computer: "DESKTOP-ARCADIA", parts: args.parts, keys: !!args.keys, files: 37 };
+    case "backup_inspect": return { app: "0.1.0", created: Date.now() / 1000 - 86400 * 2, computer: "LAPTOP-SKY", parts: ["settings", "library", "addons", "roblox"], keys: false, files: 29 };
+    case "backup_restore": await sleep(600); return 29;
+    case "sync_now": await sleep(500); settings.sync_last = Date.now() / 1000; return { app: "0.1.0", created: Date.now() / 1000, computer: "DESKTOP-ARCADIA", parts: ["settings"], keys: false, files: 30 };
+    case "sync_check": return settings.sync_folder ? { app: "0.1.0", created: Date.now() / 1000 - 3600, computer: "LAPTOP-SKY", parts: ["settings", "library"], keys: false, files: 25 } : null;
+    case "sync_restore": await sleep(600); return 25;
     case "library_meta": return structuredClone(libMeta);
     case "library_meta_set": libMeta.meta.games[String(args.id)] = args.meta as Record<string, unknown>; return;
     case "library_collections_set": libMeta.meta.collections = args.list as { name: string; icon: string }[]; return;

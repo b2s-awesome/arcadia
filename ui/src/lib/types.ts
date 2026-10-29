@@ -99,6 +99,8 @@ export interface Settings {
   minecraft_default_memory_mb: number;
   steamgriddb_key: string;
   track_playtime: boolean;
+  sync_folder: string;
+  sync_last: number;
 }
 
 export interface RobloxStatus {
