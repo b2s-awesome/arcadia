@@ -37,6 +37,9 @@ sha2 = "0.10"
 toml = "0.8"
 hex = "0.4"
 base64 = "0.22"
+lofty = "0.22"
+rusqlite = { version = "0.32", features = ["bundled"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"

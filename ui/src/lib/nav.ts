@@ -14,6 +14,7 @@ export interface NavItem {
 
 export const CORE_NAV: NavItem[] = [
   { id: "library", label: "Library", icon: "library" },
+  { id: "music", label: "Music", icon: "music" },
   { id: "minecraft", label: "Minecraft", icon: "cube" },
   { id: "roblox", label: "Roblox", icon: "roblox" },
   { id: "proxy", label: "Asset proxy", icon: "proxy" },

@@ -11,6 +11,7 @@
 //!   Roblox\Downloads\          package cache
 //!   Modifications\             user mods overlaid onto Roblox on launch
 //!   addons\<id>\               each marketplace addon's own data
+//!   Music\library.db, art\     music library and cover thumbnails
 //! ```
 
 use std::path::PathBuf;

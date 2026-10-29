@@ -17,6 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
 mod addon_cmds;
 mod minecraft_cmds;
+mod music_cmds;
 
 pub(crate) struct AppState {
     settings: Mutex<Settings>,
@@ -556,6 +557,15 @@ fn main() {
                 })
                 .build(app)?;
 
+            // The music player. A missing sound card isn't fatal: the page says so.
+            match music_cmds::Music::start(&h) {
+                Ok(m) => {
+                    app.manage(m);
+                }
+                Err(e) => log::error!("music player didn't start: {e:#}"),
+            }
+            let _ = app.asset_protocol_scope().allow_directory(arcadia_core::music::dir().join("art"), false);
+
             // Let the UI show Steam's locally cached cover art.
             if let Some(dir) = library::steam_art_dir() {
                 let _ = app.asset_protocol_scope().allow_directory(&dir, true);
@@ -660,6 +670,35 @@ fn main() {
             addon_cmds::window_effects_status,
             addon_cmds::window_effect_set,
             addon_cmds::app_restart,
+            music_cmds::music_library,
+            music_cmds::music_folders,
+            music_cmds::music_set_folders,
+            music_cmds::music_scan,
+            music_cmds::music_favourite,
+            music_cmds::music_status,
+            music_cmds::music_play,
+            music_cmds::music_pause,
+            music_cmds::music_next,
+            music_cmds::music_prev,
+            music_cmds::music_seek,
+            music_cmds::music_volume,
+            music_cmds::music_shuffle,
+            music_cmds::music_repeat,
+            music_cmds::music_devices,
+            music_cmds::music_set_device,
+            music_cmds::music_queue,
+            music_cmds::music_queue_add,
+            music_cmds::music_queue_remove,
+            music_cmds::music_queue_move,
+            music_cmds::music_queue_jump,
+            music_cmds::music_queue_clear,
+            music_cmds::music_playlists,
+            music_cmds::music_playlist_items,
+            music_cmds::music_playlist_create,
+            music_cmds::music_playlist_rename,
+            music_cmds::music_playlist_delete,
+            music_cmds::music_playlist_set,
+            music_cmds::music_playlist_add,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Arcadia");

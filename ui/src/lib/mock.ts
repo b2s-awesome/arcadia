@@ -1,5 +1,6 @@
 // A fake backend so the UI can be developed and previewed in a browser.
 import type { Entry, Game, RuleConfig, Settings } from "./types";
+import { mockMusic } from "./mockMusic";
 
 const listeners = new Map<string, Set<(p: unknown) => void>>();
 export function mockListen(event: string, cb: (p: unknown) => void): () => void {
@@ -132,6 +133,7 @@ function mockImage(url: string): string {
 
 export async function mockInvoke(cmd: string, args: Record<string, unknown> = {}): Promise<unknown> {
   await sleep(60);
+  if (cmd.startsWith("music_")) return mockMusic(cmd, args, emit);
   switch (cmd) {
     case "addon_get": return structuredClone(addonStore.get(`${args.addon}/${args.key}`) ?? null);
     case "addon_set": {

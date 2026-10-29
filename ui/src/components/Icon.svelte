@@ -1,6 +1,7 @@
 <script lang="ts">
   // A tiny hand-drawn icon set (24px grid, 1.8 stroke).
-  let { name, size = 20 }: { name: string; size?: number } = $props();
+  // `filled` for solid glyphs (transport buttons).
+  let { name, size = 20, filled = false }: { name: string; size?: number; filled?: boolean } = $props();
   const paths: Record<string, string> = {
     library: "M4 5h4v14H4zM10 5h4v14h-4zM16.5 5.5l3.6 1-3.6 13-3.6-1z",
     roblox: "M6.5 3.5l14 3.8-3.8 14-14-3.8zM10.6 9.6l3.8 1-1 3.8-3.8-1z",
@@ -25,6 +26,21 @@
     image: "M4 5h16v14H4zM4 15l4.5-4.5 4 4 2.5-2.5L20 17M15.5 9.5h.01",
     cube: "M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9",
     shield: "M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z",
+    music: "M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z",
+    pause: "M7 5h3.5v14H7zM13.5 5H17v14h-3.5z",
+    "skip-next": "M6 5l9 7-9 7zM17 5h2v14h-2z",
+    "skip-prev": "M18 5l-9 7 9 7zM5 5h2v14H5z",
+    shuffle: "M4 7h3l10 10h3M4 17h3l3-3M14 10l3-3h3M18 4l2 3-2 3M18 14l2 3-2 3",
+    repeat: "M5 11V9a3 3 0 0 1 3-3h11M16 3l3 3-3 3M19 13v2a3 3 0 0 1-3 3H5M8 21l-3-3 3-3",
+    "repeat-one": "M5 11V9a3 3 0 0 1 3-3h11M16 3l3 3-3 3M19 13v2a3 3 0 0 1-3 3H5M8 21l-3-3 3-3M12 9.5v5",
+    heart: "M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z",
+    queue: "M4 6h12M4 12h12M4 18h7M17 15v6l4-3z",
+    volume: "M4 9.5h3.5L12 5.5v13l-4.5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11",
+    mute: "M4 9.5h3.5L12 5.5v13l-4.5-4H4zM16 10l5 5M21 10l-5 5",
+    more: "M5.5 12h.01M12 12h.01M18.5 12h.01",
+    sliders: "M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4",
+    expand: "M15 4h5v5M9 20H4v-5M20 4l-6 6M4 20l6-6",
+    collapse: "M6 15l6-6 6 6",
     profile: "M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5zM4 9.5h16M9.5 15a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM14 13h3.5M14 16h2.5",
     store: "M4 9l1.5-5h13L20 9M4 9h16M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0A2.7 2.7 0 0 0 20 9M5.5 12.5V20h13v-7.5M10 20v-4.5h4V20",
     grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01",
@@ -43,6 +59,6 @@
   };
 </script>
 
-<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke={filled ? "none" : "currentColor"} stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
   <path d={paths[name] ?? ""} />
 </svg>

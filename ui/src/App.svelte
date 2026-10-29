@@ -7,6 +7,8 @@
   import { applySeeThrough, loadFxStatus } from "./lib/seeThrough.svelte";
   import { addonById } from "./addons/registry";
   import Marketplace from "./pages/Marketplace.svelte";
+  import Music from "./music/Music.svelte";
+  import { initPlayer, next as musicNext, toggle as musicToggle } from "./music/store.svelte";
   import { applyLook, defaultLook, PRESETS, SPLASH_MS, wallpaperUrl, type PresetId } from "./lib/theme";
   import type { Activity, Progress } from "./lib/types";
   import Icon from "./components/Icon.svelte";
@@ -91,6 +93,9 @@
     { id: "appearance", label: "Appearance", hint: "Looks, wallpaper and bar", icon: "brush", ring: true, run: go("appearance") },
     { id: "minecraft", label: "Minecraft", hint: "Instances, modpacks, mods", icon: "cube", run: go("minecraft") },
     { id: "mc-popout", label: "Pop out Minecraft", hint: "Open the launcher in its own window", icon: "cube", run: popOut },
+    { id: "music", label: "Music", hint: "Your music library", icon: "music", run: go("music") },
+    { id: "music-toggle", label: "Play / pause music", hint: "What's playing in Music", icon: "play", run: () => { musicToggle(); } },
+    { id: "music-next", label: "Next song", hint: "Skip to the next song", icon: "skip-next", run: () => { musicNext(); } },
     { id: "marketplace", label: "Marketplace", hint: "Addons for Arcadia", icon: "store", run: go("marketplace") },
     { id: "mc-security", label: "Minecraft security check", hint: "Scan mods for known incidents", icon: "shield", run: () => { mcs.tab = "security"; app.page = "minecraft"; } },
     { id: "roblox", label: "Roblox settings", hint: "FastFlags, FPS, mods", icon: "roblox", run: go("roblox") },
@@ -155,6 +160,7 @@
   onMount(() => {
     loadSettings();
     loadFxStatus();
+    if (app.mode === "hub") initPlayer();
     windowLabel().then((l) => (myLabel = l));
     const key = (e: KeyboardEvent) => {
       if (splash) {
@@ -272,6 +278,7 @@
         {#key app.page}
           <div class="view">
             {#if app.page === "library"}<Library />
+            {:else if app.page === "music"}<Music />
             {:else if app.page === "minecraft"}<Minecraft />
             {:else if app.page === "roblox"}<Roblox />
             {:else if app.page === "proxy"}<Proxy />
