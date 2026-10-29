@@ -1,6 +1,6 @@
 // A pretend music library and player, for designing the Music page in a
 // browser. Artists, albums and covers are all made up.
-import type { MusicPlaylist, MusicStatus, RepeatMode, Track } from "./types";
+import type { DownloadJob, MusicPlaylist, MusicStatus, OnlineItem, RepeatMode, StreamingConfig, SyncedSource, Track } from "./types";
 
 type Emit = (event: string, payload: unknown) => void;
 
@@ -55,6 +55,8 @@ const tracks: Track[] = ALBUMS.flatMap((a, ai) =>
       playCount: (id * 13) % 23,
       lastPlayed: ai < 4 ? now - ai * DAY - i * 300 : null,
       favourite: id % 7 === 0,
+      origin: "local" as const,
+      sourceUrl: null,
     };
   }),
 );
@@ -95,6 +97,7 @@ function status(): MusicStatus {
     output: { device: "Speakers (Realtek Audio)", rate: 48000, channels: 2 },
     outputError: null,
     device: null,
+    loading: false,
   };
 }
 
@@ -132,7 +135,111 @@ function plView() {
   });
 }
 
+// ── Streaming addon, pretend ───────────────────────────────
+const ONLINE: OnlineItem[] = [
+  { url: "https://music.youtube.com/watch?v=aaa1", title: "Neon Tide", artist: "Mira Sol", album: "Night Swim", duration: 214, thumbnail: null, site: "youtube" },
+  { url: "https://music.youtube.com/watch?v=aaa2", title: "Glass Garden", artist: "Mira Sol", album: "Night Swim", duration: 198, thumbnail: null, site: "youtube" },
+  { url: "https://music.youtube.com/watch?v=aaa3", title: "Paper Planes (Live)", artist: "The Kites", album: null, duration: 262, thumbnail: null, site: "youtube" },
+  { url: "https://soundcloud.com/ollie/pocket-sun", title: "Pocket Sun", artist: "ollie beats", album: null, duration: 176, thumbnail: null, site: "soundcloud" },
+  { url: "https://soundcloud.com/ollie/rain-on-tin", title: "Rain on Tin", artist: "ollie beats", album: null, duration: 151, thumbnail: null, site: "soundcloud" },
+];
+let cfg: StreamingConfig = { format: "m4a", scOriginal: true, downloadDir: "", cacheLimitMb: 1024, ytdlpPath: "", ffmpegPath: "" };
+let haveYtdlp = false;
+let haveFfmpeg = false;
+let jobs: DownloadJob[] = [];
+let jobId = 1;
+const synced: SyncedSource[] = [];
+
+function remoteTrack(i: OnlineItem): number {
+  const ex = tracks.find((t) => t.sourceUrl === i.url);
+  if (ex) return ex.id;
+  const id = nextId++;
+  const colors: [string, string, string] = i.site === "soundcloud" ? ["#3a1406", "#ff5500", "#ffb38a"] : ["#1a0a12", "#ff0033", "#ffd1dc"];
+  tracks.push({
+    id, path: `remote:${i.url}`, title: i.title, artist: i.artist, albumArtist: i.artist, album: i.album ?? "Singles", genre: "", year: null, trackNo: null, discNo: null,
+    duration: i.duration ?? 200, sampleRate: 44100, bitDepth: null, channels: 2, bitrate: 128, format: "M4A", art: cover(colors, id), artColor: colors[1],
+    addedAt: Math.floor(Date.now() / 1000), playCount: 0, lastPlayed: null, favourite: false, origin: "stream", sourceUrl: i.url,
+  });
+  return id;
+}
+
+async function mockStreaming(cmd: string, args: Record<string, unknown>, emit: Emit): Promise<unknown> {
+  await new Promise((r) => setTimeout(r, 250));
+  switch (cmd) {
+    case "streaming_status":
+      return {
+        ytdlp: haveYtdlp ? { path: "C:\\Users\\you\\AppData\\Local\\Arcadia\\addons\\streaming\\bin\\yt-dlp.exe", version: "2026.10.21", managed: true } : null,
+        ffmpeg: haveFfmpeg ? { path: "C:\\…\\bin\\ffmpeg.exe", version: "N-117000-g1b2c3d4", managed: true } : null,
+        config: { ...cfg }, downloadDir: cfg.downloadDir || "C:\\Users\\you\\Music\\Arcadia Downloads", cacheBytes: 48_000_000, windows: true,
+      };
+    case "streaming_install": {
+      const tool = args.tool as "yt-dlp" | "ffmpeg";
+      const total = tool === "yt-dlp" ? 18_000_000 : 87_000_000;
+      for (let i = 1; i <= 8; i++) {
+        emit("streaming-install", { tool, done: (total * i) / 8, total, stage: "downloading" });
+        await new Promise((r) => setTimeout(r, 120));
+      }
+      if (tool === "yt-dlp") haveYtdlp = true; else haveFfmpeg = true;
+      return;
+    }
+    case "streaming_update": return "yt-dlp is up to date (2026.10.21)";
+    case "streaming_set_config": cfg = args.config as StreamingConfig; return;
+    case "streaming_clear_cache": return 48_000_000;
+    case "streaming_search": {
+      if (!haveYtdlp) throw "Streaming needs yt-dlp. Get it under Music → Downloads → Setup.";
+      const q = String(args.query).toLowerCase();
+      const items = ONLINE.filter((i) => (args.source === "soundcloud") === (i.site === "soundcloud"));
+      return { playlist: null, items: q ? items : [] };
+    }
+    case "streaming_resolve":
+      if (!haveYtdlp) throw "Streaming needs yt-dlp. Get it under Music → Downloads → Setup.";
+      return { playlist: "Night Swim (album)", items: ONLINE.slice(0, 2) };
+    case "streaming_tracks": return (args.items as OnlineItem[]).map(remoteTrack);
+    case "streaming_jobs": return jobs;
+    case "streaming_download": {
+      const ids = args.ids as number[];
+      for (const id of ids) {
+        const t = tracks.find((x) => x.id === id);
+        if (!t?.sourceUrl) continue;
+        const job: DownloadJob = { id: jobId++, trackId: id, title: t.title, artist: t.artist, url: t.sourceUrl, state: "queued", progress: { percent: 0, speed: "", eta: "", stage: "" }, error: null, path: null };
+        jobs.push(job);
+        (async () => {
+          job.state = "running";
+          for (let p = 0; p <= 100; p += 12.5) {
+            job.progress = { percent: p, speed: "2.4MiB/s", eta: `00:0${Math.max(0, 8 - p / 12.5)}`, stage: "downloading" };
+            emit("streaming-jobs", structuredClone(jobs));
+            await new Promise((r) => setTimeout(r, 300));
+          }
+          job.state = "done";
+          job.path = `C:\\Users\\you\\Music\\Arcadia Downloads\\${t.artist}\\${t.album}\\${t.title}.m4a`;
+          t.origin = "download";
+          t.path = job.path;
+          emit("streaming-jobs", structuredClone(jobs));
+          emit("music-library-changed", null);
+        })();
+      }
+      emit("streaming-jobs", structuredClone(jobs));
+      return ids.length;
+    }
+    case "streaming_cancel": { const j = jobs.find((x) => x.id === args.id); if (j) j.state = "cancelled"; emit("streaming-jobs", structuredClone(jobs)); return; }
+    case "streaming_retry": return;
+    case "streaming_clear_finished": jobs = jobs.filter((j) => j.state === "queued" || j.state === "running"); emit("streaming-jobs", structuredClone(jobs)); return;
+    case "streaming_sources": return [...synced];
+    case "streaming_import": {
+      const ids = ONLINE.slice(0, 2).map(remoteTrack);
+      const id = Math.max(0, ...playlists.map((p) => p.id)) + 1;
+      playlists.unshift({ id, name: (args.name as string) || "Night Swim (album)", count: 0, duration: 0, updated: Math.floor(Date.now() / 1000), arts: [], items: ids });
+      synced.push({ playlistId: id, url: args.url as string, download: !!args.download, lastSync: Math.floor(Date.now() / 1000) });
+      return id;
+    }
+    case "streaming_sync": return 0;
+    case "streaming_unlink": return;
+  }
+  throw new Error(`mock: unknown ${cmd}`);
+}
+
 export async function mockMusic(cmd: string, args: Record<string, unknown>, emit: Emit): Promise<unknown> {
+  if (cmd.startsWith("streaming_")) return mockStreaming(cmd, args, emit);
   tick(emit);
   const changed = () => emit("music-status", status());
   switch (cmd) {

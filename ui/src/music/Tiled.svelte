@@ -11,6 +11,7 @@
   import Volume from "./Volume.svelte";
   import { musicKeys } from "./keys";
   import { back, cycleRepeat, go, lib, ms, next, prev, quality, setShuffle, type MusicView } from "./store.svelte";
+  import { visibleTabs } from "./streaming.svelte";
 
   const prefs = $derived(app.ui.music);
   const t = $derived(ms.status?.track ?? null);
@@ -18,13 +19,9 @@
   let q = $state("");
   let filterEl: HTMLInputElement | undefined = $state();
 
-  const lists: { kind: MusicView["kind"]; label: string; icon: string }[] = [
-    { kind: "home", label: "home", icon: "library" },
-    { kind: "songs", label: "songs", icon: "music" },
-    { kind: "albums", label: "albums", icon: "cube" },
-    { kind: "artists", label: "artists", icon: "profile" },
-    { kind: "favourites", label: "favourites", icon: "heart" },
-  ];
+  const icons: Record<string, string> = { home: "library", online: "search", songs: "music", albums: "cube", artists: "profile", playlists: "music", favourites: "heart", downloads: "download" };
+  // Same order and visibility as the Tonal tabs; playlists are listed below anyway.
+  const lists = $derived(visibleTabs().filter((t) => t.id !== "playlists").map((t) => ({ kind: t.id as MusicView["kind"], label: t.label.toLowerCase(), icon: icons[t.id] })));
   const title = $derived.by(() => {
     const v = ms.view;
     if (v.kind === "album") return lib.albumByKey.get(v.key)?.title ?? "album";

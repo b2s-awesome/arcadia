@@ -1,5 +1,7 @@
 // One context menu for the Music page (right-click or the ⋯ button).
 import type { Track } from "../lib/types";
+import { streaming } from "../lib/api";
+import { app, toast } from "../lib/state.svelte";
 import { addToPlaylist, addToQueue, go, albumKey, ms, newPlaylist, playNext, setFavourite } from "./store.svelte";
 
 export interface MenuItem {
@@ -48,6 +50,15 @@ export function playlistItems(tracks: Track[]): MenuItem[] {
   ];
 }
 
+export async function downloadTracks(tracks: Track[]) {
+  try {
+    const n = await streaming.download(tracks.filter((t) => t.origin === "stream").map((t) => t.id));
+    toast(n ? `Downloading ${n === 1 ? `“${tracks[0].title}”` : `${n} songs`}. Progress is under Downloads.` : "Already downloaded or downloading.");
+  } catch (e) {
+    toast(String(e), "error");
+  }
+}
+
 /** The usual actions for one or more tracks. */
 export function trackMenu(tracks: Track[], extra: MenuItem[] = []): MenuItem[] {
   const one = tracks.length === 1 ? tracks[0] : null;
@@ -55,6 +66,9 @@ export function trackMenu(tracks: Track[], extra: MenuItem[] = []): MenuItem[] {
     { label: "Play next", icon: "queue", run: () => playNext(tracks) },
     { label: "Add to queue", icon: "plus", run: () => addToQueue(tracks) },
     { label: "Add to playlist", icon: "music", sub: playlistItems(tracks) },
+    ...(app.ui.addons.installed.includes("streaming") && tracks.some((t) => t.origin === "stream")
+      ? [{ label: tracks.length === 1 ? "Download" : "Download these", icon: "download", run: () => downloadTracks(tracks) }]
+      : []),
     ...(one ? [
       { label: one.favourite ? "Remove from favourites" : "Add to favourites", icon: "heart", run: () => setFavourite(one, !one.favourite) },
       { label: "", sep: true },

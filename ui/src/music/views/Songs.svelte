@@ -1,13 +1,13 @@
 <script lang="ts">
   import TrackList from "../TrackList.svelte";
   import Icon from "../../components/Icon.svelte";
-  import { ms, play, shuffleAll } from "../store.svelte";
+  import { lib, ms, play, shuffleAll } from "../store.svelte";
   import type { Track } from "../../lib/types";
 
   let { favourites = false }: { favourites?: boolean } = $props();
   type Sort = "title" | "artist" | "album" | "added" | "plays";
   let sort: Sort = $state("artist");
-  const base = $derived(favourites ? ms.tracks.filter((t) => t.favourite) : ms.tracks);
+  const base = $derived(favourites ? ms.tracks.filter((t) => t.favourite) : lib.tracks);
   const cmp = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" });
   const sorted = $derived.by(() => {
     const v = [...base];

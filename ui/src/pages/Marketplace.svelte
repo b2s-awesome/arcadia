@@ -33,12 +33,12 @@
     await saveSettingsNow();
     busy = false;
     detailOpen = false;
-    toast(a.load ? `${a.name} added to the sidebar` : `${a.name} added. Its settings are in Appearance.`);
+    toast(a.load ? `${a.name} added to the sidebar` : a.opens === "music" ? `${a.name} added: see Online and Downloads in Music` : `${a.name} added. Its settings are in Appearance.`);
     openAddon(a);
   }
 
   function openAddon(a: AddonMeta) {
-    app.page = a.load ? `addon:${a.id}` : "appearance";
+    app.page = a.load ? `addon:${a.id}` : (a.opens ?? "appearance");
   }
 
   function askRemove(a: AddonMeta) {

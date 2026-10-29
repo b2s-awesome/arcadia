@@ -18,6 +18,7 @@ use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 mod addon_cmds;
 mod minecraft_cmds;
 mod music_cmds;
+mod streaming_cmds;
 
 pub(crate) struct AppState {
     settings: Mutex<Settings>,
@@ -557,6 +558,7 @@ fn main() {
                 })
                 .build(app)?;
 
+            app.manage(Arc::new(streaming_cmds::Streamer::new()));
             // The music player. A missing sound card isn't fatal: the page says so.
             match music_cmds::Music::start(&h) {
                 Ok(m) => {
@@ -699,6 +701,23 @@ fn main() {
             music_cmds::music_playlist_delete,
             music_cmds::music_playlist_set,
             music_cmds::music_playlist_add,
+            streaming_cmds::streaming_status,
+            streaming_cmds::streaming_install,
+            streaming_cmds::streaming_update,
+            streaming_cmds::streaming_set_config,
+            streaming_cmds::streaming_clear_cache,
+            streaming_cmds::streaming_search,
+            streaming_cmds::streaming_resolve,
+            streaming_cmds::streaming_tracks,
+            streaming_cmds::streaming_jobs,
+            streaming_cmds::streaming_download,
+            streaming_cmds::streaming_cancel,
+            streaming_cmds::streaming_retry,
+            streaming_cmds::streaming_clear_finished,
+            streaming_cmds::streaming_sources,
+            streaming_cmds::streaming_import,
+            streaming_cmds::streaming_sync,
+            streaming_cmds::streaming_unlink,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Arcadia");

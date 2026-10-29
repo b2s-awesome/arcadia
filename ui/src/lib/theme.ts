@@ -93,7 +93,22 @@ export interface MusicPrefs {
   hidden: MusicSection[];
   /** Tiled: show the queue pane. */
   queuePane: boolean;
+  /** Music's own tabs, in order, and which are hidden. */
+  tabs: MusicTab[];
+  hiddenTabs: MusicTab[];
 }
+
+export type MusicTab = "home" | "online" | "albums" | "artists" | "songs" | "playlists" | "favourites" | "downloads";
+export const MUSIC_TABS: { id: MusicTab; label: string; addon?: string }[] = [
+  { id: "home", label: "Home" },
+  { id: "online", label: "Online", addon: "streaming" },
+  { id: "albums", label: "Albums" },
+  { id: "artists", label: "Artists" },
+  { id: "songs", label: "Songs" },
+  { id: "playlists", label: "Playlists" },
+  { id: "favourites", label: "Favourites" },
+  { id: "downloads", label: "Downloads", addon: "streaming" },
+];
 
 export const MUSIC_SECTIONS: { id: MusicSection; label: string }[] = [
   { id: "hero", label: "Now playing / shuffle all" },
@@ -107,11 +122,14 @@ export const MUSIC_SECTIONS: { id: MusicSection; label: string }[] = [
 export const DEFAULT_MUSIC: MusicPrefs = {
   layout: "tonal", bar: "bottom", artColours: true, cover: 168, compact: false,
   sections: MUSIC_SECTIONS.map((s) => s.id), hidden: [], queuePane: true,
+  tabs: MUSIC_TABS.map((t) => t.id), hiddenTabs: [],
 };
 
 function normalizeMusic(v: Partial<MusicPrefs> | undefined): MusicPrefs {
   const d = DEFAULT_MUSIC;
-  if (!v || typeof v !== "object") return { ...d, sections: [...d.sections] };
+  if (!v || typeof v !== "object") return { ...d, sections: [...d.sections], tabs: [...d.tabs], hiddenTabs: [] };
+  const tabIds = MUSIC_TABS.map((t) => t.id);
+  const tabOrder = Array.isArray(v.tabs) ? v.tabs.filter((x): x is MusicTab => tabIds.includes(x as MusicTab)) : [];
   const ids = MUSIC_SECTIONS.map((s) => s.id);
   const order = Array.isArray(v.sections) ? v.sections.filter((x): x is MusicSection => ids.includes(x as MusicSection)) : [];
   return {
@@ -123,6 +141,9 @@ function normalizeMusic(v: Partial<MusicPrefs> | undefined): MusicPrefs {
     sections: [...order, ...ids.filter((x) => !order.includes(x))],
     hidden: Array.isArray(v.hidden) ? v.hidden.filter((x): x is MusicSection => ids.includes(x as MusicSection)) : [],
     queuePane: v.queuePane !== false,
+    // New tabs (from updates or addons) slot in at their default place.
+    tabs: tabIds.reduce<MusicTab[]>((acc, id) => (acc.includes(id) ? acc : (() => { const i = tabIds.indexOf(id); const after = tabIds.slice(0, i).reverse().find((p) => acc.includes(p)); const at = after ? acc.indexOf(after) + 1 : 0; acc.splice(at, 0, id); return acc; })()), [...tabOrder]),
+    hiddenTabs: Array.isArray(v.hiddenTabs) ? v.hiddenTabs.filter((x): x is MusicTab => tabIds.includes(x as MusicTab) && x !== "home") : [],
   };
 }
 

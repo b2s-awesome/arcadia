@@ -11,12 +11,12 @@
   const sections = $derived(prefs.sections.filter((s) => !prefs.hidden.includes(s)));
   const recent = $derived(lib.albums.filter((a) => a.lastPlayed > 0).sort((a, b) => b.lastPlayed - a.lastPlayed).slice(0, 14));
   const added = $derived([...lib.albums].sort((a, b) => b.addedAt - a.addedAt).slice(0, 14));
-  const most = $derived([...ms.tracks].filter((t) => t.playCount > 0).sort((a, b) => b.playCount - a.playCount).slice(0, 8));
+  const most = $derived([...lib.tracks].filter((t) => t.playCount > 0).sort((a, b) => b.playCount - a.playCount).slice(0, 8));
   const favs = $derived(ms.tracks.filter((t) => t.favourite).slice(0, 8));
   const cur = $derived(ms.status?.track ?? null);
 </script>
 
-{#if !ms.tracks.length}
+{#if !lib.tracks.length}
   <div class="empty">
     <Icon name="music" size={34} />
     <h2>No music yet</h2>
@@ -35,14 +35,14 @@
             <p>{cur.artist} · {cur.album}</p>
             <div class="row">
               <button class="primary" onclick={toggle}><Icon name={ms.status?.playing ? "pause" : "play"} size={16} filled /> {ms.status?.playing ? "Pause" : "Resume"}</button>
-              <button class="ghosty" onclick={() => shuffleAll(ms.tracks)}><Icon name="shuffle" size={16} /> Shuffle everything</button>
+              <button class="ghosty" onclick={() => shuffleAll(lib.tracks)}><Icon name="shuffle" size={16} /> Shuffle everything</button>
             </div>
           </div>
         {:else}
           <div class="hero-text">
-            <span class="eyebrow">{ms.tracks.length.toLocaleString()} songs · {lib.albums.length.toLocaleString()} albums</span>
+            <span class="eyebrow">{lib.tracks.length.toLocaleString()} songs · {lib.albums.length.toLocaleString()} albums</span>
             <h2>What are we listening to?</h2>
-            <div class="row"><button class="primary" onclick={() => shuffleAll(ms.tracks)}><Icon name="shuffle" size={16} /> Shuffle everything</button></div>
+            <div class="row"><button class="primary" onclick={() => shuffleAll(lib.tracks)}><Icon name="shuffle" size={16} /> Shuffle everything</button></div>
           </div>
         {/if}
       </section>
