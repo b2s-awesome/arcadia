@@ -158,8 +158,21 @@ pub fn swap_single_asset_id(path_and_query: &str, from: u64, to: u64) -> String 
     format!("{path}?{}", q.join("&"))
 }
 
+/// A Roblox ClientSettings document the player reads its server flags from.
+/// The bootstrapper's own document (`PCClientBootstrapper`) is left alone.
 pub fn is_client_settings(host: &str, path: &str) -> bool {
-    host.starts_with("clientsettings") && path.contains("/settings/application/") && path.contains("PCDesktopClient")
+    let path = path.split('?').next().unwrap_or(path);
+    host.starts_with("clientsettings")
+        && (path.contains("/settings/application/") || path.contains("/settings-compressed/application/"))
+        && !path.contains("PCClientBootstrapper")
+}
+
+/// A stable fingerprint of a flag set, to tell whether Roblox already has it.
+pub fn flag_signature(flags: &Map<String, Value>) -> String {
+    let mut v: Vec<(String, String)> =
+        flags.iter().map(|(k, v)| (k.clone(), crate::roblox::flagcache::flag_string(v))).collect();
+    v.sort();
+    serde_json::to_string(&v).unwrap_or_default()
 }
 
 /// Merge live FastFlag overrides into a ClientSettings response.
@@ -174,12 +187,7 @@ pub fn inject_fflags(body: &[u8], overrides: &Map<String, Value>) -> Option<(Vec
     };
     for (k, val) in overrides {
         // Roblox serves every flag value as a string.
-        let s = match val {
-            Value::String(s) => s.clone(),
-            Value::Bool(b) => if *b { "True".into() } else { "False".into() },
-            other => other.to_string(),
-        };
-        target.insert(k.clone(), Value::String(s));
+        target.insert(k.clone(), Value::String(crate::roblox::flagcache::flag_string(val)));
     }
     Some((serde_json::to_vec(&v).ok()?, overrides.len()))
 }
@@ -240,6 +248,21 @@ mod tests {
         assert_eq!(single_asset_id("/v1/assets/batch"), None);
         assert_eq!(swap_single_asset_id("/v1/asset/?id=123&x=1", 123, 9), "/v1/asset/?id=9&x=1");
         assert_eq!(swap_single_asset_id("/v2/assetId/77", 77, 8), "/v2/assetId/8");
+    }
+
+    #[test]
+    fn recognises_player_settings_only() {
+        assert!(is_client_settings("clientsettingscdn.roblox.com", "/v2/settings/application/PCDesktopClient"));
+        assert!(is_client_settings("clientsettings.roblox.com", "/v2/settings-compressed/application/PCDesktopClient?x=1"));
+        assert!(!is_client_settings("clientsettingscdn.roblox.com", "/v2/settings/application/PCClientBootstrapper"));
+        assert!(!is_client_settings("assetdelivery.roblox.com", "/v2/settings/application/PCDesktopClient"));
+        let mut a = Map::new();
+        a.insert("B".into(), json!(true));
+        a.insert("A".into(), json!("1"));
+        let mut b = Map::new();
+        b.insert("A".into(), json!(1));
+        b.insert("B".into(), json!("True"));
+        assert_eq!(flag_signature(&a), flag_signature(&b));
     }
 
     #[test]

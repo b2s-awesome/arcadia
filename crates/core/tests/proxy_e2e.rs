@@ -154,6 +154,8 @@ async fn proxy_end_to_end() {
         .unwrap();
     assert_eq!(v["applicationSettings"]["DFIntTaskSchedulerTargetFps"], "360");
     assert_eq!(v["applicationSettings"]["FFlagExisting"], "True");
+    // The certificate flag always rides along, so Roblox keeps trusting the proxy.
+    assert_eq!(v["applicationSettings"]["DFFlagHttpUseEmbeddedCaCerts"], "False");
 
     // ── other hosts are tunneled, never decrypted ──
     // This client trusts ONLY the upstream CA, so it would fail if the proxy
@@ -167,6 +169,23 @@ async fn proxy_end_to_end() {
     let t = strict.get("https://auth.roblox.com/v2/login").send().await.unwrap().text().await.unwrap();
     assert_eq!(t, "upstream saw /v2/login");
 
+    // ── interception switched off (flag cache unusable this launch) ──
+    // Asset hosts are then tunneled too, so the strict client succeeds there.
+    let switch = proxy.intercept_switch();
+    switch.store(false, std::sync::atomic::Ordering::Relaxed);
+    let t = strict.get("https://assetdelivery.roblox.com/v1/asset/?id=111").send().await;
+    assert!(t.is_ok(), "asset host should be a blind tunnel when interception is off: {t:?}");
+    switch.store(true, std::sync::atomic::Ordering::Relaxed);
+    // The switch applies to new connections (each Roblox launch makes its own).
+    let fresh = reqwest::Client::builder()
+        .proxy(reqwest::Proxy::all(format!("http://127.0.0.1:{}", proxy.port)).unwrap())
+        .tls_built_in_root_certs(false)
+        .add_root_certificate(reqwest::Certificate::from_pem(real_ca.pem().as_bytes()).unwrap())
+        .build()
+        .unwrap();
+    assert!(fresh.get("https://assetdelivery.roblox.com/v1/asset/?id=111").send().await.is_err());
+    drop(fresh);
+
     // ── inspector ──
     drop(strict);
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
@@ -174,7 +193,7 @@ async fn proxy_end_to_end() {
     assert_eq!(stats.replaced, 2);
     assert_eq!(stats.removed, 2);
     assert_eq!(stats.served_files, 1);
-    assert_eq!(stats.fflag_injections, 1);
+    assert_eq!(stats.fflag_injections, 2); // the FPS flag + the certificate flag
     let log = proxy.inspector().snapshot();
     assert!(log.iter().any(|e| e.kind == "modified" && e.note.contains("replaced 1")));
     assert!(log.iter().any(|e| e.kind == "tunnel" && e.url.starts_with("auth.roblox.com")), "{log:#?}");

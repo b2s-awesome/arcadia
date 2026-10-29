@@ -1,4 +1,6 @@
-//! FastFlags written to `ClientSettings/ClientAppSettings.json`.
+//! FastFlags: the allowlisted ones written to
+//! `ClientSettings/ClientAppSettings.json`, and the server-delivered set
+//! (see [`super::flagcache`]).
 
 use serde::Serialize;
 use serde_json::{json, Map, Value};
@@ -48,17 +50,49 @@ pub fn presets() -> Vec<Preset> {
     ]
 }
 
-/// Build the final flag set for this launch.
-///
-/// The frame rate is no longer set here: Roblox ignores the old FastFlag and
-/// has its own "Maximum Frame Rate" setting in-game.
-pub fn compose(user: &std::collections::BTreeMap<String, Value>, proxy_enabled: bool) -> Map<String, Value> {
+/// Makes Roblox trust `ssl/cacert.pem` (which holds Arcadia's CA) instead of
+/// its built-in certificate list. Not on the allowlist, so it can only arrive
+/// as a server flag (the flag cache and proxied ClientSettings responses).
+pub const EMBEDDED_CA_FLAG: &str = "DFFlagHttpUseEmbeddedCaCerts";
+/// How often Roblox re-fetches server flags. One second lets live FastFlag
+/// edits reach a running client almost at once.
+pub const RELOAD_INTERVAL_FLAG: &str = "DFIntSecondsBetweenDynamicVariableReloading";
+pub const FPS_FLAG: &str = "DFIntTaskSchedulerTargetFps";
+
+/// Flags for `ClientAppSettings.json`. Roblox ignores anything there that's
+/// not on its allowlist, so the FPS cap and the proxy's certificate flag go
+/// through [`server_flags`] instead.
+pub fn compose(user: &std::collections::BTreeMap<String, Value>) -> Map<String, Value> {
     let mut m: Map<String, Value> = user.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-    m.remove("DFIntTaskSchedulerTargetFps");
-    if proxy_enabled {
-        // Same as Fleasion: make Roblox trust ssl/cacert.pem (which contains
-        // Arcadia's local CA) instead of its embedded certificate bundle.
-        m.insert("DFFlagHttpUseEmbeddedCaCerts".into(), Value::String("False".into()));
+    m.remove(FPS_FLAG);
+    m.remove(EMBEDDED_CA_FLAG);
+    m
+}
+
+/// Flags delivered the way Roblox's own servers deliver them: seeded into
+/// its flag cache before launch, and merged into ClientSettings responses by
+/// the proxy. These skip the allowlist.
+///
+/// - With the proxy on, the certificate flag is always included; without it
+///   the proxy can't work at all.
+/// - The FPS cap and live FastFlags are included only after the person has
+///   accepted the ban risk (Roblox has said non-allowlisted flags can lead
+///   to bans).
+pub fn server_flags(settings: &crate::Settings, proxy: bool) -> Map<String, Value> {
+    let mut m = Map::new();
+    if settings.proxy_fflags_risk_accepted {
+        for (k, v) in &settings.proxy_fflag_overrides {
+            m.insert(k.clone(), Value::String(super::flagcache::flag_string(v)));
+        }
+        if settings.roblox_fps_cap > 0 {
+            m.insert(FPS_FLAG.into(), Value::String(settings.roblox_fps_cap.to_string()));
+        }
+        if proxy {
+            m.insert(RELOAD_INTERVAL_FLAG.into(), Value::String("1".into()));
+        }
+    }
+    if proxy {
+        m.insert(EMBEDDED_CA_FLAG.into(), Value::String("False".into()));
     }
     m
 }
@@ -85,13 +119,32 @@ pub fn parse_import(src: &str) -> anyhow::Result<Map<String, Value>> {
 mod tests {
     use super::*;
     #[test]
-    fn compose_adds_proxy_flag_and_drops_old_fps_flag() {
+    fn local_file_keeps_only_allowlist_candidates() {
         let mut u = std::collections::BTreeMap::new();
         u.insert("FFlagX".to_string(), json!("True"));
-        u.insert("DFIntTaskSchedulerTargetFps".to_string(), json!("240"));
-        let m = compose(&u, true);
-        assert_eq!(m["DFFlagHttpUseEmbeddedCaCerts"], "False");
+        u.insert(FPS_FLAG.to_string(), json!("240"));
+        u.insert(EMBEDDED_CA_FLAG.to_string(), json!("False"));
+        let m = compose(&u);
+        assert_eq!(m.len(), 1);
         assert_eq!(m["FFlagX"], "True");
-        assert!(!m.contains_key("DFIntTaskSchedulerTargetFps"));
+    }
+
+    #[test]
+    fn server_flags_follow_proxy_and_risk_choice() {
+        let mut s = crate::Settings::default();
+        s.roblox_fps_cap = 240;
+        s.proxy_fflag_overrides.insert("FIntY".into(), json!(3));
+        assert!(server_flags(&s, false).is_empty());
+        assert_eq!(server_flags(&s, true).keys().collect::<Vec<_>>(), [EMBEDDED_CA_FLAG]);
+
+        s.proxy_fflags_risk_accepted = true;
+        let m = server_flags(&s, true);
+        assert_eq!(m[EMBEDDED_CA_FLAG], "False");
+        assert_eq!(m[FPS_FLAG], "240");
+        assert_eq!(m["FIntY"], "3");
+        assert_eq!(m[RELOAD_INTERVAL_FLAG], "1");
+        let m = server_flags(&s, false);
+        assert!(!m.contains_key(EMBEDDED_CA_FLAG) && !m.contains_key(RELOAD_INTERVAL_FLAG));
+        assert_eq!(m[FPS_FLAG], "240");
     }
 }

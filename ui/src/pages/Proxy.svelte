@@ -256,7 +256,7 @@
         <h3>Live FastFlags</h3>
         <Toggle label="Enable live FastFlags" checked={s.proxy_fflags_risk_accepted} onchange={enableLiveFlags} />
       </div>
-      <p class="hint">Delivered through the proxy while Roblox runs, so they skip Roblox's local allowlist. Roblox can ban accounts that use them.</p>
+      <p class="hint">Delivered the way Roblox's servers deliver flags (seeded before launch, then kept up to date through the proxy), so they skip Roblox's local allowlist. Also turns on the frame rate cap from the Roblox page. Roblox can ban accounts that use them.</p>
       {#if s.proxy_fflags_risk_accepted}
         <table class="flags">
           <tbody>

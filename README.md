@@ -72,7 +72,7 @@ Press **Ctrl+K** anywhere for the launcher: a ring of quick actions, or type to 
 Same approach as Fleasion's "Roblox Env Proxy" mode:
 
 1. Arcadia generates a local certificate authority once (`%LOCALAPPDATA%\Arcadia\proxy\ca.pem`).
-2. Before launch it appends that CA to the Roblox copy's `ssl\cacert.pem` and sets `DFFlagHttpUseEmbeddedCaCerts=False` so the client uses that bundle.
+2. Before launch it appends that CA to the Roblox copy's `ssl\cacert.pem`, and makes Roblox use that bundle by setting `DFFlagHttpUseEmbeddedCaCerts=False` in Roblox's cached server flags (`%TEMP%\Roblox\cache\flag_cache.dat`). Roblox ignores this flag in `ClientAppSettings.json` since its FastFlag allowlist, but reads its server-flag cache before going online. The proxy keeps the flag in every ClientSettings response, so it survives Roblox's refreshes. On a PC where Roblox has never run, that cache doesn't exist yet: the first launch passes traffic straight through, and replacements apply from the next one.
 3. Roblox is started with `HTTPS_PROXY=http://127.0.0.1:58443`. No hosts-file edits, no admin rights, nothing else on the PC goes through it.
 4. Only `assetdelivery.roblox.com`, `clientsettingscdn.roblox.com` and `clientsettings.roblox.com` are decrypted. Every other connection (login, chat, purchases) is a blind tunnel that is never read.
 5. Asset rules rewrite `/v1/assets/batch` requests (swap the ID, drop it, or point its `location` at a local file Arcadia serves) and single-asset `/v1/asset?id=` requests. Live FastFlags are merged into the `PCDesktopClient` settings response.

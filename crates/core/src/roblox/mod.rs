@@ -4,6 +4,7 @@ pub mod activity;
 pub mod cache;
 pub mod deploy;
 pub mod fflags;
+pub mod flagcache;
 pub mod mods;
 
 use anyhow::{Context, Result};
@@ -66,12 +67,18 @@ fn strip_ca(s: &str) -> String {
 pub struct ProxyHook {
     pub port: u16,
     pub ca_pem: String,
+    /// Whether the proxy may decrypt Roblox's asset and settings traffic.
+    /// The launcher turns it off when Roblox won't trust Arcadia's CA this
+    /// time (see [`flagcache`]), so Roblox still starts normally.
+    pub intercept: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 pub struct Launched {
     pub child: Child,
     pub version_dir: PathBuf,
     pub version: String,
+    /// What happened when preparing Roblox's flag cache.
+    pub flag_cache: flagcache::Seed,
 }
 
 /// Install/update, prepare the version folder, then start RobloxPlayerBeta.
@@ -88,9 +95,19 @@ pub async fn launch(
     let version = dir.file_name().unwrap().to_string_lossy().to_string();
     let exe = dir.join("RobloxPlayerBeta.exe");
 
-    // FastFlags (local route).
-    let flags = fflags::compose(&settings.fast_flags, proxy.is_some());
-    fflags::write(&dir, &flags).context("writing FastFlags")?;
+    // FastFlags: allowlisted ones in the local file, the rest (and the
+    // proxy's certificate flag) seeded into Roblox's server-flag cache.
+    fflags::write(&dir, &fflags::compose(&settings.fast_flags)).context("writing FastFlags")?;
+    let flag_cache = flagcache::seed(&fflags::server_flags(settings, proxy.is_some()));
+    if let Some(p) = &proxy {
+        // Without the seeded flag Roblox only trusts its built-in
+        // certificates, so decrypting would break its connections. Pass
+        // everything through this time; Roblox creates the cache as it runs.
+        p.intercept.store(flag_cache.ok(), std::sync::atomic::Ordering::Relaxed);
+        if !flag_cache.ok() {
+            log::warn!("proxy: flag cache not usable ({flag_cache:?}); passing traffic through this launch");
+        }
+    }
 
     // Mods + custom font.
     let mut extra = Vec::new();
@@ -133,7 +150,7 @@ pub async fn launch(
     }
     set_priority(&mut cmd, &settings.roblox_priority);
     let child = cmd.spawn().with_context(|| format!("starting {}", exe.display()))?;
-    Ok(Launched { child, version_dir: dir, version })
+    Ok(Launched { child, version_dir: dir, version, flag_cache })
 }
 
 #[cfg(windows)]

@@ -181,10 +181,10 @@ pub(crate) fn open_path(p: &std::path::Path) -> Res<()> {
     Ok(())
 }
 
-/// Live FastFlags through the proxy are retired: Roblox now rejects the
-/// proxy, and these bypassed Roblox's allowlist. Always empty.
-fn live_fflags(_: &Settings) -> Map<String, Value> {
-    Map::new()
+/// Flags the proxy merges into Roblox's ClientSettings: the certificate flag,
+/// plus the FPS cap and live FastFlags once the ban risk has been accepted.
+fn live_fflags(settings: &Settings) -> Map<String, Value> {
+    fflags::server_flags(settings, true)
 }
 
 async fn ensure_proxy(app: &AppHandle) -> anyhow::Result<ProxyHook> {
@@ -213,7 +213,8 @@ async fn ensure_proxy(app: &AppHandle) -> anyhow::Result<ProxyHook> {
     p.inspector()
         .capture_bodies
         .store(settings.proxy_inspector_enabled, Ordering::Relaxed);
-    Ok(ProxyHook { port: p.port, ca_pem: p.ca_pem() })
+    p.prepare_launch();
+    Ok(ProxyHook { port: p.port, ca_pem: p.ca_pem(), intercept: p.intercept_switch() })
 }
 
 async fn launch_roblox(app: AppHandle, uri: Option<String>) -> Res<String> {
@@ -237,6 +238,24 @@ async fn launch_roblox(app: AppHandle, uri: Option<String>) -> Res<String> {
         .map_err(err)?;
     let version = launched.version.clone();
     let _ = app.emit("roblox-launched", &version);
+    if hook.is_some() {
+        use arcadia_core::roblox::flagcache::Seed;
+        let notice = match &launched.flag_cache {
+            Seed::Missing => Some(
+                "First launch with the proxy: Roblox is setting itself up, so replacements are off this time. \
+                 Close Roblox and launch again and they'll apply."
+                    .to_string(),
+            ),
+            Seed::Unsupported { reason } => Some(format!(
+                "Arcadia couldn't prepare Roblox's flag cache ({reason}), so replacements are off this launch. \
+                 Roblox may have changed its format."
+            )),
+            _ => None,
+        };
+        if let Some(n) = notice {
+            let _ = app.emit("proxy-notice", n);
+        }
+    }
 
     // Follow the client log for "now playing".
     let stop = Arc::new(AtomicBool::new(false));
