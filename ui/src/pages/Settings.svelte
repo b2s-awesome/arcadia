@@ -32,6 +32,21 @@
         <div><div class="label">Hide while a game is running</div><div class="desc">Tuck Arcadia away when you start a game from it.</div></div>
         <Toggle label="Hide while a game is running" bind:checked={s.hide_on_game_launch} onchange={saveSettings} />
       </div>
+      <div class="setting">
+        <div><div class="label">Count playtime</div><div class="desc">Watch for games Arcadia starts to close, and add up how long you played. Steam's own playtime is shown too.</div></div>
+        <Toggle label="Count playtime" bind:checked={s.track_playtime} onchange={saveSettings} />
+      </div>
+    </section>
+
+    <section class="section">
+      <h3>Library</h3>
+      <div class="setting">
+        <div>
+          <div class="label">SteamGridDB API key</div>
+          <div class="desc">For community covers, banners and logos. Free from steamgriddb.com → Preferences → API.</div>
+        </div>
+        <input class="mono" type="password" style="width: 18rem" bind:value={s.steamgriddb_key} onchange={saveSettings} placeholder="Paste your key" aria-label="SteamGridDB API key" />
+      </div>
     </section>
 
     <section class="section">

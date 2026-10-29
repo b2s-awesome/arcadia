@@ -120,6 +120,31 @@ function mockLog(path: string): string {
   return Array.from({ length: 60 }, (_, i) => `[19:${String(10 + Math.floor(i / 6)).padStart(2, "0")}:${String((i * 7) % 60).padStart(2, "0")}] [Render thread/${i % 17 === 5 ? "WARN" : i === 48 ? "ERROR" : "INFO"}]: ${["Loading 64 mods", "Reloading ResourceManager: vanilla, fabric, Faithful 32x", "Sound engine started", "Created: 1024x512x4 minecraft:textures/atlas/blocks.png-atlas", "Connecting to mc.hypixel.net, 25565", "Missing sound for event: minecraft:item.goat_horn.play"][i % 6]}`).join("\n");
 }
 
+
+// ── Library+ sample data ──
+const libMeta = {
+  meta: {
+    games: {
+      "steam:1086940": { favourite: true, collections: ["Story", "Co-op"], notes: "Act 2: finish the Shadow-Cursed Lands before going to Baldur's Gate.\nSave before Ketheric!", playtime: 6 * 3600, sessions: 4, lastPlayed: Math.floor(Date.now() / 1000) - 86400, beat: { main: 75, extra: 110, complete: 150 }, launchArgs: "--skip-launcher" },
+      "steam:730": { favourite: true, collections: ["Competitive"], launchArgs: "-novid -high", playtime: 3 * 3600, sessions: 9, lastPlayed: Math.floor(Date.now() / 1000) - 3600 * 5 },
+      "battlenet:prometheus": { collections: ["Competitive"], playtime: 5400, sessions: 3, lastPlayed: Math.floor(Date.now() / 1000) - 86400 * 4 },
+      "epic:Fortnite": { hidden: false, collections: ["Co-op"] },
+    } as Record<string, Record<string, unknown>>,
+    collections: [{ name: "Story", icon: "📖" }, { name: "Co-op", icon: "🤝" }, { name: "Competitive", icon: "🎯" }],
+  },
+  steam: { "steam:730": [61230, Math.floor(Date.now() / 1000) - 3600 * 5], "steam:1086940": [8940, Math.floor(Date.now() / 1000) - 86400] } as Record<string, [number, number]>,
+  arcadia: { "roblox:player": [394000, Math.floor(Date.now() / 1000) - 7200], "minecraft:launcher": [208800, Math.floor(Date.now() / 1000) - 7200] } as Record<string, [number, number]>,
+};
+function mockArt(kind: string, i: number): string {
+  const h = (i * 47) % 360;
+  const [w, hgt] = kind === "hero" ? [960, 310] : kind === "logo" ? [400, 160] : [300, 450];
+  const body = kind === "logo"
+    ? `<text x="50%" y="58%" text-anchor="middle" font-family="Georgia" font-weight="700" font-size="58" fill="hsl(${h} 80% 75%)">TITLE</text>`
+    : `<rect width="${w}" height="${hgt}" fill="url(#g)"/><circle cx="${w * 0.7}" cy="${hgt * 0.35}" r="${Math.min(w, hgt) * 0.22}" fill="hsl(${(h + 40) % 360} 80% 70% / .55)"/><text x="24" y="${hgt - 28}" font-family="Georgia" font-weight="700" font-size="${kind === "hero" ? 54 : 40}" fill="#fff" opacity=".9">Style ${i + 1}</text>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${hgt}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${h} 55% 45%)"/><stop offset="1" stop-color="hsl(${(h + 70) % 360} 60% 18%)"/></linearGradient></defs>${body}</svg>`;
+  return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+}
+
 const games: Game[] = [
   { id: "minecraft:launcher", name: "Minecraft", source: "minecraft", install_dir: null, launch: { kind: "minecraft" }, cover: null, hero: null },
   { id: "roblox:player", name: "Roblox", source: "roblox", install_dir: null, launch: { kind: "roblox" }, cover: null, hero: null },
@@ -173,6 +198,8 @@ let settings: Settings = {
   minecraft_client_id: "",
   curseforge_api_key: "",
   minecraft_default_memory_mb: 4096,
+  steamgriddb_key: "",
+  track_playtime: true,
   ui: (() => {
     const q = new URLSearchParams(location.search);
     const preset = q.get("look");
@@ -271,6 +298,17 @@ export async function mockInvoke(cmd: string, args: Record<string, unknown> = {}
     case "save_settings": settings = args.settings as Settings; return;
     case "scan_library": return { games, launchers: ["minecraft", "roblox", "steam", "epic", "battlenet", "gog", "ea", "ubisoft"], warnings: [] };
     case "launch_game": return;
+    case "library_meta": return structuredClone(libMeta);
+    case "library_meta_set": libMeta.meta.games[String(args.id)] = args.meta as Record<string, unknown>; return;
+    case "library_collections_set": libMeta.meta.collections = args.list as { name: string; icon: string }[]; return;
+    case "library_art_import": return String(args.path);
+    case "library_art_search": await sleep(400); return [
+      { id: 101, name: String(args.term), year: 2023 },
+      { id: 102, name: `${args.term}: Definitive Edition`, year: 2024 },
+      { id: 103, name: `${args.term} Demo`, year: 2022 },
+    ];
+    case "library_art": await sleep(500); return Array.from({ length: args.kind === "logo" ? 6 : 12 }, (_, i) => { const u = mockArt(String(args.kind), i); return { url: u, thumb: u, width: 600, height: 900, style: ["alternate", "blurred", "white_logo", "material"][i % 4] }; });
+    case "library_big_picture": return;
     case "roblox_status": return { installedVersion: "version-6d7e1c9a4b2f4e31", channel: "production", protocolRegistered: true, runningSessions: 0 };
     case "roblox_latest": return { version: "0.698.0.6980712", clientVersionUpload: "version-6d7e1c9a4b2f4e31" };
     case "roblox_launch": {

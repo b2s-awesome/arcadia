@@ -29,7 +29,8 @@
         "enable": true,
         "scope": [
           "$LOCALDATA/Arcadia/wallpapers/**",
-          "$LOCALDATA/Arcadia/Minecraft/instances/*/minecraft/screenshots/**"
+          "$LOCALDATA/Arcadia/Minecraft/instances/*/minecraft/screenshots/**",
+          "$LOCALDATA/Arcadia/art/**"
         ]
       }
     }

@@ -17,6 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
 mod addon_cmds;
 mod minecraft_cmds;
+mod library_cmds;
 mod lyrics_cmds;
 mod mc_extra_cmds;
 mod media_keys;
@@ -88,7 +89,7 @@ async fn launch_game(app: AppHandle, st: State<'_, AppState>, id: String) -> Res
     if game.launch == LaunchTarget::Minecraft {
         return minecraft_cmds::open_minecraft(&app, false);
     }
-    library::launch(&game.launch).map_err(err)?;
+    library_cmds::launch(&app, &game)?;
     let settings = st.settings.lock().clone();
     hide_for_game(&app, &settings);
     Ok(())
@@ -572,6 +573,7 @@ fn main() {
             }
             let _ = app.asset_protocol_scope().allow_directory(arcadia_core::music::dir().join("art"), false);
 
+            let _ = app.asset_protocol_scope().allow_directory(library::meta::art_dir(), false);
             // Let the UI show Steam's locally cached cover art.
             if let Some(dir) = library::steam_art_dir() {
                 let _ = app.asset_protocol_scope().allow_directory(&dir, true);
@@ -608,6 +610,13 @@ fn main() {
             save_settings,
             scan_library,
             launch_game,
+            library_cmds::library_meta,
+            library_cmds::library_meta_set,
+            library_cmds::library_collections_set,
+            library_cmds::library_art_import,
+            library_cmds::library_art_search,
+            library_cmds::library_art,
+            library_cmds::library_big_picture,
             add_custom_game,
             remove_custom_game,
             roblox_status,

@@ -67,6 +67,12 @@ pub struct Settings {
     pub curseforge_api_key: String,
     pub minecraft_default_memory_mb: u32,
 
+    // ── Library ──────────────────────────────────────────────
+    /// For community covers and banners (steamgriddb.com, free).
+    pub steamgriddb_key: String,
+    /// Track how long you play games Arcadia launches.
+    pub track_playtime: bool,
+
     /// One-time settings migrations already applied.
     pub migrations: u32,
 }
@@ -106,6 +112,8 @@ impl Default for Settings {
             minecraft_client_id: String::new(),
             curseforge_api_key: String::new(),
             minecraft_default_memory_mb: 4096,
+            steamgriddb_key: String::new(),
+            track_playtime: true,
             migrations: CURRENT_MIGRATION,
         }
     }

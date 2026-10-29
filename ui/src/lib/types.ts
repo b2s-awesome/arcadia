@@ -28,6 +28,34 @@ export interface Game {
   hero: string | null;
 }
 
+export interface GameMeta {
+  favourite: boolean;
+  hidden: boolean;
+  collections: string[];
+  notes: string;
+  launchArgs: string;
+  before: string;
+  after: string;
+  cover: string | null;
+  hero: string | null;
+  logo: string | null;
+  playtime: number;
+  sessions: number;
+  lastPlayed: number | null;
+  beat: { main: number | null; extra: number | null; complete: number | null };
+  rename: string | null;
+}
+export interface GameCollection { name: string; icon: string }
+export interface LibraryMeta {
+  meta: { games: Record<string, Partial<GameMeta>>; collections: GameCollection[] };
+  /** id → [minutes, last played] from Steam. */
+  steam: Record<string, [number, number]>;
+  /** id → [seconds, last played] from Arcadia's Roblox and Minecraft trackers. */
+  arcadia: Record<string, [number, number]>;
+}
+export interface SgdbFound { id: number; name: string; year: number | null }
+export interface SgdbArt { url: string; thumb: string; width: number; height: number; style: string }
+
 export interface ScanReport {
   games: Game[];
   launchers: Source[];
@@ -69,6 +97,8 @@ export interface Settings {
   minecraft_client_id: string;
   curseforge_api_key: string;
   minecraft_default_memory_mb: number;
+  steamgriddb_key: string;
+  track_playtime: boolean;
 }
 
 export interface RobloxStatus {

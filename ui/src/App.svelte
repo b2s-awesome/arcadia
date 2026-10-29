@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { api, fileUrl, on, win, windowLabel } from "./lib/api";
   import { mcs, popOut } from "./lib/mc.svelte";
+  import { lib } from "./lib/games.svelte";
   import { app, loadSettings, reloadSettings, saveSettings, saveUi, toast, type Page } from "./lib/state.svelte";
   import { visibleNav } from "./lib/nav";
   import { applySeeThrough, loadFxStatus } from "./lib/seeThrough.svelte";
@@ -339,6 +340,9 @@
   <Launcher {actions} />
   {#if fadOn}
     {#await import("./addons/fad/Fad.svelte") then m}<m.default />{/await}
+  {/if}
+  {#if lib.bigPicture}
+    {#await import("./pages/library/BigPicture.svelte") then m}<m.default />{/await}
   {/if}
   {/if}
 

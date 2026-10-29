@@ -15,7 +15,7 @@ const NOT_GAMES: &[&str] = &[
 
 /// Steam's local artwork cache, if Steam is installed.
 pub fn art_cache_dir() -> Option<PathBuf> {
-    let d = steam_root()?.join("appcache").join("librarycache");
+    let d = root()?.join("appcache").join("librarycache");
     d.is_dir().then_some(d)
 }
 
@@ -40,7 +40,7 @@ fn cached_art(cache: &Path, appid: &str, file: &str) -> Option<String> {
         .map(|p| p.to_string_lossy().into())
 }
 
-fn steam_root() -> Option<PathBuf> {
+pub(crate) fn root() -> Option<PathBuf> {
     if let Some(p) = read_string(Hive::CurrentUser, r"Software\Valve\Steam", "SteamPath") {
         return Some(PathBuf::from(p));
     }
@@ -58,7 +58,7 @@ fn steam_root() -> Option<PathBuf> {
 }
 
 pub fn scan() -> anyhow::Result<Option<Vec<Game>>> {
-    let Some(root) = steam_root() else { return Ok(None) };
+    let Some(root) = root() else { return Ok(None) };
     Ok(Some(scan_root(&root)))
 }
 
