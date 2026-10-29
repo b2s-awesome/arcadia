@@ -4,7 +4,9 @@
   "description": "Main window",
   "windows": [
     "main",
-    "minecraft"
+    "minecraft",
+    "lyrics-popup",
+    "lyrics-bar"
   ],
   "permissions": [
     "core:default",

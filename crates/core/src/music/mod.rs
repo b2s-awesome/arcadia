@@ -2,10 +2,12 @@
 //! Playback itself is the `arcadia-audio` crate.
 
 pub mod library;
+pub mod lyrics;
 pub mod queue;
+pub mod stats;
 
 pub use library::{Library, Playlist, ScanProgress, ScanReport, Track};
-pub use queue::{Queue, Repeat};
+pub use queue::{Queue, Repeat, ShuffleInfo, ShuffleMode};
 
 pub fn dir() -> std::path::PathBuf {
     crate::paths::root().join("Music")

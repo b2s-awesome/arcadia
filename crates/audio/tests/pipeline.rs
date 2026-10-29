@@ -205,4 +205,36 @@ mod engine {
         assert!(wait_for(&log, |e| matches!(e, Event::Ended)));
         assert_eq!(log.lock().unwrap().iter().filter(|e| matches!(e, Event::Ended)).count(), 1);
     }
+
+    #[test]
+    fn a_b_loop_goes_round_and_never_ends() {
+        let t = tempfile::tempdir().unwrap();
+        let a = wav(t.path(), "a.wav", 44100, 2, 44100 * 2, 0);
+        let log = Arc::new(Mutex::new(Vec::new()));
+        let l2 = log.clone();
+        let eng = Engine::start_headless(move |e| l2.lock().unwrap().push(e), 44100, 1.0);
+        eng.load(7, a, 0.0, true);
+        assert!(wait_for(&log, |e| matches!(e, Event::Track { token: 7, .. })));
+        eng.set_loop(Some((7, 0.3, 0.8)));
+        eng.pause(false);
+        // Round at least twice: back at A each time.
+        let laps = || {
+            let l = log.lock().unwrap();
+            let ps: Vec<f64> = l.iter().filter_map(|e| if let Event::Position { pos, .. } = e { Some(*pos) } else { None }).collect();
+            ps.windows(2).filter(|w| w[1] < w[0] && (w[1] - 0.3).abs() < 0.06).count()
+        };
+        let until = Instant::now() + Duration::from_secs(6);
+        while laps() < 2 && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(laps() >= 2, "looped back to A twice");
+        {
+            let l = log.lock().unwrap();
+            assert!(!l.iter().any(|e| matches!(e, Event::Ended)));
+            assert!(!l.iter().any(|e| matches!(e, Event::Position { pos, .. } if *pos > 0.81)), "never past B");
+        }
+        // Loop off: it plays out to the end.
+        eng.set_loop(None);
+        assert!(wait_for(&log, |e| matches!(e, Event::Ended)));
+    }
 }

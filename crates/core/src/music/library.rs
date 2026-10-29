@@ -49,6 +49,8 @@ pub struct Track {
     pub origin: String,
     /// Where an online song came from.
     pub source_url: Option<String>,
+    /// Marked explicit in its tags; `None` until the file has been checked.
+    pub explicit: Option<bool>,
 }
 
 /// What's known about an online song before its file exists.
@@ -140,10 +142,25 @@ CREATE TABLE IF NOT EXISTS playlist_items (
 CREATE INDEX IF NOT EXISTS playlist_items_by_list ON playlist_items(playlist_id, pos);
 ";
 
-const TRACK_COLS: &str = "id, path, title, artist, album_artist, album, genre, year, track_no, disc_no, duration, sample_rate, bit_depth, channels, bitrate, format, art, art_color, added_at, play_count, last_played, favourite, origin, source_url";
+const TRACK_COLS: &str = "id, path, title, artist, album_artist, album, genre, year, track_no, disc_no, duration, sample_rate, bit_depth, channels, bitrate, format, art, art_color, added_at, play_count, last_played, favourite, origin, source_url, explicit";
 
 /// Schema changes after the first release, applied in order.
-const MIGRATIONS: &[&str] = &["ALTER TABLE tracks ADD COLUMN origin TEXT NOT NULL DEFAULT 'local'; ALTER TABLE tracks ADD COLUMN source_url TEXT; CREATE INDEX IF NOT EXISTS tracks_by_source ON tracks(source_url);"];
+const MIGRATIONS: &[&str] = &[
+    "ALTER TABLE tracks ADD COLUMN origin TEXT NOT NULL DEFAULT 'local'; ALTER TABLE tracks ADD COLUMN source_url TEXT; CREATE INDEX IF NOT EXISTS tracks_by_source ON tracks(source_url);",
+    // -1: not checked yet (files scanned before this was read). Plays keep
+    // their own copy of the names, so stats outlive the library entry.
+    "ALTER TABLE tracks ADD COLUMN explicit INTEGER NOT NULL DEFAULT -1;
+     CREATE TABLE IF NOT EXISTS plays (
+       id INTEGER PRIMARY KEY,
+       track_id INTEGER,
+       at INTEGER NOT NULL,
+       listened REAL NOT NULL,
+       skipped INTEGER NOT NULL,
+       title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT NOT NULL,
+       origin TEXT NOT NULL, format TEXT NOT NULL
+     );
+     CREATE INDEX IF NOT EXISTS plays_by_time ON plays(at);",
+];
 
 impl Library {
     pub fn open(dir: &Path) -> Result<Library> {
@@ -185,7 +202,50 @@ impl Library {
             favourite: r.get::<_, i64>(21)? != 0,
             origin: r.get(22)?,
             source_url: r.get(23)?,
+            explicit: match r.get::<_, i64>(24)? {
+                -1 => None,
+                v => Some(v != 0),
+            },
         })
+    }
+
+    /// Run something against the database (for stats).
+    pub(crate) fn with_db<R>(&self, f: impl FnOnce(&Connection) -> R) -> R {
+        f(&self.db.lock())
+    }
+
+    /// Whether a song is explicit: its tags, or "(Explicit)" in the title.
+    /// Files scanned before this was recorded are checked now, once.
+    pub fn explicit_of(&self, id: i64) -> bool {
+        let Ok(Some(t)) = self.track(id) else { return false };
+        let titled = {
+            let l = t.title.to_lowercase();
+            l.contains("(explicit") || l.contains("[explicit")
+        };
+        if let Some(e) = t.explicit {
+            return e || titled;
+        }
+        let tagged = Path::new(&t.path).is_file() && read_tags(Path::new(&t.path)).map(|g| g.explicit).unwrap_or(false);
+        let _ = self.db.lock().execute("UPDATE tracks SET explicit = ?2 WHERE id = ?1", params![id, tagged as i64]);
+        tagged || titled
+    }
+
+    /// Lyrics stored in the song's own tags.
+    pub fn lyrics_tag(&self, id: i64) -> Option<String> {
+        let p = self.file_of(id)?;
+        let tagged = lofty::read_from_path(&p).ok()?;
+        let tag = tagged.primary_tag().or_else(|| tagged.first_tag())?;
+        tag.get_string(&ItemKey::Lyrics).map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+    }
+
+    /// Remember that a song was listened to, for stats.
+    pub fn record_play(&self, id: i64, listened: f64, skipped: bool) -> Result<()> {
+        let Some(t) = self.track(id)? else { return Ok(()) };
+        self.db.lock().execute(
+            "INSERT INTO plays(track_id, at, listened, skipped, title, artist, album, origin, format) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+            params![id, now(), listened, skipped as i64, t.title, t.artist, t.album, t.origin, t.format],
+        )?;
+        Ok(())
     }
 
     // ── folders ────────────────────────────────────────────────
@@ -330,9 +390,9 @@ impl Library {
         }
         db.execute(
             "UPDATE tracks SET path=?2, mtime=?3, size=?4, title=?5, artist=?6, album_artist=?7, album=?8, genre=?9, year=?10, track_no=?11, disc_no=?12,
-             duration=?13, sample_rate=?14, bit_depth=?15, channels=?16, bitrate=?17, format=?18, art=COALESCE(?19, art), art_color=COALESCE(?20, art_color), origin=?21 WHERE id=?1",
+             duration=?13, sample_rate=?14, bit_depth=?15, channels=?16, bitrate=?17, format=?18, art=COALESCE(?19, art), art_color=COALESCE(?20, art_color), origin=?21, explicit=?22 WHERE id=?1",
             params![id, p, mtime, meta.len() as i64, t.title, t.artist, if t.album_artist.is_empty() { t.artist.clone() } else { t.album_artist.clone() }, t.album, t.genre, t.year, t.track_no, t.disc_no,
-                t.duration, t.sample_rate, t.bit_depth, t.channels, t.bitrate, t.format, t.art, t.art_color, origin],
+                t.duration, t.sample_rate, t.bit_depth, t.channels, t.bitrate, t.format, t.art, t.art_color, origin, t.explicit as i64],
         )?;
         Ok(())
     }
@@ -553,16 +613,16 @@ impl Library {
                 Some(id) => {
                     tx.execute(
                         "UPDATE tracks SET mtime=?2, size=?3, title=?4, artist=?5, album_artist=?6, album=?7, genre=?8, year=?9, track_no=?10, disc_no=?11,
-                         duration=?12, sample_rate=?13, bit_depth=?14, channels=?15, bitrate=?16, format=?17, art=?18, art_color=?19 WHERE id=?1",
-                        params![id, mtime, size, t.title, t.artist, t.album_artist, t.album, t.genre, t.year, t.track_no, t.disc_no, t.duration, t.sample_rate, t.bit_depth, t.channels, t.bitrate, t.format, t.art, t.art_color],
+                         duration=?12, sample_rate=?13, bit_depth=?14, channels=?15, bitrate=?16, format=?17, art=?18, art_color=?19, explicit=?20 WHERE id=?1",
+                        params![id, mtime, size, t.title, t.artist, t.album_artist, t.album, t.genre, t.year, t.track_no, t.disc_no, t.duration, t.sample_rate, t.bit_depth, t.channels, t.bitrate, t.format, t.art, t.art_color, t.explicit as i64],
                     )?;
                     report.updated += 1;
                 }
                 None => {
                     tx.execute(
-                        "INSERT INTO tracks(path, mtime, size, title, artist, album_artist, album, genre, year, track_no, disc_no, duration, sample_rate, bit_depth, channels, bitrate, format, art, art_color, added_at)
-                         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20)",
-                        params![path, mtime, size, t.title, t.artist, t.album_artist, t.album, t.genre, t.year, t.track_no, t.disc_no, t.duration, t.sample_rate, t.bit_depth, t.channels, t.bitrate, t.format, t.art, t.art_color, now()],
+                        "INSERT INTO tracks(path, mtime, size, title, artist, album_artist, album, genre, year, track_no, disc_no, duration, sample_rate, bit_depth, channels, bitrate, format, art, art_color, added_at, explicit)
+                         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21)",
+                        params![path, mtime, size, t.title, t.artist, t.album_artist, t.album, t.genre, t.year, t.track_no, t.disc_no, t.duration, t.sample_rate, t.bit_depth, t.channels, t.bitrate, t.format, t.art, t.art_color, now(), t.explicit as i64],
                     )?;
                     report.added += 1;
                 }
@@ -604,6 +664,7 @@ struct Tags {
     picture: Option<Vec<u8>>,
     art: Option<String>,
     art_color: Option<String>,
+    explicit: bool,
 }
 
 fn read_tags(path: &Path) -> Result<Tags> {
@@ -638,6 +699,8 @@ fn read_tags(path: &Path) -> Result<Tags> {
         t.track_no = tag.track();
         t.disc_no = tag.disk();
         t.album_artist = tag.get_string(&ItemKey::AlbumArtist).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).unwrap_or_default();
+        // iTunes: 1 (or the old 4) is explicit, 2 is clean.
+        t.explicit = tag.get_string(&ItemKey::ParentalAdvisory).map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "4" | "explicit" | "e")).unwrap_or(false);
         let pics = tag.pictures();
         t.picture = pics
             .iter()
