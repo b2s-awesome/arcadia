@@ -2,13 +2,17 @@
   import { api, fileUrl, pickFile } from "../lib/api";
   import { app, saveUi, toast, focus } from "../lib/state.svelte";
   import {
-    ACCENTS, BUILTIN_WALLPAPERS, DEFAULT_BRAND, PRESETS, defaultLook, resolve, wallpaperUrl,
+    ACCENTS, BUILTIN_WALLPAPERS, DEFAULT_BRAND, DEFAULT_HOME, PRESETS, defaultLook, resolve, wallpaperUrl,
     type FontChoice, type Look, type PresetId, type RadiusChoice,
   } from "../lib/theme";
   import Toggle from "../components/Toggle.svelte";
   import Icon from "../components/Icon.svelte";
   import { allNav } from "../lib/nav";
   import { addonById } from "../addons/registry";
+  import TreeTabs, { type TreeNode } from "../components/TreeTabs.svelte";
+  import Profiles from "./appearance/Profiles.svelte";
+  import Feel from "./appearance/Feel.svelte";
+  import Keys from "./appearance/Keys.svelte";
 
   const look = $derived(app.ui.look);
   const presetIds = Object.keys(PRESETS) as PresetId[];
@@ -109,13 +113,6 @@
   }
 
   // ── Addons with settings here ─────────────────────────────
-  // Each folds away; the one opened from the Marketplace starts open.
-  function reveal(el: HTMLElement, id: string) {
-    if (focus.addon === id) {
-      setTimeout(() => el.scrollIntoView({ block: "start", behavior: "smooth" }), 120);
-      focus.addon = null;
-    }
-  }
   const settingAddons = $derived(app.ui.addons.installed.map(addonById).filter((a) => a?.settings));
 
   // ── Splash ───────────────────────────────────────────────
@@ -128,6 +125,48 @@
   ] as const;
 
   const opacity = $derived(look.panelOpacity ?? PRESETS[look.preset].panelOpacity);
+
+  // ── Sections ─────────────────────────────────────────────
+  const tree: TreeNode[] = $derived([
+    { id: "look", label: "Look", icon: "palette", children: [
+      { id: "look-presets", label: "Looks", badge: PRESETS[look.preset].name },
+      { id: "look-saved", label: "Saved looks", badge: app.ui.saved.length || "" },
+      { id: "look-wallpaper", label: "Wallpaper" },
+      { id: "look-window", label: "Window & colour" },
+    ] },
+    { id: "feel", label: "Feel", icon: "sparkle", children: [
+      { id: "feel-motion", label: "Motion & sound", badge: app.ui.feel.sounds !== "off" ? "♪" : "" },
+      { id: "feel-type", label: "Fonts & icons" },
+    ] },
+    { id: "layout", label: "Layout", icon: "window", children: [
+      { id: "layout-home", label: "Home" },
+      { id: "layout-sidebar", label: "Sidebar", badge: hiddenCount ? `${hiddenCount} hidden` : "" },
+      { id: "layout-bar", label: "Top bar" },
+    ] },
+    { id: "keys", label: "Keyboard", icon: "command" },
+    { id: "profiles", label: "Profiles & backup", icon: "save", children: [
+      { id: "profiles-list", label: "Profiles", badge: app.ui.profiles.list.length || "" },
+      { id: "profiles-backup", label: "Backup & sync" },
+    ] },
+    { id: "app", label: "Name & startup", icon: "settings" },
+    ...(settingAddons.length ? [{ id: "addons", label: "Addons", icon: "store", children: settingAddons.map((a) => ({ id: `addon:${a!.id}`, label: a!.name })) }] : []),
+  ]);
+  let tab = $state(lastTab);
+  $effect(() => {
+    lastTab = tab;
+  });
+  // Opened from the Marketplace: go straight to that addon's settings.
+  $effect(() => {
+    if (focus.addon) {
+      tab = `addon:${focus.addon}`;
+      focus.addon = null;
+    }
+  });
+  const show = (id: string) => tab === id || id.startsWith(tab + "-") || (tab === "addons" && id === `addon:${settingAddons[0]?.id}`);
+</script>
+
+<script lang="ts" module>
+  let lastTab = "look-presets";
 </script>
 
 <div class="page">
@@ -139,6 +178,11 @@
       </div>
     </header>
 
+    <div class="split">
+    <TreeTabs key="appearance" label="Appearance sections" nodes={tree} bind:selected={tab} search />
+    <div class="panes">
+
+    {#if show("app")}
     <section class="section">
       <h3>Name</h3>
       <div class="setting">
@@ -157,6 +201,9 @@
       {/if}
     </section>
 
+    {/if}
+
+    {#if show("layout-sidebar")}
     <section class="section">
       <div class="row spread"><h3>Sidebar</h3>
         {#if app.ui.rail.order.length || app.ui.rail.hidden.length || app.ui.rail.compact}
@@ -197,6 +244,9 @@
       </div>
     </section>
 
+    {/if}
+
+    {#if show("app")}
     <section class="section">
       <h3>Startup</h3>
       <div class="setting">
@@ -223,17 +273,22 @@
       </div>
     </section>
 
+    {/if}
+
     {#each settingAddons as a (a!.id)}
-      <details class="section addon" id="addon-{a!.id}" open={focus.addon === a!.id} use:reveal={a!.id}>
-        <summary class="row spread"><h3>{a!.name}</h3><span class="pill">Addon</span></summary>
+      {#if show(`addon:${a!.id}`)}
+      <section class="section addon" id="addon-{a!.id}">
+        <div class="row spread"><h3>{a!.name}</h3><span class="pill">Addon</span></div>
         {#await a!.settings!()}
           <p class="hint">Loading…</p>
         {:then mod}
           <mod.default />
         {/await}
-      </details>
+      </section>
+      {/if}
     {/each}
 
+    {#if show("look-presets")}
     <section class="section">
       <h3>Look</h3>
       <div class="presets" role="radiogroup" aria-label="Look">
@@ -265,6 +320,9 @@
       </div>
     </section>
 
+    {/if}
+
+    {#if show("look-saved")}
     <section class="section">
       <h3>Saved looks</h3>
       {#if app.ui.saved.length === 0}
@@ -290,6 +348,9 @@
       </div>
     </section>
 
+    {/if}
+
+    {#if show("look-wallpaper")}
     <section class="section">
       <h3>Wallpaper</h3>
       <div class="walls" role="radiogroup" aria-label="Wallpaper">
@@ -326,8 +387,11 @@
       </div>
     </section>
 
+    {/if}
+
+    {#if show("look-window")}
     <section class="section">
-      <h3>Window</h3>
+      <h3>Window & colour</h3>
       <div class="setting">
         <div><div class="label">Float over the wallpaper</div><div class="desc">Leave a gap around the window, like a tiling window manager.</div></div>
         <Toggle label="Float over the wallpaper" checked={look.floating} onchange={(v) => set("floating", v)} />
@@ -366,6 +430,9 @@
       </div>
     </section>
 
+    {/if}
+
+    {#if show("layout-bar")}
     <section class="section">
       <h3>Top bar</h3>
       <div class="setting">
@@ -394,10 +461,41 @@
         </div>
       {/if}
     </section>
+    {/if}
+
+    {#if show("layout-home")}
+    <section class="section">
+      <h3>Home</h3>
+      <p class="hint">A dashboard of widgets: continue playing, now playing, Roblox and Minecraft, playtime, pinned games, notes and a clock. Arrange them on Home with <strong>Customise</strong>.</p>
+      <div class="setting">
+        <div><div class="label">Open Home when {app.ui.brand.name.trim() || "Arcadia"} starts</div></div>
+        <Toggle label="Open Home on start" checked={app.ui.home.start} onchange={(v) => { app.ui.home.start = v; saveUi(); }} />
+      </div>
+      <div class="setting">
+        <div><div class="label">Widgets</div><div class="desc">{app.ui.home.widgets.length} on Home.</div></div>
+        <div class="row">
+          <button class="ghost" onclick={() => { app.ui.home = { ...app.ui.home, widgets: structuredClone(DEFAULT_HOME.widgets) }; saveUi(); }}>Reset widgets</button>
+          <button onclick={() => (app.page = "home")}>Go to Home</button>
+        </div>
+      </div>
+    </section>
+    {/if}
+
+    {#if show("feel-motion")}<Feel view="motion" />{/if}
+    {#if show("feel-type")}<Feel view="type" />{/if}
+    {#if show("keys")}<Keys />{/if}
+    {#if show("profiles-list")}<Profiles view="profiles" />{/if}
+    {#if show("profiles-backup")}<Profiles view="backup" />{/if}
+    </div>
+    </div>
   </div>
 </div>
 
 <style>
+  .split { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 1.6rem; align-items: start; }
+  .panes { min-width: 0; display: flex; flex-direction: column; gap: 1rem; }
+  .panes :global(.section) { margin-top: 0; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
   .name-in { width: 16rem; }
   .presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.9rem; padding-bottom: 0.7rem; }
   .preset {
@@ -481,9 +579,4 @@
   .sw.default::after { content: ""; position: absolute; inset: 7px; border-radius: 50%; background: var(--ink); }
   .sw.custom { position: relative; overflow: hidden; background: conic-gradient(#ff6b6b, #ffd93d, #6bff95, #6bd9ff, #9b6bff, #ff6bd5, #ff6b6b); cursor: pointer; }
   .sw.custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  details.addon > summary { list-style: none; cursor: pointer; }
-  details.addon > summary::-webkit-details-marker { display: none; }
-  details.addon > summary h3::before { content: "▸"; display: inline-block; width: 1em; margin-right: 0.35em; text-align: center; color: var(--muted); transition: transform 0.15s; }
-  details.addon[open] > summary h3::before { transform: rotate(90deg); }
-  details.addon[open] > summary { margin-bottom: 0.6rem; }
 </style>

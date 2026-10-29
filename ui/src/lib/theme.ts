@@ -256,6 +256,83 @@ export interface AddonPrefs {
   installed: string[];
 }
 
+// ── Customisation+ ──────────────────────────────────────────
+
+export type WidgetKind = "greeting" | "continue" | "nowplaying" | "roblox" | "minecraft" | "playtime" | "quick" | "notes" | "stats" | "clock";
+export interface Widget {
+  id: string;
+  kind: WidgetKind;
+  /** Columns it spans: 1, 2 or 3 (of 3). */
+  size: 1 | 2 | 3;
+  /** Widget-specific settings (pinned games, note text…). */
+  data?: Record<string, unknown>;
+}
+export interface HomePrefs {
+  widgets: Widget[];
+  /** Open Home when Arcadia starts. */
+  start: boolean;
+}
+export const WIDGET_KINDS: { kind: WidgetKind; label: string; icon: string; size: 1 | 2 | 3; blurb: string }[] = [
+  { kind: "greeting", label: "Greeting", icon: "sun", size: 3, blurb: "Good morning, with the time and date." },
+  { kind: "continue", label: "Continue playing", icon: "play", size: 2, blurb: "Your most recent games, one click away." },
+  { kind: "nowplaying", label: "Now playing", icon: "music", size: 1, blurb: "Music controls and the song that's on." },
+  { kind: "roblox", label: "Roblox", icon: "roblox", size: 1, blurb: "Jump back into your recent Roblox games." },
+  { kind: "minecraft", label: "Minecraft", icon: "cube", size: 1, blurb: "Your instances, ready to play." },
+  { kind: "playtime", label: "Playtime", icon: "chart", size: 2, blurb: "Your most played games." },
+  { kind: "quick", label: "Pinned games", icon: "star", size: 1, blurb: "Your favourites as big buttons." },
+  { kind: "stats", label: "Listening", icon: "lyrics", size: 1, blurb: "Your top artist and listening time." },
+  { kind: "notes", label: "Notes", icon: "lyrics", size: 1, blurb: "A scratchpad that saves as you type." },
+  { kind: "clock", label: "Clock", icon: "clock", size: 1, blurb: "A big clock." },
+];
+export const DEFAULT_HOME: HomePrefs = {
+  widgets: [
+    { id: "w1", kind: "greeting", size: 3 },
+    { id: "w2", kind: "continue", size: 2 },
+    { id: "w3", kind: "nowplaying", size: 1 },
+    { id: "w4", kind: "roblox", size: 1 },
+    { id: "w5", kind: "minecraft", size: 1 },
+    { id: "w6", kind: "quick", size: 1 },
+  ],
+  start: false,
+};
+
+export interface FeelPrefs {
+  /** How much things move. */
+  motion: "full" | "calm" | "off";
+  /** Animation speed, 0.5 (slower) – 2 (faster). */
+  speed: number;
+  /** Interface sounds. */
+  sounds: "off" | "soft" | "clicky" | "retro";
+  volume: number;
+  /** Text size, 85–130 %. */
+  scale: number;
+  /** An installed font to use everywhere ("" = the look's). */
+  fontFamily: string;
+  /** Icon line weight. */
+  iconStroke: number;
+  iconCaps: "round" | "square";
+}
+export const DEFAULT_FEEL: FeelPrefs = { motion: "full", speed: 1, sounds: "off", volume: 0.5, scale: 100, fontFamily: "", iconStroke: 1.8, iconCaps: "round" };
+
+export interface KeyPrefs {
+  /** Action id → key combo ("Ctrl+K"), or "" for none. Missing = default. */
+  bindings: Record<string, string>;
+  /** Actions that also work while Arcadia isn't focused. */
+  global: string[];
+}
+
+export interface Profile {
+  id: string;
+  name: string;
+  created: number;
+  /** Everything in UiState except profiles and bundles. */
+  ui: Record<string, unknown>;
+}
+export interface ProfilePrefs {
+  list: Profile[];
+  active: string | null;
+}
+
 export interface UiState {
   brand: Brand;
   look: Look;
@@ -273,6 +350,10 @@ export interface UiState {
   themes: ThemesPrefs;
   glass: GlassPrefs;
   bundles: UserBundle[];
+  home: HomePrefs;
+  feel: FeelPrefs;
+  keys: KeyPrefs;
+  profiles: ProfilePrefs;
 }
 
 interface Preset {
@@ -417,6 +498,10 @@ export function defaultUi(): UiState {
     themes: normalizeThemes(undefined),
     glass: normalizeGlass(undefined),
     bundles: [],
+    home: structuredClone(DEFAULT_HOME),
+    feel: { ...DEFAULT_FEEL },
+    keys: { bindings: {}, global: [] },
+    profiles: { list: [], active: null },
   };
 }
 
@@ -454,7 +539,58 @@ export function normalizeUi(v: unknown): UiState {
     themes: normalizeThemes(u.themes),
     glass: normalizeGlass(u.glass),
     bundles: normalizeBundles(u.bundles),
+    home: normalizeHome(u.home),
+    feel: normalizeFeel(u.feel),
+    keys: normalizeKeys(u.keys),
+    profiles: normalizeProfiles(u.profiles),
   };
+}
+
+export function normalizeHome(v: Partial<HomePrefs> | undefined): HomePrefs {
+  if (!v || typeof v !== "object" || !Array.isArray(v.widgets)) return structuredClone(DEFAULT_HOME);
+  const kinds = WIDGET_KINDS.map((k) => k.kind);
+  const widgets = v.widgets
+    .filter((w): w is Widget => !!w && typeof w.id === "string" && kinds.includes(w.kind))
+    .map((w) => ({ id: w.id, kind: w.kind, size: ([1, 2, 3] as const).includes(w.size) ? w.size : 1, ...(w.data && typeof w.data === "object" ? { data: w.data } : {}) }));
+  return { widgets, start: v.start === true };
+}
+export function normalizeFeel(v: Partial<FeelPrefs> | undefined): FeelPrefs {
+  const d = DEFAULT_FEEL;
+  if (!v || typeof v !== "object") return { ...d };
+  return {
+    motion: pick(v.motion, ["full", "calm", "off"] as const, d.motion),
+    speed: num(v.speed, 0.5, 2, d.speed),
+    sounds: pick(v.sounds, ["off", "soft", "clicky", "retro"] as const, d.sounds),
+    volume: num(v.volume, 0, 1, d.volume),
+    scale: num(v.scale, 85, 130, d.scale),
+    fontFamily: typeof v.fontFamily === "string" ? v.fontFamily.replace(/["';{}<>]/g, "").slice(0, 60) : "",
+    iconStroke: num(v.iconStroke, 1.2, 2.6, d.iconStroke),
+    iconCaps: pick(v.iconCaps, ["round", "square"] as const, d.iconCaps),
+  };
+}
+export function normalizeKeys(v: Partial<KeyPrefs> | undefined): KeyPrefs {
+  const b: Record<string, string> = {};
+  if (v?.bindings && typeof v.bindings === "object") for (const [k, x] of Object.entries(v.bindings)) if (typeof x === "string") b[k] = x;
+  return { bindings: b, global: Array.isArray(v?.global) ? v!.global.filter((x): x is string => typeof x === "string") : [] };
+}
+export function normalizeProfiles(v: Partial<ProfilePrefs> | undefined): ProfilePrefs {
+  const list = Array.isArray(v?.list) ? v!.list.filter((p): p is Profile => !!p && typeof p.id === "string" && typeof p.name === "string" && !!p.ui && typeof p.ui === "object") : [];
+  return { list, active: typeof v?.active === "string" && list.some((p) => p.id === v.active) ? v.active : null };
+}
+
+/** Motion, text size, font and icon style. */
+export function applyFeel(f: FeelPrefs) {
+  if (typeof document === "undefined") return;
+  const root = document.documentElement;
+  root.dataset.motion = f.motion;
+  root.style.setProperty("--motion-speed", String(f.speed));
+  root.style.fontSize = `${(15 * f.scale) / 100}px`;
+  root.style.setProperty("--icon-stroke", String(f.iconStroke));
+  root.style.setProperty("--icon-caps", f.iconCaps);
+  if (f.fontFamily) {
+    root.style.setProperty("--body", `"${f.fontFamily}", ${getComputedStyle(root).getPropertyValue("--body") || "sans-serif"}`);
+    root.style.setProperty("--display", `"${f.fontFamily}", sans-serif`);
+  }
 }
 
 const num = (x: unknown, lo: number, hi: number, def: number) => (typeof x === "number" && isFinite(x) ? Math.min(hi, Math.max(lo, x)) : def);

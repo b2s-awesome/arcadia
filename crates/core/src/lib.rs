@@ -9,6 +9,7 @@
 //! The crate has no GUI dependencies so every piece can be tested headless.
 
 pub mod addons;
+pub mod backup;
 pub mod library;
 pub mod minecraft;
 pub mod music;
