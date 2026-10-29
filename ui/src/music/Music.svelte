@@ -11,7 +11,7 @@
   import { inkFor } from "./colour";
   import { musicKeys } from "./keys";
   import { back, go, initMusic, ms, type MusicView } from "./store.svelte";
-  import { initStreaming, streamingOn, sx } from "./streaming.svelte";
+  import { initStreaming, sx, visibleTabs } from "./streaming.svelte";
 
   onMount(() => {
     initMusic();
@@ -23,16 +23,7 @@
   // Colour from the playing cover, or the look's accent.
   const accent = $derived(prefs.artColours ? (ms.status?.track?.artColor ?? null) : null);
 
-  const tabs: { kind: MusicView["kind"]; label: string }[] = $derived([
-    { kind: "home", label: "Home" },
-    ...(streamingOn() ? [{ kind: "online" as const, label: "Online" }] : []),
-    { kind: "albums", label: "Albums" },
-    { kind: "artists", label: "Artists" },
-    { kind: "songs", label: "Songs" },
-    { kind: "playlists", label: "Playlists" },
-    { kind: "favourites", label: "Favourites" },
-    ...(streamingOn() ? [{ kind: "downloads" as const, label: "Downloads" }] : []),
-  ]);
+  const tabs = $derived(visibleTabs().map((t) => ({ kind: t.id as MusicView["kind"], label: t.label })));
   const tabFor = (k: MusicView["kind"]): MusicView["kind"] =>
     k === "album" ? "albums" : k === "artist" ? "artists" : k === "playlist" ? "playlists" : k;
 

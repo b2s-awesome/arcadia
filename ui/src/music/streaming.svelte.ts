@@ -1,11 +1,20 @@
 // State for the Streaming & downloads addon (Online and Downloads in Music).
 import { on, streaming } from "../lib/api";
+import { MUSIC_TABS } from "../lib/theme";
 import { app, toast } from "../lib/state.svelte";
 import type { DownloadJob, InstallProgress, OnlineItem, StreamingStatus, SyncedSource } from "../lib/types";
 import { addToPlaylist, newPlaylist, ms, reloadLibrary, reloadPlaylists } from "./store.svelte";
 import { music } from "../lib/api";
 
 export const streamingOn = () => app.ui.addons.installed.includes("streaming");
+
+/** Music's tabs as the user arranged them, minus ones whose addon is missing. */
+export function visibleTabs() {
+  const p = app.ui.music;
+  return p.tabs
+    .map((id) => MUSIC_TABS.find((t) => t.id === id)!)
+    .filter((t) => t && (!t.addon || app.ui.addons.installed.includes(t.addon)) && !p.hiddenTabs.includes(t.id));
+}
 
 export const sx = $state({
   status: null as StreamingStatus | null,

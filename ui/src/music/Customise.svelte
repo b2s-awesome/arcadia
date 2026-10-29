@@ -5,7 +5,7 @@
   import Toggle from "../components/Toggle.svelte";
   import { music, pickFolder } from "../lib/api";
   import { app, saveUi, toast } from "../lib/state.svelte";
-  import { MUSIC_SECTIONS, type MusicPrefs, type MusicSection } from "../lib/theme";
+  import { MUSIC_SECTIONS, MUSIC_TABS, type MusicPrefs, type MusicSection, type MusicTab } from "../lib/theme";
   import { ms, reloadLibrary } from "./store.svelte";
 
   const p = $derived(app.ui.music);
@@ -24,6 +24,28 @@
   }
   function toggleSection(id: MusicSection) {
     set("hidden", p.hidden.includes(id) ? p.hidden.filter((x) => x !== id) : [...p.hidden, id]);
+  }
+
+  const tabLabel = (id: MusicTab) => MUSIC_TABS.find((t) => t.id === id)?.label ?? id;
+  const tabAvailable = (id: MusicTab) => {
+    const a = MUSIC_TABS.find((t) => t.id === id)?.addon;
+    return !a || app.ui.addons.installed.includes(a);
+  };
+  const shownTabs = $derived(p.tabs.filter(tabAvailable));
+  function moveTab(id: MusicTab, d: number) {
+    // Move among the tabs that are shown, keeping unavailable ones in place.
+    const vis = shownTabs;
+    const i = vis.indexOf(id);
+    const j = i + d;
+    if (j < 0 || j >= vis.length) return;
+    const all = [...p.tabs];
+    const a = all.indexOf(vis[i]);
+    const b = all.indexOf(vis[j]);
+    [all[a], all[b]] = [all[b], all[a]];
+    set("tabs", all);
+  }
+  function toggleTab(id: MusicTab) {
+    set("hiddenTabs", p.hiddenTabs.includes(id) ? p.hiddenTabs.filter((x) => x !== id) : [...p.hiddenTabs, id]);
   }
 
   // Folders and output
@@ -109,6 +131,23 @@
       <div class="label">Compact song rows</div>
       <Toggle label="Compact song rows" checked={p.compact} onchange={(v) => set("compact", v)} />
     </div>
+  </section>
+
+  <section>
+    <h4>Tabs</h4>
+    <ul class="sections">
+      {#each shownTabs as id, i (id)}
+        {@const hidden = p.hiddenTabs.includes(id)}
+        <li class:hidden>
+          <span>{tabLabel(id)}</span>
+          <span class="grow"></span>
+          <button class="ic" disabled={i === 0} aria-label="Move {tabLabel(id)} left" onclick={() => moveTab(id, -1)}><Icon name="up" size={14} /></button>
+          <button class="ic" disabled={i === shownTabs.length - 1} aria-label="Move {tabLabel(id)} right" onclick={() => moveTab(id, 1)}><Icon name="down" size={14} /></button>
+          <button class="ic" disabled={id === "home"} title={id === "home" ? "Home always shows" : undefined} aria-label={hidden ? `Show ${tabLabel(id)}` : `Hide ${tabLabel(id)}`} onclick={() => toggleTab(id)}><Icon name={hidden ? "eye-off" : "eye"} size={15} /></button>
+        </li>
+      {/each}
+    </ul>
+    <p class="desc">Hidden tabs are still a link away (e.g. from Home), and in Tiled they leave the tree too.</p>
   </section>
 
   <section>
