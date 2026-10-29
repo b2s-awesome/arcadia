@@ -341,12 +341,18 @@ pub fn open_minecraft(app: &AppHandle, force_window: bool) -> Res<()> {
         let _ = w.set_focus();
         return Ok(());
     }
-    WebviewWindowBuilder::new(app, "minecraft", WebviewUrl::App("index.html?mode=minecraft".into()))
+    let see_through = app.state::<AppState>().see_through;
+    let builder = WebviewWindowBuilder::new(app, "minecraft", WebviewUrl::App("index.html?mode=minecraft".into()));
+    let builder = if see_through {
+        builder.transparent(true)
+    } else {
+        builder.background_color(tauri::window::Color(11, 11, 13, 255))
+    };
+    builder
         .title("Minecraft")
         .inner_size(1180.0, 760.0)
         .min_inner_size(900.0, 580.0)
         .decorations(false)
-        .background_color(tauri::window::Color(11, 11, 13, 255))
         // Belt and braces: the UI also reads this if the query string is lost.
         .initialization_script("window.__ARCADIA_MODE__ = 'minecraft';")
         .center()

@@ -27,6 +27,10 @@ pub(crate) struct AppState {
     exe: String,
     /// Running Minecraft instances: instance id → process id.
     mc_running: Mutex<std::collections::HashMap<String, u32>>,
+    /// Windows were created see-through this run (Translucent window addon).
+    /// Transparency can only be chosen when a window is made, so turning the
+    /// addon on or off takes a restart.
+    see_through: bool,
 }
 
 pub(crate) type Res<T> = Result<T, String>;
@@ -485,6 +489,9 @@ fn main() {
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_default();
 
+    let settings = Settings::load();
+    let see_through = addon_cmds::see_through_wanted(&settings);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             if !handle_args(app, &argv) {
@@ -493,16 +500,27 @@ fn main() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState {
-            settings: Mutex::new(Settings::load()),
+            settings: Mutex::new(settings),
             games: Mutex::new(Vec::new()),
             rules: Mutex::new(RuleConfig::load()),
             proxy: tokio::sync::Mutex::new(None),
             sessions: Arc::new(AtomicUsize::new(0)),
             exe,
             mc_running: Mutex::new(Default::default()),
+            see_through,
         })
-        .setup(|app| {
+        .setup(move |app| {
             let h = app.handle().clone();
+            // The main window comes from tauri.conf.json, but is built here so
+            // it can be see-through when the Translucent window addon is on.
+            let conf = app.config().app.windows.iter().find(|w| w.label == "main").cloned().expect("main window config");
+            let builder = tauri::WebviewWindowBuilder::from_config(&h, &conf)?;
+            let builder = if see_through {
+                builder.transparent(true)
+            } else {
+                builder.background_color(tauri::window::Color(11, 11, 13, 255))
+            };
+            builder.build()?;
             let show = MenuItem::with_id(app, "show", "Open Arcadia", true, None::<&str>)?;
             let play = MenuItem::with_id(app, "roblox", "Launch Roblox", true, None::<&str>)?;
             let cache_item = MenuItem::with_id(app, "cache", "Clear Roblox cache", true, None::<&str>)?;
@@ -639,6 +657,9 @@ fn main() {
             addon_cmds::addon_secrets,
             addon_cmds::discord_lookup,
             addon_cmds::discord_image,
+            addon_cmds::window_effects_status,
+            addon_cmds::window_effect_set,
+            addon_cmds::app_restart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Arcadia");

@@ -2,6 +2,7 @@
   import { addons as addonApi } from "../lib/api";
   import { app, saveSettingsNow, toast } from "../lib/state.svelte";
   import { CATALOG, type AddonMeta } from "../addons/registry";
+  import { seeThroughRemoved } from "../lib/seeThrough.svelte";
   import Icon from "../components/Icon.svelte";
   import Modal from "../components/Modal.svelte";
 
@@ -32,8 +33,12 @@
     await saveSettingsNow();
     busy = false;
     detailOpen = false;
-    toast(`${a.name} added to the sidebar`);
-    app.page = `addon:${a.id}`;
+    toast(a.load ? `${a.name} added to the sidebar` : `${a.name} added. Its settings are in Appearance.`);
+    openAddon(a);
+  }
+
+  function openAddon(a: AddonMeta) {
+    app.page = a.load ? `addon:${a.id}` : "appearance";
   }
 
   function askRemove(a: AddonMeta) {
@@ -60,6 +65,7 @@
     busy = false;
     removeOpen = false;
     toast(wipeData ? `Removed ${a.name} and its saved data` : `Removed ${a.name}. Its saved data is kept if you add it again.`);
+    if (a.id === "see-through") seeThroughRemoved();
   }
 
   function open(a: AddonMeta) {
@@ -105,7 +111,7 @@
                 <span class="faint">by {a.author} · v{a.version}</span>
                 <span class="grow"></span>
                 {#if on}
-                  <button class="primary-sm" onclick={() => (app.page = `addon:${a.id}`)}>Open</button>
+                  <button class="primary-sm" onclick={() => openAddon(a)}>{a.load ? "Open" : "Settings"}</button>
                 {:else}
                   <button class="primary-sm" disabled={busy} onclick={() => install(a)}><Icon name="plus" size={15} /> Add</button>
                 {/if}
@@ -152,7 +158,7 @@
   {#snippet actions()}
     {#if detail && isInstalled(detail.id)}
       <button class="danger" onclick={() => { detailOpen = false; askRemove(detail!); }}>Remove</button>
-      <button class="primary-sm" onclick={() => { detailOpen = false; app.page = `addon:${detail!.id}`; }}>Open</button>
+      <button class="primary-sm" onclick={() => { detailOpen = false; openAddon(detail!); }}>{detail.load ? "Open" : "Settings"}</button>
     {:else if detail}
       <button onclick={() => (detailOpen = false)}>Not now</button>
       <button class="primary-sm" disabled={busy} onclick={() => install(detail!)}><Icon name="plus" size={15} /> Add to {brand}</button>

@@ -8,6 +8,7 @@
   import Toggle from "../components/Toggle.svelte";
   import Icon from "../components/Icon.svelte";
   import { allNav } from "../lib/nav";
+  import { addonById } from "../addons/registry";
 
   const look = $derived(app.ui.look);
   const presetIds = Object.keys(PRESETS) as PresetId[];
@@ -106,6 +107,9 @@
     dragging = null;
     dropAt = null;
   }
+
+  // ── Addons with settings here ─────────────────────────────
+  const settingAddons = $derived(app.ui.addons.installed.map(addonById).filter((a) => a?.settings));
 
   // ── Splash ───────────────────────────────────────────────
   const motionOff = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -211,6 +215,17 @@
         <Toggle label="Animate even with Windows animations off" checked={app.ui.splash.animateAlways} onchange={(v) => { app.ui.splash.animateAlways = v; saveUi(); }} />
       </div>
     </section>
+
+    {#each settingAddons as a (a!.id)}
+      <section class="section" id="addon-{a!.id}">
+        <div class="row spread"><h3>{a!.name}</h3><span class="pill">Addon</span></div>
+        {#await a!.settings!()}
+          <p class="hint">Loading…</p>
+        {:then mod}
+          <mod.default />
+        {/await}
+      </section>
+    {/each}
 
     <section class="section">
       <h3>Look</h3>

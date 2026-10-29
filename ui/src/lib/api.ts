@@ -159,6 +159,19 @@ export const addons = {
   discordImage: (url: string) => call<string>("discord_image", { url }),
 };
 
+export interface EffectsStatus {
+  active: boolean;
+  wanted: boolean;
+  build: number | null;
+  os: string;
+}
+
+export const windowFx = {
+  status: () => call<EffectsStatus>("window_effects_status"),
+  set: (effect: string | null, color: [number, number, number, number] | null) => call<void>("window_effect_set", { effect, color }),
+  restart: () => call<void>("app_restart"),
+};
+
 /** This webview's window label ("main" or "minecraft"). */
 export async function windowLabel(): Promise<string> {
   if (!inTauri) return "main";

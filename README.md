@@ -73,6 +73,10 @@ The sidebar is yours too: under **Appearance → Sidebar**, drag entries into an
 
 Bigger optional tools ship as addons, so the sidebar only holds what you actually use. Open **Marketplace**, add one, and it gets its own sidebar entry; remove it the same way, optionally deleting what it saved. Each addon only loads once it's installed, keeps its data in its own folder (`%LOCALAPPDATA%\Arcadia\addons\<id>\`) and its secrets in Windows Credential Manager, and can't reach another addon's data.
 
+### Translucent window
+
+Makes Arcadia's background see-through and lets Windows blur what's behind it, like a riced Linux desktop. Pick **Acrylic** (real blur of the windows behind; can stutter while dragging on some Windows builds), **Mica**, **Mica dark** or **Mica Alt** (wallpaper-tinted, very light; Windows 11), or **Blur**. Tint colour and strength, panel opacity and "keep the wallpaper" are under Appearance. A window's transparency is fixed when it's created, so switching the addon on or off asks for a restart; with it off, Arcadia's windows are created solid exactly as before.
+
 ### Profile Studio (first official addon)
 
 A sandbox for your Discord profile. Nothing in it changes your real profile.

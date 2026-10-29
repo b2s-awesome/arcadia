@@ -27,7 +27,7 @@ export function allNav(ui: UiState): NavItem[] {
   const pool = new Map<string, NavItem>(CORE_NAV.map((n) => [n.id, n]));
   for (const id of ui.addons.installed) {
     const a = addonById(id);
-    if (a) pool.set(`addon:${id}`, { id: `addon:${id}`, label: a.name, icon: a.icon, addon: id });
+    if (a?.load) pool.set(`addon:${id}`, { id: `addon:${id}`, label: a.name, icon: a.icon, addon: id });
   }
   const out: NavItem[] = [];
   for (const id of ui.rail.order) {

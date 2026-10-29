@@ -23,7 +23,12 @@ export interface AddonMeta {
   art: [string, string, string];
   features: string[];
   permissions: AddonPermission[];
-  load: () => Promise<{ default: Component }>;
+  /** Its own page, with a sidebar entry. */
+  load?: () => Promise<{ default: Component }>;
+  /** A settings panel, shown under Appearance → Addons. */
+  settings?: () => Promise<{ default: Component }>;
+  /** Where "Open" goes for an addon without a page. */
+  opens?: "appearance";
 }
 
 export const CATALOG: AddonMeta[] = [
@@ -51,6 +56,31 @@ export const CATALOG: AddonMeta[] = [
       { label: "Storage", detail: "Saves your profile versions in its own folder. Your bot token goes in Windows Credential Manager." },
     ],
     load: () => import("./discord-profile/Studio.svelte"),
+  },
+  {
+    id: "see-through",
+    name: "Translucent window",
+    tagline: "See your desktop through Arcadia, blurred, like a Linux rice.",
+    description:
+      "Makes Arcadia's background see-through and lets Windows blur whatever is behind it, so the app floats over your desktop the way panels do on a riced Linux setup. Choose Acrylic for real blur of the windows behind, or Mica for a lighter wallpaper-tinted look, then tune the tint and how solid the panel stays.",
+    author: "Arcadia",
+    official: true,
+    version: "1.0.0",
+    icon: "sparkle",
+    art: ["#0e1a2b", "#6bb3ff", "#d6f0ff"],
+    features: [
+      "Acrylic: blurs the windows and desktop behind Arcadia (Windows 10 and 11)",
+      "Mica and Mica Alt: lighter, wallpaper-tinted backdrops (Windows 11)",
+      "Tint colour and strength, and how see-through the panel is",
+      "Works with every Look, and with the popped-out Minecraft window",
+      "Off in one switch; nothing changes until you restart Arcadia",
+    ],
+    permissions: [
+      { label: "Window", detail: "Makes Arcadia's windows transparent and asks Windows for a blurred backdrop. Switching it on or off takes a restart." },
+      { label: "Performance", detail: "Acrylic can make dragging and resizing the window stutter on some Windows builds. Mica doesn't." },
+    ],
+    settings: () => import("./see-through/Settings.svelte"),
+    opens: "appearance",
   },
 ];
 

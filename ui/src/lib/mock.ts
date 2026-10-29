@@ -76,11 +76,13 @@ let settings: Settings = {
   ui: (() => {
     const q = new URLSearchParams(location.search);
     const preset = q.get("look");
-    return preset ? { brand: { name: q.get("name") ?? "Arcadia", tagline: q.get("tag") ?? "Games and Roblox" }, look: { preset, ...(q.get("wall") ? { wallpaper: `builtin:${q.get("wall")}` } : {}) }, saved: [
+    const addons = q.get("addons");
+    const base = preset ? { brand: { name: q.get("name") ?? "Arcadia", tagline: q.get("tag") ?? "Games and Roblox" }, look: { preset, ...(q.get("wall") ? { wallpaper: `builtin:${q.get("wall")}` } : {}) }, saved: [
       { name: "Gruvbox night", look: { preset: "gruvbox" } },
       { name: "Glass", look: { preset: "frost" } },
       { name: "Zen", look: { preset: "obsidian" } },
     ], applied: "Gruvbox night" } : null;
+    return addons ? { ...(base ?? {}), addons: { installed: addons.split(",") } } : base;
   })(),
 };
 
@@ -154,6 +156,13 @@ export async function mockInvoke(cmd: string, args: Record<string, unknown> = {}
       };
     }
     case "discord_image": return mockImage(String(args.url));
+    case "window_effects_status": {
+      const ui = (settings.ui ?? {}) as { addons?: { installed?: string[] }; seeThrough?: { enabled?: boolean } };
+      const wanted = !!ui.addons?.installed?.includes("see-through") && ui.seeThrough?.enabled !== false;
+      return { active: new URLSearchParams(location.search).has("fxactive") && wanted, wanted, build: 22631, os: "windows" };
+    }
+    case "window_effect_set": return;
+    case "app_restart": location.reload(); return;
     case "get_settings": return structuredClone(settings);
     case "save_settings": settings = args.settings as Settings; return;
     case "scan_library": return { games, launchers: ["minecraft", "roblox", "steam", "epic", "battlenet", "gog", "ea", "ubisoft"], warnings: [] };

@@ -4,6 +4,7 @@
   import { mcs, popOut } from "./lib/mc.svelte";
   import { app, loadSettings, reloadSettings, saveSettings, saveUi, toast, type Page } from "./lib/state.svelte";
   import { visibleNav } from "./lib/nav";
+  import { applySeeThrough, loadFxStatus } from "./lib/seeThrough.svelte";
   import { addonById } from "./addons/registry";
   import Marketplace from "./pages/Marketplace.svelte";
   import { applyLook, defaultLook, PRESETS, SPLASH_MS, wallpaperUrl, type PresetId } from "./lib/theme";
@@ -25,14 +26,21 @@
   const nav = $derived(visibleNav(app.ui));
   const compact = $derived(app.ui.rail.compact);
   /** The addon behind the current page, if it's an addon page. */
-  const pageAddon = $derived(app.page.startsWith("addon:") ? addonById(app.page.slice(6)) : null);
+  const pageAddon = $derived.by(() => {
+    const a = app.page.startsWith("addon:") ? addonById(app.page.slice(6)) : null;
+    return a?.load ? a : null;
+  });
   // An addon page whose addon was removed (here or in another window).
   $effect(() => {
     if (app.page.startsWith("addon:") && (!pageAddon || !app.ui.addons.installed.includes(pageAddon.id))) app.page = "marketplace";
   });
 
   // Apply the look whenever it changes.
-  $effect(() => applyLook(app.ui.look));
+  $effect(() => {
+    applyLook(app.ui.look);
+    // The Translucent window addon adjusts the panel on top of the look.
+    applySeeThrough(app.ui);
+  });
   const brandName = $derived(app.ui.brand.name.trim() || "Arcadia");
   $effect(() => {
     win.setTitle(brandName).catch(() => {});
@@ -103,7 +111,7 @@
     ...baseActions,
     ...app.ui.addons.installed.flatMap((id) => {
       const a = addonById(id);
-      return a ? [{ id: `addon-${id}`, label: a.name, hint: a.tagline, icon: a.icon, run: go(`addon:${id}`) }] : [];
+      return a ? [{ id: `addon-${id}`, label: a.name, hint: a.tagline, icon: a.icon, run: go(a.load ? `addon:${id}` : "appearance") }] : [];
     }),
   ]);
 
@@ -146,6 +154,7 @@
   let myLabel = "main";
   onMount(() => {
     loadSettings();
+    loadFxStatus();
     windowLabel().then((l) => (myLabel = l));
     const key = (e: KeyboardEvent) => {
       if (splash) {
@@ -270,7 +279,7 @@
             {:else if app.page === "appearance"}<Appearance />
             {:else if app.page === "marketplace"}<Marketplace />
             {:else if pageAddon}
-              {#await pageAddon.load()}
+              {#await pageAddon.load!()}
                 <div class="addon-loading muted">Opening {pageAddon.name}…</div>
               {:then mod}
                 <mod.default />
@@ -329,6 +338,11 @@
     background-position: center;
     filter: blur(var(--wall-blur));
   }
+  /* Translucent window addon: the desktop shows through the app. */
+  :global(:root[data-see-through="true"]), :global(:root[data-see-through="true"] body) { background: transparent; }
+  :global(:root[data-see-through="true"]) .desktop { background: transparent; }
+  :global(:root[data-see-through="true"]:not([data-keep-wall="true"])) .wall { display: none; }
+  :global(:root[data-keep-wall="true"]) .wall { opacity: 0.35; }
   .wall::after { content: ""; position: absolute; inset: 0; background: rgba(0, 0, 0, var(--wall-dim)); }
 
   /* Floating: the window sits on the wallpaper like a tiled WM window. */
