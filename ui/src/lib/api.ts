@@ -74,8 +74,16 @@ export const win = {
 
 export interface BackupManifest { app: string; created: number; computer: string; parts: string[]; keys: boolean; files: number }
 
+export interface PresenceActivity {
+  kind: number; details: string; state: string; start: number | null; end: number | null;
+  largeImage: string; largeText: string; smallImage: string; smallText: string; buttons: [string, string][];
+}
+export interface PresenceStatus { connected: boolean; user: string | null; error: string | null; showing: PresenceActivity | null }
+
 export const api = {
   getSettings: () => call<Settings>("get_settings"),
+  presenceStatus: () => call<PresenceStatus>("presence_status"),
+  presenceTest: (clientId: string) => call<string>("presence_test", { clientId }),
   backupParts: () => call<{ id: string; label: string }[]>("backup_parts"),
   backupExport: (dest: string, parts: string[], keys: boolean) => call<BackupManifest>("backup_export", { dest, parts, keys }),
   backupInspect: (path: string) => call<BackupManifest>("backup_inspect", { path }),

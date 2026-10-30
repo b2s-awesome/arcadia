@@ -300,6 +300,17 @@ export async function mockInvoke(cmd: string, args: Record<string, unknown> = {}
     case "save_settings": settings = args.settings as Settings; return;
     case "scan_library": return { games, launchers: ["minecraft", "roblox", "steam", "epic", "battlenet", "gog", "ea", "ubisoft"], warnings: [] };
     case "launch_game": return;
+    case "presence_status": {
+      const ui = (settings.ui ?? {}) as { presence?: { clientId?: string } };
+      const id = ui.presence?.clientId ?? "";
+      if (id.length < 17) return { connected: false, user: null, error: null, showing: null };
+      return { connected: true, user: "Skyline", error: null, showing: { kind: 0, details: "Blox Fruits", state: "Roblox · London, United Kingdom", start: Date.now() - 23 * 60_000, end: null, largeImage: "game", largeText: "Blox Fruits", smallImage: "arcadia", smallText: "via Arcadia", buttons: [["View game", "https://www.roblox.com/games/2753915549"]] } };
+    }
+    case "presence_test": {
+      await sleep(1200);
+      if (String(args.clientId).length < 17) throw "That doesn't look like an Application ID (it's a long number)";
+      return "Skyline";
+    }
     case "backup_parts": return [
       { id: "settings", label: "Settings, looks and layout" }, { id: "library", label: "Library info, collections and your art" },
       { id: "addons", label: "Addon data" }, { id: "roblox", label: "Roblox accounts list and play history" },

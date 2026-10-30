@@ -23,6 +23,7 @@ mod lyrics_cmds;
 mod mc_extra_cmds;
 mod media_keys;
 mod music_cmds;
+mod presence;
 mod roblox_cmds;
 mod streaming_cmds;
 
@@ -71,6 +72,7 @@ async fn save_settings(app: AppHandle, window: tauri::Window, st: State<'_, AppS
     *st.settings.lock() = settings;
     let _ = app.emit("settings-changed", window.label());
     custom_cmds::sync_soon(&app);
+    presence::poke();
     Ok(())
 }
 
@@ -577,6 +579,7 @@ fn main() {
             }
             let _ = app.asset_protocol_scope().allow_directory(arcadia_core::music::dir().join("art"), false);
 
+            presence::start(&h);
             let _ = app.asset_protocol_scope().allow_directory(library::meta::art_dir(), false);
             // Let the UI show Steam's locally cached cover art.
             if let Some(dir) = library::steam_art_dir() {
@@ -612,6 +615,8 @@ fn main() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             get_settings,
+            presence::presence_status,
+            presence::presence_test,
             custom_cmds::backup_parts,
             custom_cmds::backup_export,
             custom_cmds::backup_inspect,

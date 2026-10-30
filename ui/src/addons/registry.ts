@@ -287,6 +287,24 @@ export const CATALOG: AddonMeta[] = [
 ];
 
 CATALOG.push({
+  id: "discord-presence",
+  name: "Discord status",
+  tagline: "Show what you're playing and listening to on your Discord profile.",
+  description:
+    "Rich Presence for everything Arcadia launches: the Roblox game you're in (with its icon, the server's region and an optional Join button for friends), your Minecraft instance and server, games from your library with their covers, and the song playing in Music with a progress bar. Pick what's shared, or hide game names. Uses your own free Discord app, and only talks to the Discord app on your PC.",
+  author: "Arcadia",
+  official: true,
+  version: "1.0.0",
+  icon: "users",
+  art: ["#3b3fa8", "#7d84ff", "#e3e5ff"],
+  group: "Social",
+  features: ["Roblox game, server region and a Join button", "Minecraft instance and server", "Library games with their covers", "Music with a progress bar", "Choose what's shared"],
+  permissions: [{ label: "Discord", detail: "Talks to the Discord app running on this PC. Nothing is sent anywhere else, and no Discord login is needed." }],
+  settings: () => import("./presence/Settings.svelte"),
+  opens: "appearance",
+});
+
+CATALOG.push({
   id: "liquid-glass",
   name: "Liquid Glass",
   tagline: "Frosted glass panels with lit edges, over your wallpaper or desktop.",

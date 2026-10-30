@@ -423,6 +423,15 @@ impl Music {
             None if new_track => crate::media_keys::send(crate::media_keys::Update::Stopped),
             None => {}
         }
+        crate::presence::music(s.track.as_ref().map(|t| crate::presence::Music {
+            id: t.id,
+            title: t.title.clone(),
+            artist: t.artist.clone(),
+            album: t.album.clone(),
+            playing: s.playing,
+            pos: s.pos,
+            duration: s.duration,
+        }));
         let _ = app.emit("music-status", s);
     }
 
