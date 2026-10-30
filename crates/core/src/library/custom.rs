@@ -21,7 +21,7 @@ fn load() -> Vec<CustomGame> {
 
 fn save(list: &[CustomGame]) -> anyhow::Result<()> {
     crate::paths::ensure_all()?;
-    std::fs::write(crate::paths::custom_library_file(), serde_json::to_vec_pretty(list)?)?;
+    crate::paths::write_atomic(&crate::paths::custom_library_file(), &serde_json::to_vec_pretty(list)?)?;
     Ok(())
 }
 

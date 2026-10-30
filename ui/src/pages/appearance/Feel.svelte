@@ -2,7 +2,7 @@
   // How Arcadia moves, sounds and reads: motion, interface sounds, text
   // size, font and icon style.
   import { app, saveUi } from "../../lib/state.svelte";
-  import { DEFAULT_FEEL, type FeelPrefs } from "../../lib/theme";
+  import { DEFAULT_FEEL, osReducedMotion, type FeelPrefs } from "../../lib/theme";
   import { play, type Cue } from "../../lib/sounds";
   import Icon from "../../components/Icon.svelte";
 
@@ -14,7 +14,8 @@
   }
 
   const MOTION = [
-    { id: "full", label: "Full", desc: "Everything animates." },
+    { id: "full", label: "Full", desc: "Everything animates, whatever Windows says." },
+    { id: "system", label: "Follow Windows", desc: "Animates unless Windows' animation effects are off." },
     { id: "calm", label: "Calm", desc: "Slower, and looping animations hold still." },
     { id: "off", label: "Off", desc: "Nothing moves." },
   ] as const;
@@ -61,6 +62,9 @@
         </button>
       {/each}
     </div>
+    {#if osReducedMotion()}
+      <p class="hint">Windows' <em>Animation effects</em> are switched off on this PC{f.motion === "system" ? ", so Arcadia is holding still. Pick Full to animate anyway." : ". Arcadia animates anyway because Motion is set to " + (f.motion === "full" ? "Full" : "Calm") + "."}</p>
+    {/if}
     {#if f.motion !== "off"}
       <div class="setting">
         <div><div class="label">Animation speed</div><div class="desc">How quickly things slide, fade and pop.</div></div>
@@ -162,12 +166,12 @@
 {/if}
 
 <style>
-  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin-bottom: 0.6rem; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; margin-bottom: 0.6rem; }
   .card { display: flex; flex-direction: column; align-items: flex-start; gap: 0.25rem; padding: 0.8rem; text-align: left; font-weight: 500; background: var(--sunk); border-color: var(--line-soft); }
   .card[aria-checked="true"] { border-color: color-mix(in srgb, var(--peach) 70%, transparent); background: color-mix(in srgb, var(--peach) 8%, var(--raised)); }
   .demo { width: 100%; height: 36px; border-radius: var(--r-sm); background: var(--raised); position: relative; overflow: hidden; margin-bottom: 0.3rem; }
   .demo i { position: absolute; top: 9px; left: 8px; width: 18px; height: 18px; border-radius: 50%; background: var(--peach); }
-  .demo.full i { animation: glide 1.6s ease-in-out infinite alternate; }
+  .demo.full i, .demo.system i { animation: glide 1.6s ease-in-out infinite alternate; }
   .demo.calm i { animation: glide 3.2s ease-in-out infinite alternate; opacity: 0.8; }
   @keyframes glide { to { left: calc(100% - 26px); } }
   .small { font-size: 0.78rem; }

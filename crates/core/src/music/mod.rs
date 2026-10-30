@@ -1,6 +1,8 @@
 //! Music: the library (folders, tags, covers, playlists) and the play queue.
 //! Playback itself is the `arcadia-audio` crate.
 
+pub mod covers;
+pub mod dupes;
 pub mod library;
 pub mod lyrics;
 pub mod queue;

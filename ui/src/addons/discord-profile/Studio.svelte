@@ -3,7 +3,8 @@
   // Discord; they live here until you copy them over by hand.
   import { onMount } from "svelte";
   import { addons, openUrl } from "../../lib/api";
-  import { toast } from "../../lib/state.svelte";
+  import { app, toast } from "../../lib/state.svelte";
+  import GradientPicker from "../../components/GradientPicker.svelte";
   import Icon from "../../components/Icon.svelte";
   import Toggle from "../../components/Toggle.svelte";
   import Modal from "../../components/Modal.svelte";
@@ -276,7 +277,14 @@
 
   // ── preview ───────────────────────────────────────────────
   let view: PreviewView = $state("popout");
-  let scheme: "dark" | "light" = $state("dark");
+  // Follows Arcadia's light or dark look until you flip it yourself.
+  const appScheme = () => (document.documentElement.dataset.scheme === "light" ? "light" : "dark");
+  let flipped = $state(false);
+  let scheme: "dark" | "light" = $state(appScheme());
+  $effect(() => {
+    void app.ui.look;
+    if (!flipped) scheme = appScheme();
+  });
   let compare = $state(false);
   const canCompare = $derived(onShelf && dirty);
   $effect(() => {
@@ -480,11 +488,9 @@
         </div>
         {#if profile.theme}
           <div class="theme-row">
-            <label class="swatch-in"><span>Top</span><input type="color" bind:value={profile.theme.primary} /><input class="hex" bind:value={profile.theme.primary} maxlength="7" /></label>
-            <label class="swatch-in"><span>Bottom</span><input type="color" bind:value={profile.theme.accent} /><input class="hex" bind:value={profile.theme.accent} maxlength="7" /></label>
-            <button class="ghost tiny" title="Swap" onclick={() => { const t = profile.theme!; profile.theme = { primary: t.accent, accent: t.primary }; }}>Swap</button>
-            {#if themeContrast !== null}<span class="pill" class:warn={themeContrast < 3}>{readability(themeContrast)}</span>{/if}
+            <GradientPicker bind:top={profile.theme.primary} bind:bottom={profile.theme.accent} styles={false} />
           </div>
+          <p class="desc">Light colours get a light card and dark ones a dark card, as in Discord.</p>
         {/if}
 
         <div class="pal-head">
@@ -540,7 +546,7 @@
           {#if canCompare}
             <button class="ghost tiny" class:on={compare} aria-pressed={compare} onclick={() => (compare = !compare)}>Before / after</button>
           {/if}
-          <button class="ghost icon-btn" onclick={() => (scheme = scheme === "dark" ? "light" : "dark")} aria-label="Switch to {scheme === 'dark' ? 'light' : 'dark'} theme" title="Discord {scheme === 'dark' ? 'light' : 'dark'} theme">
+          <button class="ghost icon-btn" onclick={() => { flipped = true; scheme = scheme === "dark" ? "light" : "dark"; }} aria-label="Switch to {scheme === 'dark' ? 'light' : 'dark'} theme" title="Discord {scheme === 'dark' ? 'light' : 'dark'} theme">
             <Icon name={scheme === "dark" ? "sun" : "moon"} size={16} />
           </button>
         </div>

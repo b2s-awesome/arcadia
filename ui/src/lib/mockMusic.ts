@@ -295,6 +295,17 @@ export async function mockMusic(cmd: string, args: Record<string, unknown>, emit
   const changed = () => emit("music-status", status());
   switch (cmd) {
     case "music_library": return structuredClone(tracks);
+    case "music_duplicates": {
+      // Pretend the first songs have copies, at a few certainties.
+      const pick = (i: number) => tracks[i % tracks.length].id;
+      const pair = (a: number, b: number, c: number, extra: Partial<Record<string, unknown>> = {}) => ({ a, b, certainty: c, title: c / 100, artist: 1, length: 0.95, file: 0.8, sameFileSize: c >= 99, versionClash: false, ...extra });
+      return [
+        { ids: [pick(0), pick(1)], certainty: 99.2, pairs: [pair(pick(0), pick(1), 99.2)] },
+        { ids: [pick(2), pick(3), pick(4)], certainty: 91.4, pairs: [pair(pick(2), pick(3), 91.4), pair(pick(3), pick(4), 86.8)] },
+        { ids: [pick(5), pick(6)], certainty: 74.5, pairs: [pair(pick(5), pick(6), 74.5, { artist: 0.5, length: 0.7 })] },
+      ].filter((g) => g.certainty >= (args.min as number));
+    }
+    case "music_recycle": return (args.ids as number[]).length;
     case "music_folders": return [...folders];
     case "music_set_folders": folders = args.folders as string[]; return;
     case "music_scan": {

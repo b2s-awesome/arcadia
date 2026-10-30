@@ -137,7 +137,9 @@ pub async fn window_effect_set(app: AppHandle, window: tauri::Window, effect: Op
     if let Some([r, g, bl, a]) = color {
         b = b.color(Color(r, g, bl, a));
     }
-    window.set_effects(b.build()).map_err(err)
+    window.set_effects(b.build()).map_err(err)?;
+    crate::winfix::hide_native_buttons(&window);
+    Ok(())
 }
 
 #[tauri::command]

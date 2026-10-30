@@ -194,6 +194,7 @@ pub async fn lyrics_window(app: AppHandle, kind: String, open: bool, top: Option
     if popup {
         // Frosted glass behind the pop-up; the page draws its own tint.
         let _ = win.set_effects(EffectsBuilder::new().effect(Effect::Acrylic).build());
+        crate::winfix::hide_native_buttons(&win);
     } else {
         // Clicks go straight through to whatever is underneath.
         let _ = win.set_ignore_cursor_events(true);

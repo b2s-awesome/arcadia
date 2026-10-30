@@ -16,6 +16,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
 mod addon_cmds;
+mod winfix;
 mod minecraft_cmds;
 mod custom_cmds;
 mod library_cmds;
@@ -532,7 +533,10 @@ fn main() {
             } else {
                 builder.background_color(tauri::window::Color(11, 11, 13, 255))
             };
-            builder.build()?;
+            let main = builder.build()?;
+            if see_through {
+                winfix::hide_native_buttons(&main);
+            }
             let show = MenuItem::with_id(app, "show", "Open Arcadia", true, None::<&str>)?;
             let play = MenuItem::with_id(app, "roblox", "Launch Roblox", true, None::<&str>)?;
             let cache_item = MenuItem::with_id(app, "cache", "Clear Roblox cache", true, None::<&str>)?;
@@ -791,6 +795,8 @@ fn main() {
             music_cmds::music_spectrum_stop,
             music_cmds::music_queue_tool,
             music_cmds::music_stats,
+            music_cmds::music_duplicates,
+            music_cmds::music_recycle,
             lyrics_cmds::lyrics_get,
             lyrics_cmds::lyrics_save,
             lyrics_cmds::lyrics_forget,

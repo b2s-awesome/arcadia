@@ -142,5 +142,5 @@
   .capeswing { transform-origin: 0 0; rotate: x 8deg; }
   .walk .capeswing { animation: cape 0.9s ease-in-out infinite alternate; }
   @keyframes cape { from { rotate: x 10deg; } to { rotate: x 22deg; } }
-  @media (prefers-reduced-motion: reduce) { .turn.sway, .walk * { animation: none !important; } }
+  /* Holding still is handled app-wide (data-still). */
 </style>

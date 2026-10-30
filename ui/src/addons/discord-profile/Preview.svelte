@@ -5,6 +5,7 @@
   // themes. Nothing here is Discord's artwork.
   import { renderBio } from "./markdown";
   import { inkOn } from "./palette";
+  import { schemeFor } from "../../lib/gradient";
   import { STATUS_LABEL, type DProfile, type PreviewView, type Status } from "./model";
 
   let {
@@ -20,7 +21,11 @@
   );
   const bio = $derived(renderBio(profile.bio));
   const themed = $derived(!!profile.theme);
-  const ink = $derived(themed ? inkOn(scheme === "dark" ? "#000000" : "#ffffff") : null);
+  // Like Discord: a profile with colours picks its own light or dark card
+  // from the top colour, whatever theme the viewer uses. The chat view is
+  // the viewer's Discord, so it keeps the viewer's theme.
+  const look = $derived(themed && view !== "chat" ? schemeFor(profile.theme!.primary) : scheme);
+  const ink = $derived(themed ? inkOn(look === "dark" ? "#000000" : "#ffffff") : null);
   const initial = $derived((name.trim()[0] ?? "?").toUpperCase());
 
   const order: Status[] = ["online", "idle", "dnd", "offline"];
@@ -70,7 +75,7 @@
 {/snippet}
 
 <div
-  class="dc {scheme}"
+  class="dc {look}"
   class:themed
   style:--p={profile.theme?.primary}
   style:--a={profile.theme?.accent}
@@ -240,6 +245,8 @@
   .st-offline { background: #80848e; }
   .st-offline::after { content: ""; position: absolute; inset: 28%; border-radius: 50%; background: var(--bg); }
   .themed .st-idle { background: radial-gradient(circle at 22% 22%, color-mix(in srgb, var(--p) 45%, black) 0 34%, #f0b232 35%); }
+  .themed.light .status { box-shadow: 0 0 0 calc(var(--st) * 0.25) color-mix(in srgb, var(--p) 40%, white); }
+  .themed.light .st-idle { background: radial-gradient(circle at 22% 22%, color-mix(in srgb, var(--p) 40%, white) 0 34%, #f0b232 35%); }
 
   /* Custom status: Discord's thought bubble beside the avatar. */
   .bubble {

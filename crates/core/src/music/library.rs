@@ -17,7 +17,7 @@ pub const EXTENSIONS: &[&str] = &["mp3", "flac", "wav", "wave", "ogg", "oga", "o
 const COVER_NAMES: &[&str] = &["cover", "folder", "front", "album", "albumart", "albumartsmall"];
 const ART_SIZE: u32 = 512;
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Track {
     pub id: i64,
@@ -310,6 +310,25 @@ impl Library {
             m
         };
         Ok(ids.iter().filter_map(|i| all.get(i).cloned()).collect())
+    }
+
+    /// File sizes in bytes, by track (for spotting identical copies).
+    pub fn sizes(&self) -> Result<std::collections::HashMap<i64, u64>> {
+        let db = self.db.lock();
+        let mut st = db.prepare("SELECT id, size FROM tracks")?;
+        let v = st.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))?.collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(v.into_iter().map(|(id, s)| (id, s.max(0) as u64)).collect())
+    }
+
+    /// Take tracks out of the library (their playlist entries go too).
+    pub fn forget(&self, ids: &[i64]) -> Result<()> {
+        let mut db = self.db.lock();
+        let tx = db.transaction()?;
+        for id in ids {
+            tx.execute("DELETE FROM tracks WHERE id = ?1", [id])?;
+        }
+        tx.commit()?;
+        Ok(())
     }
 
     pub fn path_of(&self, id: i64) -> Option<PathBuf> {

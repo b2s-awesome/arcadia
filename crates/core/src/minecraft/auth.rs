@@ -54,7 +54,7 @@ fn load_store() -> Store {
 fn save_store(s: &Store) -> Result<()> {
     std::fs::create_dir_all(super::dir())?;
     let p = store_path();
-    std::fs::write(&p, serde_json::to_vec_pretty(s)?)?;
+    crate::paths::write_atomic(&p, &serde_json::to_vec_pretty(s)?)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

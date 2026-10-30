@@ -1,7 +1,7 @@
 <script lang="ts">
   import TrackList from "../TrackList.svelte";
   import Icon from "../../components/Icon.svelte";
-  import { lib, ms, play, shuffleAll } from "../store.svelte";
+  import { go, lib, ms, play, shuffleAll } from "../store.svelte";
   import type { Track } from "../../lib/types";
   import { app } from "../../lib/state.svelte";
   import SortPlay from "../../addons/listening/SortPlay.svelte";
@@ -29,6 +29,7 @@
   <span class="muted">{base.length.toLocaleString()}</span>
   <span class="grow"></span>
   <button class="ghosty" onclick={() => shuffleAll(sorted)} disabled={!sorted.length}><Icon name="shuffle" size={15} /> Shuffle</button>
+  {#if !favourites}<button class="ghosty" onclick={() => go({ kind: "duplicates" })} disabled={base.length < 2}><Icon name="copy" size={15} /> Duplicates</button>{/if}
   {#if app.ui.addons.installed.includes("sort-play")}<SortPlay tracks={sorted} />{/if}
   <label class="sort"><span class="muted">Sort</span>
     <select bind:value={sort}>

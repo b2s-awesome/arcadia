@@ -1,3 +1,4 @@
+import { buildTheme, fromAccent, isHex, type GradientStyle } from "./gradient";
 // Looks: a preset (palette, type, shape) plus the user's overrides.
 // Everything is applied as CSS custom properties on <html>.
 
@@ -18,6 +19,26 @@ export interface Look {
   wallpaperDim: number;
   /** Window floats over the wallpaper with a gap, like a tiling WM. */
   floating: boolean;
+  /** Two-colour profile gradient over the preset (see lib/gradient.ts). */
+  gradient: LookGradient;
+}
+
+export interface LookGradient {
+  on: boolean;
+  top: string;
+  bottom: string;
+  style: GradientStyle;
+}
+export const DEFAULT_GRADIENT: LookGradient = { on: false, top: "#f7cfcf", bottom: "#f19ba7", style: "tonal" };
+
+export function normalizeGradient(v: Partial<LookGradient> | undefined, d: LookGradient = DEFAULT_GRADIENT): LookGradient {
+  if (!v || typeof v !== "object") return { ...d };
+  return {
+    on: v.on === true,
+    top: isHex(v.top) ? v.top.toLowerCase() : d.top,
+    bottom: isHex(v.bottom) ? v.bottom.toLowerCase() : d.bottom,
+    style: (["tonal", "faithful", "glow"] as const).includes(v.style as GradientStyle) ? (v.style as GradientStyle) : d.style,
+  };
 }
 
 export interface BarPrefs {
@@ -96,7 +117,18 @@ export interface MusicPrefs {
   /** Music's own tabs, in order, and which are hidden. */
   tabs: MusicTab[];
   hiddenTabs: MusicTab[];
+  /** Music's own colours, apart from the rest of the app. */
+  theme: MusicTheme;
 }
+
+/** "app" follows Appearance; "preset" is one of the looks; "gradient" is a
+ *  two-colour gradient; "cover" builds a gradient from the playing cover. */
+export interface MusicTheme {
+  mode: "app" | "preset" | "gradient" | "cover";
+  preset: PresetId;
+  gradient: LookGradient;
+}
+const DEFAULT_MUSIC_THEME: MusicTheme = { mode: "app", preset: "dusk", gradient: { on: true, top: "#2b2d6e", bottom: "#7a3fa0", style: "tonal" } };
 
 export type MusicTab = "home" | "online" | "albums" | "artists" | "songs" | "playlists" | "favourites" | "lyrics" | "stats" | "downloads";
 export const MUSIC_TABS: { id: MusicTab; label: string; addon?: string }[] = [
@@ -160,8 +192,17 @@ export interface LyricsPrefs {
   target: string;
   /** Optional contact email for the free translation service (raises its daily limit). */
   email: string;
+  /** Fill the sung line as it's sung, even without word timings. */
+  sweep: boolean;
+  /** Blur lines further from the one being sung. */
+  blur: boolean;
+  /** How lines move: an easing name (see lyrics/sweep.ts) and a speed, 0.5–2.5. */
+  ease: "smooth" | "snappy" | "gentle" | "springy" | "linear";
+  speed: number;
+  /** Karaoke: the cover, blurred and slowly drifting, behind the page. */
+  ambient: boolean;
 }
-export const DEFAULT_LYRICS: LyricsPrefs = { skin: "auto", align: "left", size: 52, words: true, online: true, sidecar: false, offsets: {}, bar: { position: "bottom", size: 26, tint: 0.35 }, popup: { tint: 0.16 }, romanise: false, translate: false, target: "", email: "" };
+export const DEFAULT_LYRICS: LyricsPrefs = { skin: "auto", align: "left", size: 52, words: true, online: true, sidecar: false, offsets: {}, bar: { position: "bottom", size: 26, tint: 0.35 }, popup: { tint: 0.16 }, romanise: false, translate: false, target: "", email: "", sweep: true, blur: true, ease: "smooth", speed: 1, ambient: true };
 
 /** Stats addon. */
 export interface StatsPrefs {
@@ -228,11 +269,17 @@ export const DEFAULT_MUSIC: MusicPrefs = {
   layout: "tonal", bar: "bottom", artColours: true, cover: 168, compact: false,
   sections: MUSIC_SECTIONS.map((s) => s.id), hidden: [], queuePane: true,
   tabs: MUSIC_TABS.map((t) => t.id), hiddenTabs: [],
+  theme: DEFAULT_MUSIC_THEME,
 };
 
 export function normalizeMusic(v: Partial<MusicPrefs> | undefined): MusicPrefs {
   const d = DEFAULT_MUSIC;
-  if (!v || typeof v !== "object") return { ...d, sections: [...d.sections], tabs: [...d.tabs], hiddenTabs: [] };
+  const theme = (t: Partial<MusicTheme> | undefined): MusicTheme => ({
+    mode: (["app", "preset", "gradient", "cover"] as const).includes(t?.mode as MusicTheme["mode"]) ? t!.mode! : "app",
+    preset: t?.preset && t.preset in PRESETS ? t.preset : DEFAULT_MUSIC_THEME.preset,
+    gradient: { ...normalizeGradient(t?.gradient, DEFAULT_MUSIC_THEME.gradient), on: true },
+  });
+  if (!v || typeof v !== "object") return { ...d, sections: [...d.sections], tabs: [...d.tabs], hiddenTabs: [], theme: theme(undefined) };
   const tabIds = MUSIC_TABS.map((t) => t.id);
   const tabOrder = Array.isArray(v.tabs) ? v.tabs.filter((x): x is MusicTab => tabIds.includes(x as MusicTab)) : [];
   const ids = MUSIC_SECTIONS.map((s) => s.id);
@@ -249,6 +296,7 @@ export function normalizeMusic(v: Partial<MusicPrefs> | undefined): MusicPrefs {
     // New tabs (from updates or addons) slot in at their default place.
     tabs: tabIds.reduce<MusicTab[]>((acc, id) => (acc.includes(id) ? acc : (() => { const i = tabIds.indexOf(id); const after = tabIds.slice(0, i).reverse().find((p) => acc.includes(p)); const at = after ? acc.indexOf(after) + 1 : 0; acc.splice(at, 0, id); return acc; })()), [...tabOrder]),
     hiddenTabs: Array.isArray(v.hiddenTabs) ? v.hiddenTabs.filter((x): x is MusicTab => tabIds.includes(x as MusicTab) && x !== "home") : [],
+    theme: theme(v.theme),
   };
 }
 
@@ -298,7 +346,9 @@ export const DEFAULT_HOME: HomePrefs = {
 
 export interface FeelPrefs {
   /** How much things move. */
-  motion: "full" | "calm" | "off";
+  /** "full" animates even when Windows' animation effects are off;
+   *  "system" follows Windows. */
+  motion: "full" | "system" | "calm" | "off";
   /** Animation speed, 0.5 (slower) – 2 (faster). */
   speed: number;
   /** Interface sounds. */
@@ -346,16 +396,29 @@ export interface PresencePrefs {
   games: boolean;
   elapsed: boolean;
   hideNames: boolean;
+  /** Look up album covers on the web for "Listening to". */
+  covers: boolean;
+  /** How the preview card looks: Discord's plain dark or light card, or
+   *  your profile's two colours. Only the preview; Discord draws the real one. */
+  card: { mode: "dark" | "light" | "gradient"; top: string; bottom: string };
 }
 export const DEFAULT_PRESENCE: PresencePrefs = {
   clientId: "", idle: false, music: true, roblox: true, robloxServer: true, robloxJoin: false,
-  minecraft: true, minecraftServer: true, games: true, elapsed: true, hideNames: false,
+  minecraft: true, minecraftServer: true, games: true, elapsed: true, hideNames: false, covers: true,
+  card: { mode: "dark", top: "#f7cfcf", bottom: "#f19ba7" },
 };
 export function normalizePresence(v: Partial<PresencePrefs> | undefined): PresencePrefs {
-  const out = { ...DEFAULT_PRESENCE };
+  const out = { ...DEFAULT_PRESENCE, card: { ...DEFAULT_PRESENCE.card } };
   if (!v || typeof v !== "object") return out;
   for (const k of Object.keys(DEFAULT_PRESENCE) as (keyof PresencePrefs)[]) {
-    if (k === "clientId") out.clientId = typeof v.clientId === "string" ? v.clientId.replace(/\D/g, "").slice(0, 20) : "";
+    if (k === "card") {
+      const c = v.card;
+      out.card = {
+        mode: c?.mode === "light" || c?.mode === "gradient" ? c.mode : "dark",
+        top: isHex(c?.top) ? c!.top : DEFAULT_PRESENCE.card.top,
+        bottom: isHex(c?.bottom) ? c!.bottom : DEFAULT_PRESENCE.card.bottom,
+      };
+    } else if (k === "clientId") out.clientId = typeof v.clientId === "string" ? v.clientId.replace(/\D/g, "").slice(0, 20) : "";
     else if (typeof v[k] === "boolean") (out as Record<string, unknown>)[k] = v[k];
   }
   return out;
@@ -506,7 +569,7 @@ const RADII: Record<Exclude<RadiusChoice, "theme">, { sm: number; md: number; lg
 };
 
 export function defaultLook(preset: PresetId = "obsidian"): Look {
-  return { preset, accent: null, font: "theme", radius: "theme", panelOpacity: null, ...PRESETS[preset].defaults };
+  return { preset, accent: null, font: "theme", radius: "theme", panelOpacity: null, ...PRESETS[preset].defaults, gradient: { ...DEFAULT_GRADIENT } };
 }
 
 export function defaultUi(): UiState {
@@ -542,6 +605,7 @@ export function normalizeUi(v: unknown): UiState {
   const u = v as Partial<UiState>;
   const preset = u.look?.preset && u.look.preset in PRESETS ? u.look.preset : "obsidian";
   const look = { ...defaultLook(preset), ...(u.look ?? {}), preset };
+  look.gradient = normalizeGradient(u.look?.gradient);
   const brand = { ...DEFAULT_BRAND, ...(u.brand ?? {}) };
   const strs = (a: unknown): string[] => (Array.isArray(a) ? a.filter((x): x is string => typeof x === "string") : []);
   const rail: RailPrefs = {
@@ -589,7 +653,7 @@ export function normalizeFeel(v: Partial<FeelPrefs> | undefined): FeelPrefs {
   const d = DEFAULT_FEEL;
   if (!v || typeof v !== "object") return { ...d };
   return {
-    motion: pick(v.motion, ["full", "calm", "off"] as const, d.motion),
+    motion: pick(v.motion, ["full", "system", "calm", "off"] as const, d.motion),
     speed: num(v.speed, 0.5, 2, d.speed),
     sounds: pick(v.sounds, ["off", "soft", "clicky", "retro"] as const, d.sounds),
     volume: num(v.volume, 0, 1, d.volume),
@@ -610,10 +674,19 @@ export function normalizeProfiles(v: Partial<ProfilePrefs> | undefined): Profile
 }
 
 /** Motion, text size, font and icon style. */
+/** Windows' "Animation effects" is switched off. */
+export const osReducedMotion = () => typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Should things hold still? Only when asked to: Motion "off", or "Follow
+ *  Windows" with Windows' animation effects off. Many gaming PCs turn those
+ *  off for speed, which used to stop every animation in Arcadia. */
+export const stillMotion = (f: FeelPrefs) => f.motion === "off" || (f.motion === "system" && osReducedMotion());
+
 export function applyFeel(f: FeelPrefs) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   root.dataset.motion = f.motion;
+  root.dataset.still = String(stillMotion(f));
   root.style.setProperty("--motion-speed", String(f.speed));
   root.style.fontSize = `${(15 * f.scale) / 100}px`;
   root.style.setProperty("--icon-stroke", String(f.iconStroke));
@@ -664,6 +737,11 @@ export function normalizeLyrics(v: Partial<LyricsPrefs> | undefined): LyricsPref
     translate: v.translate === true,
     target: typeof v.target === "string" && /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(v.target) ? v.target : "",
     email: typeof v.email === "string" ? v.email.slice(0, 120) : "",
+    sweep: v.sweep !== false,
+    blur: v.blur !== false,
+    ease: pick(v.ease, ["smooth", "snappy", "gentle", "springy", "linear"] as const, d.ease),
+    speed: num(v.speed, 0.5, 2.5, d.speed),
+    ambient: v.ambient !== false,
   };
 }
 
@@ -786,7 +864,42 @@ export function resolve(look: Look) {
     "--wall-blur": `${look.wallpaperBlur}px`,
     "--wall-dim": String(look.wallpaperDim),
   };
-  return { preset: p, vars, mono: font.mono, scheme: p.scheme };
+  vars["--panel-fill"] = vars["--panel"];
+  let scheme = p.scheme;
+  const g = look.gradient;
+  if (g?.on) {
+    // The gradient replaces the preset's colours; fonts and shapes stay.
+    const t = buildTheme(g);
+    Object.assign(vars, t.vars);
+    if (look.accent) {
+      vars["--peach"] = look.accent;
+      vars["--peach-ink"] = inkFor(look.accent);
+    }
+    vars["--panel-fill"] = t.fill;
+    if (!t.vars["--glass-blur"]) vars["--glass-blur"] = "0px";
+    scheme = t.scheme;
+  }
+  return { preset: p, vars, mono: font.mono, scheme };
+}
+
+/** Colours for the Music page when it has its own theme; null to follow
+ *  the app. Only colours, fonts and corners: the window stays the app's. */
+export function musicVars(t: MusicTheme, appLook: Look, coverColour: string | null): { vars: Record<string, string>; scheme: "light" | "dark" } | null {
+  if (t.mode === "app") return null;
+  let look: Look;
+  // Solid panels: the page has no wallpaper behind it to frost.
+  if (t.mode === "preset") look = { ...defaultLook(t.preset), font: appLook.font, radius: appLook.radius, panelOpacity: 1 };
+  else if (t.mode === "gradient") look = { ...appLook, gradient: { ...t.gradient, on: true } };
+  else {
+    if (!coverColour || !isHex(coverColour)) return null;
+    const [top, bottom] = fromAccent(coverColour);
+    look = { ...appLook, accent: null, gradient: { on: true, top, bottom, style: t.gradient.style } };
+  }
+  const r = resolve(look);
+  const keep = ["--desk", "--wall-blur", "--wall-dim", "--r-win"];
+  const vars = Object.fromEntries(Object.entries(r.vars).filter(([k]) => !keep.includes(k)));
+  if (t.mode === "preset") vars["--panel-fill"] = r.preset.colors.panel;
+  return { vars, scheme: r.scheme };
 }
 
 export function applyLook(look: Look) {
@@ -800,4 +913,5 @@ export function applyLook(look: Look) {
   root.dataset.mono = String(r.mono);
   root.dataset.floating = String(look.floating);
   root.dataset.scheme = r.scheme;
+  root.dataset.gradient = look.gradient?.on ? look.gradient.style : "off";
 }

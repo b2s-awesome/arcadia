@@ -108,7 +108,7 @@ Some CurseForge mods don't allow other launchers to download them. Arcadia lists
 
 ## Music
 
-A music player for the songs on your PC, built into Arcadia (inspired by Riff and MyRiff).
+A music player for the songs on your PC, built into Arcadia (inspired by [Riff](https://github.com/rootscripts/riff), MIT licence, and MyRiff).
 
 - **Native audio engine** in Rust: MP3, AAC/M4A, ALAC, FLAC, WAV, Ogg Vorbis and Opus (a pure-Rust Opus decoder). Playback is **gapless**: the next song is decoded straight onto the end of the current one, and MP3/AAC encoder padding is trimmed, so live albums and DJ mixes don't click between tracks. Songs that match the device's sample rate pass through without resampling; others are resampled with a high-quality FFT resampler. It follows the Windows default output (plug in headphones and it moves), or stays on a device you pick.
 - **Library:** add folders, and Arcadia reads tags and cover art (embedded, or `cover.jpg`/`folder.jpg` beside the files), keeps a small database and only rereads files that changed. An unplugged drive doesn't wipe its songs. Albums, artists, songs, favourites, play counts and search.
@@ -118,7 +118,10 @@ A music player for the songs on your PC, built into Arcadia (inspired by Riff an
 - Keys: space play/pause, ←/→ seek 5 s, Shift+←/→ previous/next, ↑/↓ volume, / search.
 - **Media keys and the Windows media overlay:** the keyboard's play/pause, next and previous keys work from anywhere, and the volume flyout and lock screen show the song, artist and cover with working controls.
 
-Discord presence comes in a later update. Lyrics, stats and the other Spicetify-style extras are addons (below).
+- **Its own colours:** under Customise → Colours, Music can follow the app, use another look, use a two-colour gradient, or build a gradient from the playing cover, song by song.
+- **Duplicates:** Songs → Duplicates groups copies of the same song, each with a certainty. The score weighs the title (45 %), the artists (25 %), the length (20 %) and the file name (10 %), after cleaning out noise such as "(Official Audio)", "feat. …" and a leading "Artist - ". Songs marked as another version (slowed, sped up, remix, live and so on) don't count as copies, and two files of exactly the same size and length count as at least 99 %. The best copy (lossless first, then higher quality, then most played) is kept; the rest can go to the Recycle Bin.
+
+Lyrics, stats and the other Spicetify-style extras are addons (below).
 
 ### Streaming & downloads (addon)
 
@@ -133,6 +136,10 @@ Add it from the Marketplace and Music gets **Online** and **Downloads** tabs.
 Only fetch what you're allowed to. Subscriber-only audio (e.g. SoundCloud Go+ tracks, which give non-subscribers a 30-second preview) and DRM-protected audio aren't fetched.
 
 ## Appearance
+
+**Profile gradient:** Discord's two-colour Nitro profile colours, for the whole app, in three styles: **Tonal** (a calm palette worked out from the two colours, easiest to read), **Faithful** (Discord's own recipe: the full gradient behind see-through panels) and **Glow** (pools of light and frosted panels). Pull the colours from a screenshot of a Discord profile (Arcadia reads the card's edges and can undo Discord's see-through layer), paste two hex codes, use a profile saved in Profile Studio, or start from a Discord user's accent colour. The same picker is in Profile Studio, Music and the Discord status preview.
+
+**Motion:** Full animates even when Windows' "Animation effects" are off (many gaming PCs turn those off for speed); Follow Windows respects that setting.
 
 Four built-in looks, switchable from **Appearance** or the launcher:
 
@@ -187,7 +194,7 @@ Bigger optional tools ship as addons, so the sidebar only holds what you actuall
 The things people install Spicetify for, rebuilt natively. Add them one by one, or all at once with the **Spice rack** bundle. The visual ones follow your Music layout (Tonal or Tiled), or you can pick a look in their settings, including Liquid Glass.
 
 - **Full App Display:** what's playing, full screen. *Ambient* (blurred cover, huge title), *Tiled* (panes with a live spectrum visualiser from the audio engine, which only runs while it's on screen) or *Liquid Glass* (big clock and a glass card). Shows the current lyric line with Lyrics Plus. Press **F** in Music; Esc leaves, double-click toggles full screen.
-- **Lyrics Plus:** a Lyrics tab in Music and in Now Playing. Lyrics come from a `.lrc` beside the song, the song's own tags, your own timing, or [LRCLIB](https://lrclib.net) (free and open; can be turned off), and scroll in time, word by word for enhanced LRC. Click a line to jump there, nudge the timing per song, or **Fix timing** by tapping along. **Pop out** opens a small always-on-top glass window; the **Desktop bar** floats one line over everything, games included, and lets clicks through. Optionally saves found lyrics as `.lrc` beside your songs. **Romanise** shows Korean, Japanese kana, Chinese (pinyin), Cyrillic and Greek in Latin letters (offline); **Translate** adds a translation under each line from [MyMemory](https://mymemory.translated.net) (free, no account, cached per song).
+- **Lyrics Plus:** a Lyrics tab in Music and in Now Playing. Lyrics come from a `.lrc` beside the song, the song's own tags, your own timing, or [LRCLIB](https://lrclib.net) (free and open; can be turned off), and scroll in time, word by word for enhanced LRC. Lines move like Riff's: each one slides on its own so a new line rolls in as a wave, the sung line fills as it's sung (word by word with word timings, otherwise timed so vowels are held longer), lines further away blur, backing vocals in brackets are smaller, and instrumental breaks show three filling dots. The Karaoke page glows with the cover behind it. Easing, speed, blur and the glow are all in its settings. Click a line to jump there, nudge the timing per song, or **Fix timing** by tapping along. **Pop out** opens a small always-on-top glass window; the **Desktop bar** floats one line over everything, games included, and lets clicks through. Optionally saves found lyrics as `.lrc` beside your songs. **Romanise** shows Korean, Japanese kana, Chinese (pinyin), Cyrillic and Greek in Latin letters (offline); **Translate** adds a translation under each line from [MyMemory](https://mymemory.translated.net) (free, no account, cached per song).
 - **Stats:** listening time, top artists/songs/albums, when in the day you listen, a 26-week heatmap, sources and formats, skips, streaks and new finds, for 4 weeks, 6 months, a year or all time. Arcadia keeps a play log in the music library (what, when, how long, skipped or not); nothing leaves the PC. Recap cards, terminal tables or glass widgets with a daily goal ring.
 - **Trash Bin + Auto Skip:** trash a song or an artist from its menu and Arcadia passes over them when it moves on by itself (gapless included). Auto skip can also pass over explicit songs (iTunes advisory tag, or "(Explicit)" in the title), anything under 30 seconds, live versions and remixes. Picking a song yourself always plays it.
 - **Shuffle+:** right-click the shuffle button for *Spread artists*, *Fewer repeats* (recently played songs drift later), *Favour less played* or *True random*. The current song keeps playing when you switch.
@@ -211,7 +218,7 @@ Shows what you're doing in Arcadia on your Discord profile:
 - **Roblox:** the game, its icon and the server's region, plus a "View game" button and an optional "Join my server" button.
 - **Minecraft:** the instance, version and server.
 - **Library games:** the game and its cover.
-- **Music:** "Listening to", with a progress bar.
+- **Music:** "Listening to", with a progress bar and the album cover. Discord can't see the covers inside your files, so Arcadia finds the same album's cover on Apple Music or Deezer; songs from YouTube use their thumbnail. Each album is looked up once, and the lookup can be switched off.
 - **Browsing:** an optional "Browsing Arcadia" when nothing else is going on.
 
 Games take priority over music.

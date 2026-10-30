@@ -5,10 +5,16 @@
   import Toggle from "../components/Toggle.svelte";
   import { music, pickFolder } from "../lib/api";
   import { app, saveUi, toast } from "../lib/state.svelte";
-  import { MUSIC_SECTIONS, MUSIC_TABS, type MusicPrefs, type MusicSection, type MusicTab } from "../lib/theme";
+  import { MUSIC_SECTIONS, MUSIC_TABS, PRESETS, type MusicPrefs, type MusicSection, type MusicTab, type MusicTheme } from "../lib/theme";
+  import { STYLE_INFO, type GradientStyle } from "../lib/gradient";
+  import GradientPicker from "../components/GradientPicker.svelte";
   import { ms, reloadLibrary } from "./store.svelte";
 
   const p = $derived(app.ui.music);
+  function setTheme<K extends keyof MusicTheme>(k: K, v: MusicTheme[K]) {
+    app.ui.music.theme[k] = v;
+    saveUi();
+  }
   function set<K extends keyof MusicPrefs>(k: K, v: MusicPrefs[K]) {
     app.ui.music[k] = v;
     saveUi();
@@ -101,6 +107,39 @@
         <span class="lbl">Tiled</span><span class="desc">Panes with gaps, like a tiling WM. Keyboard first.</span>
       </button>
     </div>
+  </section>
+
+  <section>
+    <h4>Colours</h4>
+    <p class="desc">Give Music its own colours, apart from the rest of {app.ui.brand.name.trim() || "Arcadia"}.</p>
+    <div class="seg wrap" role="radiogroup" aria-label="Music colours">
+      {#each [["app", "App's"], ["preset", "A look"], ["gradient", "Gradient"], ["cover", "Cover"]] as [id, label]}
+        <button role="radio" aria-checked={p.theme.mode === id} onclick={() => setTheme("mode", id as MusicTheme["mode"])}>{label}</button>
+      {/each}
+    </div>
+    {#if p.theme.mode === "preset"}
+      <div class="looks">
+        {#each Object.values(PRESETS) as pr (pr.id)}
+          <button class="look" class:on={p.theme.preset === pr.id} aria-pressed={p.theme.preset === pr.id} onclick={() => setTheme("preset", pr.id)}>
+            <span class="lk" style:background={pr.colors.panel} style:color={pr.colors.text}><i style:background={pr.colors.accent}></i>Aa</span>{pr.name}
+          </button>
+        {/each}
+      </div>
+    {:else if p.theme.mode === "gradient" || p.theme.mode === "cover"}
+      <div class="setting">
+        <div class="label">Style</div>
+        <div class="seg" role="radiogroup" aria-label="Gradient style">
+          {#each Object.entries(STYLE_INFO) as [id, s] (id)}
+            <button role="radio" aria-checked={p.theme.gradient.style === id} onclick={() => { app.ui.music.theme.gradient.style = id as GradientStyle; saveUi(); }}>{s.name}</button>
+          {/each}
+        </div>
+      </div>
+      {#if p.theme.mode === "gradient"}
+        <GradientPicker bind:top={app.ui.music.theme.gradient.top} bind:bottom={app.ui.music.theme.gradient.bottom} styles={false} onchange={saveUi} />
+      {:else}
+        <p class="desc">Changes with every song: a gradient made from the playing cover's main colour.</p>
+      {/if}
+    {/if}
   </section>
 
   <section>
@@ -201,6 +240,8 @@
     position: absolute; top: 0.6rem; right: 0.6rem; bottom: 0.6rem; width: 340px; z-index: 20; overflow-y: auto;
     padding: 1rem 1.1rem; border-radius: var(--r-lg);
     background: var(--raised); border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+    /* See-through styles (Glow, Faithful, Frost): frost what is behind. */
+    backdrop-filter: blur(22px) saturate(1.3);
     animation: in 0.18s ease-out;
   }
   @keyframes in { from { opacity: 0; transform: translateX(12px); } }
@@ -233,4 +274,11 @@
   select { width: 100%; }
   .scan { font-variant-numeric: tabular-nums; }
   .err { color: var(--rose); }
+  .seg.wrap { flex-wrap: wrap; }
+  .looks { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 0.6rem; }
+  .look { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem; border-radius: var(--r-md); background: transparent; font-size: 0.84rem; }
+  .look.on { border-color: var(--peach); box-shadow: 0 0 0 1px var(--peach); }
+  .lk { width: 38px; height: 28px; border-radius: 6px; display: grid; place-items: center; font-weight: 700; font-size: 0.8rem; position: relative; border: 1px solid rgba(127, 127, 127, 0.3); }
+  .lk i { position: absolute; right: 3px; bottom: 3px; width: 7px; height: 7px; border-radius: 50%; }
+  .drawer :global(.gp) { margin-top: 0.7rem; }
 </style>

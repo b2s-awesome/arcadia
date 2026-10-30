@@ -113,6 +113,9 @@
 
 <div class="lyr {skin}" style:--c={t?.artColor ?? "var(--peach)"}>
   {#if skin === "tonal"}
+    {#if p.ambient && t?.art}
+      <div class="amb" aria-hidden="true"><i style:background-image={`url("${artUrl(t.art)}")`}></i><i style:background-image={`url("${artUrl(t.art)}")`}></i></div>
+    {/if}
     <aside class="k-side">
       {#if t}
         <div class="k-cover"><Art src={t.art} name={t.album} color={t.artColor} radius="18px" /></div>
@@ -183,6 +186,14 @@
 
   /* Karaoke */
   .tonal { display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); gap: 3rem; }
+  /* The cover, twice, huge and blurred, drifting slowly against itself. */
+  .amb { position: absolute; inset: -1.5rem; z-index: 0; overflow: hidden; border-radius: var(--r-lg); pointer-events: none; opacity: 0.42; }
+  .amb i { position: absolute; width: 75%; aspect-ratio: 1; background: center / cover; filter: blur(70px) saturate(1.5); border-radius: 50%; }
+  .amb i:first-child { left: -10%; top: -20%; animation: drift-a 26s ease-in-out infinite alternate; }
+  .amb i:last-child { right: -12%; bottom: -30%; animation: drift-b 32s ease-in-out infinite alternate; transform: rotate(180deg); }
+  @keyframes drift-a { to { transform: translate(18%, 14%) rotate(40deg) scale(1.15); } }
+  @keyframes drift-b { to { transform: translate(-16%, -12%) rotate(220deg) scale(1.1); } }
+  .tonal > aside, .tonal > section { position: relative; z-index: 1; }
   .k-side { display: flex; flex-direction: column; gap: 0.9rem; justify-content: flex-end; }
   .k-side div:has(> b) { display: flex; flex-direction: column; }
   .k-side b { font-size: 1.3rem; }

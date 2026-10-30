@@ -33,11 +33,13 @@ struct Prefs {
     games: bool,
     elapsed: bool,
     hide_names: bool,
+    /// Look up album covers on the web (Discord can't see covers in files).
+    covers: bool,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { client_id: String::new(), idle: false, music: true, roblox: true, roblox_server: true, roblox_join: false, minecraft: true, minecraft_server: true, games: true, elapsed: true, hide_names: false }
+        Self { client_id: String::new(), idle: false, music: true, roblox: true, roblox_server: true, roblox_join: false, minecraft: true, minecraft_server: true, games: true, elapsed: true, hide_names: false, covers: true }
     }
 }
 
@@ -85,12 +87,18 @@ pub struct Music {
     pub playing: bool,
     pub pos: f64,
     pub duration: f64,
+    /// Where an online song came from (its YouTube thumbnail is the cover).
+    pub source_url: Option<String>,
 }
 
 #[derive(Default)]
 struct Inner {
     games: Vec<Entry>,
     music: Option<(Music, u64)>,
+    /// The playing song's cover on the web: (track id, address or none).
+    cover: Option<(i64, Option<String>)>,
+    /// A lookup is running for this track.
+    looking: Option<i64>,
     paused_since: Option<u64>,
     dirty: bool,
     status: Status,
@@ -182,6 +190,26 @@ pub fn music(m: Option<Music>) {
     });
 }
 
+/// Start looking up the playing song's cover, if it isn't known yet.
+fn want_cover(i: &mut Inner) {
+    let Some((m, _)) = &i.music else { return };
+    if i.cover.as_ref().is_some_and(|(id, _)| *id == m.id) || i.looking == Some(m.id) {
+        return;
+    }
+    let m = m.clone();
+    i.looking = Some(m.id);
+    tauri::async_runtime::spawn(async move {
+        let url = arcadia_core::music::covers::find(&m.artist, &m.album, &m.title, m.source_url.as_deref()).await;
+        poke_with(|i| {
+            if i.looking == Some(m.id) {
+                i.looking = None;
+            }
+            i.cover = Some((m.id, url));
+            true
+        });
+    });
+}
+
 fn hide(p: &Prefs, s: &str, generic: &str) -> String {
     if p.hide_names { generic.to_string() } else { s.to_string() }
 }
@@ -240,7 +268,10 @@ fn desired(i: &Inner, p: &Prefs) -> Option<Activity> {
                     kind: 2,
                     details: m.title.clone(),
                     state: if m.artist.is_empty() { "Arcadia Music".into() } else { format!("by {}", m.artist) },
-                    large_image: "music".into(),
+                    large_image: match &i.cover {
+                        Some((id, Some(url))) if *id == m.id && p.covers && !p.hide_names => url.clone(),
+                        _ => "music".into(),
+                    },
                     large_text: if m.album.is_empty() { m.title.clone() } else { m.album.clone() },
                     ..Default::default()
                 };
@@ -317,6 +348,9 @@ pub fn start(app: &AppHandle) {
                     }
                 }
             }
+            if prefs.music && prefs.covers && !prefs.hide_names {
+                want_cover(&mut pr.inner.lock());
+            }
             let want = desired(&pr.inner.lock(), &prefs);
             if last.as_ref() == Some(&want) {
                 continue;
@@ -384,7 +418,7 @@ mod tests {
             started: 5,
             game: Game { kind: Kind::Roblox { place: Some(42), job: Some("j".into()) }, title: "Blox Fruits".into(), detail: Some("London, United Kingdom".into()), image: Some("https://tr.rbxcdn.com/x".into()) },
         };
-        let song = Music { id: 1, title: "Lantern Lights".into(), artist: "Ivy".into(), album: "Glow".into(), playing: true, pos: 30.0, duration: 200.0 };
+        let song = Music { id: 1, title: "Lantern Lights".into(), artist: "Ivy".into(), album: "Glow".into(), playing: true, pos: 30.0, duration: 200.0, source_url: None };
 
         // A game beats music.
         let a = desired(&inner(vec![rbx.clone()], Some(song.clone())), &p).unwrap();
@@ -402,6 +436,12 @@ mod tests {
         let m = desired(&inner(vec![], Some(song.clone())), &p).unwrap();
         assert_eq!(m.kind, 2);
         assert_eq!(m.end.unwrap() - m.start.unwrap(), 200_000);
+        assert_eq!(m.large_image, "music", "no cover known yet");
+        let mut with_cover = inner(vec![], Some(song.clone()));
+        with_cover.cover = Some((1, Some("https://is1-ssl.mzstatic.com/x/600x600bb.jpg".into())));
+        assert!(desired(&with_cover, &p).unwrap().large_image.starts_with("https://"));
+        with_cover.cover = Some((2, Some("https://other".into())));
+        assert_eq!(desired(&with_cover, &p).unwrap().large_image, "music", "a cover for another song isn't used");
 
         // Turned off, nothing (idle is off by default).
         assert!(desired(&inner(vec![rbx], Some(song)), &Prefs { roblox: false, music: false, ..p.clone() }).is_none());
