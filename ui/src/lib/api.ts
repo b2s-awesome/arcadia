@@ -1,6 +1,6 @@
 // Every call into the Rust side goes through here. Outside Tauri (plain
 // browser during design work) a mock backend answers instead.
-import type {
+import type { DupeGroup,
   DeviceCode, FoundInstance, Hit, McPack, McWorld, McBackup, McShot, McSavedServer, McServerStatus, McUpdate, McLogFile, McCrashInfo, McSkin, McProfile, McExportOptions, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
   Entry, Game, GameMeta, GameCollection, LibraryMeta, SgdbFound, SgdbArt, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RobloxAccount, RobloxAccounts, RobloxGame, RobloxHistory, RobloxServer, RuleConfig, ScanReport, Settings, RulesImported,
   MusicPlaylist, MusicScanReport, MusicStatus, QueueView, RepeatMode, Track, ShuffleMode, ListenStats, Lyrics,
@@ -308,6 +308,8 @@ export const music = {
   spectrum: (bands: number) => call<number[]>("music_spectrum", { bands }),
   spectrumStop: () => call<void>("music_spectrum_stop"),
   queueTool: (tool: "dedupe" | "clearPlayed" | "shuffleRest") => call<void>("music_queue_tool", { tool }),
+  duplicates: (min: number) => call<DupeGroup[]>("music_duplicates", { min }),
+  recycle: (ids: number[]) => call<number>("music_recycle", { ids }),
   stats: (since: number | null, days = 182) => call<ListenStats>("music_stats", { since, tz: new Date().getTimezoneOffset(), days }),
 };
 

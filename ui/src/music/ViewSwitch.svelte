@@ -10,6 +10,7 @@
   import Search from "./views/Search.svelte";
   import Online from "./views/Online.svelte";
   import Downloads from "./views/Downloads.svelte";
+  import Duplicates from "./views/Duplicates.svelte";
   import { streamingOn } from "./streaming.svelte";
   import { ms } from "./store.svelte";
   import { app } from "../lib/state.svelte";
@@ -27,6 +28,7 @@
 {:else if v.kind === "playlists"}<div class="ph"><h2>Playlists</h2></div><Playlists />
 {:else if v.kind === "playlist"}<Playlist id={v.id} />
 {:else if v.kind === "search"}<Search q={v.q} />
+{:else if v.kind === "duplicates"}<Duplicates />
 {:else if v.kind === "online"}{#if streamingOn()}<Online />{:else}<p class="muted">Add Streaming & downloads from the Marketplace to search online.</p>{/if}
 {:else if v.kind === "downloads"}{#if streamingOn()}<Downloads />{:else}<p class="muted">Add Streaming & downloads from the Marketplace to download music.</p>{/if}
 {:else if v.kind === "lyrics"}{#if has("lyrics-plus")}{#await import("../addons/lyrics/LyricsView.svelte") then m}<m.default />{/await}{:else}<p class="muted">Add Lyrics Plus from the Marketplace for synced lyrics.</p>{/if}

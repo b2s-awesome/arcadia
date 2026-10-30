@@ -422,6 +422,15 @@ export interface ListenStats {
 
 // ── Lyrics Plus addon ─────────────────────────────────────────
 export interface LyricWord { t: number; text: string }
+export interface DupePair {
+  a: number; b: number;
+  /** 0–100 */
+  certainty: number;
+  title: number; artist: number; length: number; file: number;
+  sameFileSize: boolean; versionClash: boolean;
+}
+/** Best copy first. */
+export interface DupeGroup { ids: number[]; certainty: number; pairs: DupePair[] }
 export interface LyricLine { t: number | null; text: string; words?: LyricWord[] }
 export interface Lyrics { synced: boolean; words: boolean; source: "file" | "tags" | "lrclib" | "yours"; lines: LyricLine[]; instrumental: boolean }
 export interface QueueView { index: number | null; tracks: Track[] }

@@ -60,7 +60,7 @@ impl RuleConfig {
 
     pub fn save(&self) -> anyhow::Result<()> {
         crate::paths::ensure_all()?;
-        std::fs::write(crate::paths::proxy_dir().join("rules.json"), serde_json::to_vec_pretty(self)?)?;
+        crate::paths::write_atomic(&crate::paths::proxy_dir().join("rules.json"), &serde_json::to_vec_pretty(self)?)?;
         Ok(())
     }
 

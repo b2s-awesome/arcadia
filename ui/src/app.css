@@ -52,6 +52,7 @@ a { color: var(--lilac); }
 
 ::selection { background: var(--lilac); color: var(--ink); }
 :focus-visible { outline: 2px solid var(--lilac); outline-offset: 2px; }
+[data-pointer-focus]:focus-visible { outline: none; }
 
 button {
   font: inherit;
@@ -160,11 +161,11 @@ input[type="range"] { padding: 0; border: 0; background: transparent; accent-col
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-track { background: transparent; }
 
-@media (prefers-reduced-motion: reduce) {
-  /* .motion-ok opts a subtree back in (the splash, when the user asks). */
-  *:not(.motion-ok, .motion-ok *), *:not(.motion-ok, .motion-ok *)::before, *:not(.motion-ok, .motion-ok *)::after {
-    transition: none !important; animation: none !important;
-  }
+/* Still: Motion "off", or "Follow Windows" with Windows' animation effects
+   off (see stillMotion). .motion-ok opts a subtree back in (the splash, when
+   the user asks). */
+:root[data-still="true"] *:not(.motion-ok, .motion-ok *), :root[data-still="true"] *:not(.motion-ok, .motion-ok *)::before, :root[data-still="true"] *:not(.motion-ok, .motion-ok *)::after {
+  transition: none !important; animation: none !important;
 }
 
 /* Motion: Appearance → Motion & sound. "off" stops animation everywhere. */

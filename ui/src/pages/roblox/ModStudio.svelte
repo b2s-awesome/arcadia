@@ -264,7 +264,7 @@
   .blob.c { width: 35%; height: 35%; left: 40%; top: 40%; background: #ff7bd5; animation: float 19s ease-in-out infinite alternate; }
   @keyframes drift { 0% { background-position: 0% 50%; } 100% { background-position: 100% 50%; } }
   @keyframes float { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(30%, -20%) scale(1.25); } }
-  @media (prefers-reduced-motion: reduce) { .bg, .blob { animation: none; } }
+  /* Holding still is handled app-wide (data-still). */
   .pointer { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; color: #fff; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.5)); transition: left 0.35s ease, top 0.35s ease; pointer-events: none; }
   .pointer.free { transition: none; }
   .pointer img { width: 64px; height: 64px; image-rendering: auto; }

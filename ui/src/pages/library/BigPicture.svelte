@@ -215,5 +215,5 @@
   .mark { position: absolute; left: 0.7rem; right: 0.7rem; bottom: 0.9rem; font-family: var(--display); font-weight: 800; font-size: 1.3rem; line-height: 1.05; text-align: left; }
   footer { display: flex; gap: 2rem; padding: 0.9rem 3rem 1.4rem; font-size: 0.9rem; opacity: 0.75; }
   kbd { display: inline-block; min-width: 1.6em; padding: 0.05rem 0.4rem; margin-right: 0.3rem; border-radius: 6px; background: rgb(255 255 255 / 0.14); border: 1px solid rgb(255 255 255 / 0.2); font-family: var(--body); font-size: 0.78rem; font-weight: 700; text-align: center; }
-  @media (prefers-reduced-motion: reduce) { .card, .bg { transition: none; animation: none; } }
+  /* Holding still is handled app-wide (data-still). */
 </style>

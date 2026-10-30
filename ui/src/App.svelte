@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { installFocusRing } from "./lib/focusRing";
   import { api, fileUrl, on, win, windowLabel } from "./lib/api";
   import { mcs, popOut } from "./lib/mc.svelte";
   import { app, loadSettings, reloadSettings, saveSettings, saveUi, toast, type Page } from "./lib/state.svelte";
@@ -9,7 +10,7 @@
   import Marketplace from "./pages/Marketplace.svelte";
   import Music from "./music/Music.svelte";
   import { initPlayer, ms, next as musicNext, prev as musicPrev, setVolume, toggle as musicToggle } from "./music/store.svelte";
-  import { applyFeel, applyLook, defaultLook, PRESETS, SPLASH_MS, wallpaperUrl, type PresetId } from "./lib/theme";
+  import { applyFeel, applyLook, defaultLook, PRESETS, SPLASH_MS, stillMotion, wallpaperUrl, type PresetId } from "./lib/theme";
   import { play as playSound } from "./lib/sounds";
   import { installMotion } from "./lib/motion";
   import { handleKey, onAction, pageAction, syncGlobal } from "./lib/keys.svelte";
@@ -155,8 +156,7 @@
   // The popped-out Minecraft window skips it.
   let splash = $state(app.mode === "hub" && new URLSearchParams(location.search).get("splash") !== "0");
   let splashReady = $state(false);
-  const reduced = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const splashStill = $derived(reduced && !app.ui.splash.animateAlways);
+  const splashStill = $derived(stillMotion(app.ui.feel) && !app.ui.splash.animateAlways);
   $effect(() => {
     if (!splash || !app.settings) return;
     const length = app.ui.splash.length;
@@ -251,6 +251,7 @@
     toastCount = n;
   });
   $effect(() => installMotion(() => app.ui.feel));
+  onMount(installFocusRing);
 
   let myLabel = "main";
   onMount(() => {
@@ -482,7 +483,7 @@
     min-height: 0;
     display: grid;
     grid-template-columns: 216px 1fr;
-    background: var(--panel);
+    background: var(--panel-fill, var(--panel));
     backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
     border: 1px solid var(--line-soft);
     border-radius: var(--r-win);

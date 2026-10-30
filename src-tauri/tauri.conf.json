@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: asset: http://asset.localhost https://shared.steamstatic.com https://shared.akamai.steamstatic.com https://cdn.cloudflare.steamstatic.com https://*.rbxcdn.com https://cdn.modrinth.com https://media.forgecdn.net https://crafatar.com https://mc-heads.net https://i.ytimg.com https://*.ytimg.com https://*.googleusercontent.com https://*.ggpht.com https://*.sndcdn.com https://*.bcbits.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src ipc: http://ipc.localhost",
+      "csp": "default-src 'self'; img-src 'self' data: asset: http://asset.localhost https://shared.steamstatic.com https://shared.akamai.steamstatic.com https://cdn.cloudflare.steamstatic.com https://*.rbxcdn.com https://cdn.modrinth.com https://media.forgecdn.net https://crafatar.com https://mc-heads.net https://i.ytimg.com https://*.ytimg.com https://*.googleusercontent.com https://*.ggpht.com https://*.sndcdn.com https://*.bcbits.com https://*.mzstatic.com https://*.dzcdn.net https://litter.catbox.moe; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src ipc: http://ipc.localhost",
       "assetProtocol": {
         "enable": true,
         "scope": [

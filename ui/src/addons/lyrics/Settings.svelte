@@ -48,6 +48,20 @@
   <div class="row"><input type="range" min="28" max="96" step="2" value={p.size} oninput={(e) => set("size", +(e.currentTarget as HTMLInputElement).value)} aria-label="Line size" /><span class="num">{p.size}px</span></div>
 </div>
 <div class="setting"><div><div class="label">Word by word</div><div class="desc">Fill each word as it's sung, when the lyrics have word timings.</div></div><Toggle label="Word by word" checked={p.words} onchange={(v) => set("words", v)} /></div>
+<div class="setting"><div><div class="label">Karaoke fill</div><div class="desc">Fill the line as it's sung even without word timings, timed so vowels are held longer, like Riff.</div></div><Toggle label="Karaoke fill" checked={p.sweep} onchange={(v) => set("sweep", v)} /></div>
+<div class="setting"><div><div class="label">Depth blur</div><div class="desc">Lines further from the one being sung go softly out of focus.</div></div><Toggle label="Depth blur" checked={p.blur} onchange={(v) => set("blur", v)} /></div>
+<div class="setting"><div><div class="label">Glow behind Karaoke</div><div class="desc">The cover, blurred and slowly drifting, behind the Karaoke page.</div></div><Toggle label="Glow behind Karaoke" checked={p.ambient} onchange={(v) => set("ambient", v)} /></div>
+<div class="setting col">
+  <div><div class="label">How lines move</div><div class="desc">Lines roll in as a wave; this sets the curve and the speed.</div></div>
+  <div class="row">
+    <div class="seg" role="radiogroup" aria-label="How lines move">
+      {#each [["smooth", "Smooth"], ["snappy", "Snappy"], ["springy", "Springy"], ["gentle", "Gentle"], ["linear", "Linear"]] as [id, label]}
+        <button role="radio" aria-checked={p.ease === id} onclick={() => set("ease", id as LyricsPrefs["ease"])}>{label}</button>
+      {/each}
+    </div>
+    <input type="range" min="0.5" max="2.5" step="0.1" value={p.speed} oninput={(e) => set("speed", +(e.currentTarget as HTMLInputElement).value)} aria-label="Line speed" /><span class="num">{p.speed.toFixed(1)}×</span>
+  </div>
+</div>
 <div class="setting"><div><div class="label">Look online (LRCLIB)</div><div class="desc">When there's no .lrc file or lyrics in the song's tags, ask lrclib.net, a free and open lyrics database. Sends the title, artist, album and length.</div></div><Toggle label="Look online" checked={p.online} onchange={(v) => set("online", v)} /></div>
 <div class="setting"><div><div class="label">Save .lrc beside songs</div><div class="desc">Write lyrics found online (and your timings) as .lrc files next to your own songs, so other players see them too. Never replaces a file that's there.</div></div><Toggle label="Save .lrc files" checked={p.sidecar} onchange={(v) => set("sidecar", v)} /></div>
 <div class="setting"><div><div class="label">Romanise</div><div class="desc">Korean, Japanese kana, Chinese (pinyin), Cyrillic and Greek in Latin letters under each line. Done on your PC.</div></div><Toggle label="Romanise" checked={p.romanise} onchange={(v) => set("romanise", v)} /></div>

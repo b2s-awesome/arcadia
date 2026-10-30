@@ -431,6 +431,8 @@ impl Music {
             playing: s.playing,
             pos: s.pos,
             duration: s.duration,
+            source_url: t.source_url.clone(),
+            art: t.art.clone(),
         }));
         let _ = app.emit("music-status", s);
     }
@@ -1009,4 +1011,44 @@ pub async fn music_stats(app: AppHandle, since: Option<i64>, tz: i64, days: Opti
     let m = m(&app)?;
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
     blocking(move || m.lib.stats(since, now, -tz * 60, days.unwrap_or(182).clamp(7, 400))).await
+}
+
+// ───────────────────────── duplicates ─────────────────────────
+
+/// Duplicate songs, best copy first in each group. `min`: the lowest
+/// certainty to show, 50–100.
+#[tauri::command]
+pub async fn music_duplicates(app: AppHandle, min: f64) -> Res<Vec<arcadia_core::music::dupes::Group>> {
+    let m = m(&app)?;
+    blocking(move || {
+        let tracks = m.lib.tracks()?;
+        let sizes = m.lib.sizes()?;
+        Ok(arcadia_core::music::dupes::find(&tracks, min.clamp(50.0, 100.0), |t| sizes.get(&t.id).copied()))
+    })
+    .await
+}
+
+/// Move songs' files to the Recycle Bin (so they can be restored from
+/// there) and take them out of the library. Online songs without a file
+/// of their own are only taken out.
+#[tauri::command]
+pub async fn music_recycle(app: AppHandle, ids: Vec<i64>) -> Res<usize> {
+    let m = m(&app)?;
+    let h = app.clone();
+    let n = blocking(move || {
+        let mut files = Vec::new();
+        for id in &ids {
+            if let Some(p) = m.lib.file_of(*id).filter(|p| p.is_file()) {
+                files.push(p);
+            }
+        }
+        if !files.is_empty() {
+            trash::delete_all(&files).map_err(|e| anyhow::anyhow!("Couldn't move the files to the Recycle Bin: {e}"))?;
+        }
+        m.lib.forget(&ids)?;
+        Ok(ids.len())
+    })
+    .await?;
+    let _ = h.emit("music-library-changed", ());
+    Ok(n)
 }

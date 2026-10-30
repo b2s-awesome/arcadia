@@ -39,7 +39,8 @@ export type MusicView =
   | { kind: "online" }
   | { kind: "downloads" }
   | { kind: "lyrics" }
-  | { kind: "stats" };
+  | { kind: "stats" }
+  | { kind: "duplicates" };
 
 export const ms = $state({
   loaded: false,

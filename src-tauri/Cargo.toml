@@ -11,6 +11,8 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 arcadia-core = { path = "../crates/core" }
 arcadia-audio = { path = "../crates/audio" }
+raw-window-handle = "0.6"
+trash = "5"
 tauri = { version = "2", features = ["tray-icon", "protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
@@ -33,3 +35,4 @@ custom-protocol = ["tauri/custom-protocol"]
 # Windows' media overlay and hardware media keys (System Media Transport Controls).
 [target.'cfg(windows)'.dependencies]
 souvlaki = { version = "0.9", default-features = false }
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }

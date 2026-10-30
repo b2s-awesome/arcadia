@@ -9,6 +9,7 @@
   import Tiled from "./Tiled.svelte";
   import ViewSwitch from "./ViewSwitch.svelte";
   import { inkFor } from "./colour";
+  import { musicVars } from "../lib/theme";
   import { musicKeys } from "./keys";
   import { back, go, initMusic, ms, type MusicView } from "./store.svelte";
   import { initStreaming, sx, visibleTabs } from "./streaming.svelte";
@@ -20,6 +21,9 @@
   const busy = $derived(sx.jobs.filter((j) => j.state === "running" || j.state === "queued").length);
 
   const prefs = $derived(app.ui.music);
+  // Music's own colours, when it has them (Customise → Colours).
+  const own = $derived(musicVars(prefs.theme, app.ui.look, ms.status?.track?.artColor ?? null));
+  const ownStyle = $derived(own ? Object.entries(own.vars).map(([k, v]) => `${k}:${v}`).join(";") : undefined);
   // Colour from the playing cover, or the look's accent.
   const accent = $derived(prefs.artColours ? (ms.status?.track?.artColor ?? null) : null);
 
@@ -78,7 +82,7 @@
 
 <svelte:window onkeydown={keys} />
 
-<div class="music" style:--m-accent={accent ?? undefined} style:--m-ink={accent ? inkFor(accent) : undefined} style:--m-tint={prefs.artColours ? "16%" : "0%"}>
+<div class="music" class:own={!!own} data-scheme={own?.scheme} style={ownStyle} style:--m-accent={accent ?? undefined} style:--m-ink={accent ? inkFor(accent) : undefined} style:--m-tint={prefs.artColours ? "16%" : "0%"}>
   {#if prefs.layout === "tiled"}
     <Tiled />
   {:else}
@@ -119,6 +123,10 @@
 
 <style>
   .music { height: 100%; min-height: 0; position: relative; }
+  /* Its own theme: paint the page with it, edge to edge. */
+  .music.own { background: var(--panel-fill, var(--panel)); color: var(--text); font-family: var(--body); color-scheme: light dark; transition: background 0.6s ease; }
+  .music.own[data-scheme="light"] { color-scheme: light; }
+  .music.own[data-scheme="dark"] { color-scheme: dark; }
   .tonal {
     height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); min-height: 0;
     background: linear-gradient(180deg, color-mix(in srgb, var(--m-accent, var(--peach)) calc(var(--m-tint) * 0.6), transparent), transparent 340px);

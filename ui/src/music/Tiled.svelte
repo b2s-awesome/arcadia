@@ -17,6 +17,17 @@
   const prefs = $derived(app.ui.music);
   const t = $derived(ms.status?.track ?? null);
   let open: Record<string, boolean> = $state({});
+  // The tree's groups fold, and long artist lists scroll in their own box
+  // with a finder, so the pane never runs off the bottom.
+  // Artists start folded: big libraries have hundreds. The choice is kept.
+  const saved = (() => { try { return JSON.parse(localStorage.getItem("arcadia.tiled.shut") ?? "null"); } catch { return null; } })();
+  let shut = $state<{ playlists: boolean; artists: boolean }>({ playlists: false, artists: true, ...(saved ?? {}) });
+  $effect(() => {
+    const v = JSON.stringify(shut);
+    try { localStorage.setItem("arcadia.tiled.shut", v); } catch { /* private window */ }
+  });
+  let aq = $state("");
+  const artists = $derived(aq.trim() ? lib.artists.filter((a) => a.name.toLowerCase().includes(aq.trim().toLowerCase())) : lib.artists);
   let q = $state("");
   let filterEl: HTMLInputElement | undefined = $state();
 
@@ -65,12 +76,24 @@
       {#each lists as l}
         <button class:sel={isOn({ kind: l.kind } as MusicView)} onclick={() => go({ kind: l.kind } as MusicView)}><Icon name={l.icon} size={14} /> {l.label}</button>
       {/each}
-      <div class="group">playlists</div>
-      {#each ms.playlists as p (p.id)}
-        <button class:sel={isOn({ kind: "playlist", id: p.id })} onclick={() => go({ kind: "playlist", id: p.id })}>≡ {p.name}</button>
-      {/each}
-      <div class="group">artists</div>
-      {#each lib.artists as a (a.name)}
+    </div>
+    <button class="group" aria-expanded={!shut.playlists} onclick={() => (shut.playlists = !shut.playlists)}><span class="tw">{shut.playlists ? "▸" : "▾"}</span> playlists <span class="n">{ms.playlists.length}</span></button>
+    {#if !shut.playlists}
+      <div class="items sub mscroll">
+        {#each ms.playlists as p (p.id)}
+          <button class:sel={isOn({ kind: "playlist", id: p.id })} onclick={() => go({ kind: "playlist", id: p.id })}>≡ {p.name}</button>
+        {:else}
+          <span class="none">none yet</span>
+        {/each}
+      </div>
+    {/if}
+    <div class="group-row">
+      <button class="group" aria-expanded={!shut.artists} onclick={() => (shut.artists = !shut.artists)}><span class="tw">{shut.artists ? "▸" : "▾"}</span> artists <span class="n">{lib.artists.length}</span></button>
+      {#if !shut.artists && lib.artists.length > 12}<input class="afind" bind:value={aq} placeholder="find" aria-label="Find an artist" />{/if}
+    </div>
+    {#if !shut.artists}
+    <div class="items artists mscroll">
+      {#each artists as a (a.name)}
         <button class="ar" class:sel={isOn({ kind: "artist", name: a.name })} onclick={() => { open[a.name] = !open[a.name]; go({ kind: "artist", name: a.name }); }}>
           <span class="tw">{open[a.name] ? "▾" : "▸"}</span> {a.name}
         </button>
@@ -79,8 +102,11 @@
             <button class="al" class:sel={isOn({ kind: "album", key: al.key })} onclick={() => go({ kind: "album", key: al.key })}>{t && al.tracks.some((x) => x.id === t.id) ? "◉" : "○"} {al.title}</button>
           {/each}
         {/if}
+      {:else}
+        <span class="none">{aq ? "no match" : "no artists yet"}</span>
       {/each}
     </div>
+    {/if}
   </nav>
 
   <section class="pane main focus" aria-label={title}>
@@ -144,7 +170,18 @@
   .tiled.noqueue { grid-template-columns: 220px minmax(0, 1fr) 250px; }
   .pane { background: var(--sunk); border: 1px solid var(--line); border-radius: var(--r-sm); min-height: 0; display: flex; flex-direction: column; position: relative; }
   .pane.focus { border-color: var(--m-accent, var(--peach)); box-shadow: inset 0 0 0 1px var(--m-accent, var(--peach)); }
-  .tree { grid-area: tree; overflow-y: auto; }
+  .tree { grid-area: tree; overflow: hidden; }
+  .tree .items { flex: none; }
+  .tree .items.sub { max-height: 28%; overflow-y: auto; flex-shrink: 1; min-height: 2.4rem; padding: 0 0 0.3rem; }
+  .tree .items.artists { flex: 1 1 0; min-height: 4rem; overflow-y: auto; padding-top: 0; }
+  .group-row { display: flex; align-items: center; gap: 0.3rem; padding-right: 0.5rem; }
+  .group-row .group { flex: 1; }
+  button.group { display: flex; align-items: center; gap: 0.4rem; border: 0; background: transparent; font: inherit; text-align: left; width: 100%; border-radius: 0; }
+  button.group:hover { color: var(--text); background: transparent; }
+  .group .n { margin-left: auto; font-size: 0.72rem; }
+  .group-row .group .n { margin-left: 0.3rem; }
+  .afind { width: 6.5rem; font: inherit; font-size: 0.76rem; padding: 0.12rem 0.4rem; border-radius: 4px; }
+  .none { color: var(--faint); padding: 0.2rem 0.7rem; font-size: 0.78rem; }
   .main { grid-area: main; }
   .side { grid-area: side; }
   .bottom { grid-area: bottom; flex-direction: row; align-items: center; gap: 1rem; padding: 0.5rem 0.9rem; flex-wrap: wrap; }
@@ -152,7 +189,9 @@
   .ph.sub { border-top: 1px solid var(--line-soft); }
   .name { color: var(--m-accent, var(--peach)); font-weight: 700; }
   .items { display: flex; flex-direction: column; padding: 0.3rem 0; }
-  .items button { display: flex; align-items: center; gap: 0.45rem; border: 0; border-radius: 0; background: transparent; padding: 0.22rem 0.7rem; font: inherit; font-weight: 500; color: var(--text); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* flex-shrink 0: in a short pane, rows must scroll, never squash together. */
+  .items > * { flex-shrink: 0; }
+  .items button { display: flex; align-items: center; gap: 0.45rem; border: 0; border-radius: 0; background: transparent; padding: 0.3rem 0.7rem; font: inherit; line-height: 1.35; font-weight: 500; color: var(--text); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .items button:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
   .items button.sel { background: var(--m-accent, var(--peach)); color: var(--m-ink, var(--peach-ink)); font-weight: 700; }
   .items .al { padding-left: 1.9rem; color: var(--muted); }

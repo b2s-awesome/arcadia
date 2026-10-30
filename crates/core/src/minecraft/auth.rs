@@ -17,11 +17,18 @@ const SCOPE: &str = "XboxLive.signin offline_access";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceCode {
+    // Microsoft replies in snake_case; the UI sends it back in camelCase.
+    // The aliases let the same struct read both.
+    #[serde(alias = "user_code")]
     pub user_code: String,
+    #[serde(alias = "device_code")]
     pub device_code: String,
+    #[serde(alias = "verification_uri")]
     pub verification_uri: String,
+    #[serde(alias = "expires_in")]
     pub expires_in: u64,
     pub interval: u64,
+    #[serde(default)]
     pub message: String,
 }
 
@@ -54,7 +61,7 @@ fn load_store() -> Store {
 fn save_store(s: &Store) -> Result<()> {
     std::fs::create_dir_all(super::dir())?;
     let p = store_path();
-    std::fs::write(&p, serde_json::to_vec_pretty(s)?)?;
+    crate::paths::write_atomic(&p, &serde_json::to_vec_pretty(s)?)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

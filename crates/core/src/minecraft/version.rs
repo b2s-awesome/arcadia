@@ -327,7 +327,7 @@ pub fn load_local(id: &str) -> Result<VersionJson> {
 pub fn save_local(v: &VersionJson) -> Result<()> {
     let p = local_path(&v.id);
     std::fs::create_dir_all(p.parent().unwrap())?;
-    std::fs::write(p, serde_json::to_vec_pretty(v)?)?;
+    crate::paths::write_atomic(&p, &serde_json::to_vec_pretty(v)?)?;
     Ok(())
 }
 

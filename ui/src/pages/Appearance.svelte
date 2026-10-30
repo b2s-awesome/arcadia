@@ -2,7 +2,7 @@
   import { api, fileUrl, pickFile } from "../lib/api";
   import { app, saveUi, toast, focus } from "../lib/state.svelte";
   import {
-    ACCENTS, BUILTIN_WALLPAPERS, DEFAULT_BRAND, DEFAULT_HOME, PRESETS, defaultLook, resolve, wallpaperUrl,
+    ACCENTS, BUILTIN_WALLPAPERS, DEFAULT_BRAND, DEFAULT_HOME, PRESETS, defaultLook, osReducedMotion, resolve, wallpaperUrl,
     type FontChoice, type Look, type PresetId, type RadiusChoice,
   } from "../lib/theme";
   import Toggle from "../components/Toggle.svelte";
@@ -10,6 +10,8 @@
   import { allNav } from "../lib/nav";
   import { addonById } from "../addons/registry";
   import TreeTabs, { type TreeNode } from "../components/TreeTabs.svelte";
+  import GradientPicker from "../components/GradientPicker.svelte";
+  import { STYLE_INFO } from "../lib/gradient";
   import Profiles from "./appearance/Profiles.svelte";
   import Feel from "./appearance/Feel.svelte";
   import Keys from "./appearance/Keys.svelte";
@@ -25,7 +27,8 @@
   function setPreset(id: PresetId) {
     // Keep a custom wallpaper; take the preset's for built-ins.
     const custom = look.wallpaper && !look.wallpaper.startsWith("builtin:") ? look.wallpaper : null;
-    app.ui.look = { ...defaultLook(id), ...(custom ? { wallpaper: custom } : {}) };
+    // Picking a look turns the gradient off but keeps its colours for later.
+    app.ui.look = { ...defaultLook(id), ...(custom ? { wallpaper: custom } : {}), gradient: { ...look.gradient, on: false } };
     changed();
   }
   function set<K extends keyof Look>(k: K, v: Look[K]) {
@@ -116,7 +119,7 @@
   const settingAddons = $derived(app.ui.addons.installed.map(addonById).filter((a) => a?.settings));
 
   // ── Splash ───────────────────────────────────────────────
-  const motionOff = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const motionOff = osReducedMotion();
   const splashLengths = [
     { id: "off", label: "Off" },
     { id: "short", label: "Short" },
@@ -133,6 +136,7 @@
       { id: "look-saved", label: "Saved looks", badge: app.ui.saved.length || "" },
       { id: "look-wallpaper", label: "Wallpaper" },
       { id: "look-window", label: "Window & colour" },
+      { id: "look-gradient", label: "Profile gradient", badge: look.gradient.on ? STYLE_INFO[look.gradient.style].name : "" },
     ] },
     { id: "feel", label: "Feel", icon: "sparkle", children: [
       { id: "feel-motion", label: "Motion & sound", badge: app.ui.feel.sounds !== "off" ? "♪" : "" },
@@ -387,6 +391,18 @@
       </div>
     </section>
 
+    {/if}
+
+    {#if show("look-gradient")}
+    <section class="section">
+      <h3>Profile gradient</h3>
+      <p class="hint">Discord's two-colour Nitro profile colours, for the whole of {app.ui.brand.name.trim() || "Arcadia"}. Fonts, corners and the wallpaper stay with your look; the gradient takes over the colours.</p>
+      <div class="setting">
+        <div><div class="label">Use a profile gradient</div><div class="desc">{look.gradient.on ? `${STYLE_INFO[look.gradient.style].name}: ${STYLE_INFO[look.gradient.style].blurb}` : `Off: colours come from ${PRESETS[look.preset].name}.`}</div></div>
+        <Toggle label="Use a profile gradient" checked={look.gradient.on} onchange={(v) => { app.ui.look.gradient.on = v; changed(); }} />
+      </div>
+      <GradientPicker bind:top={app.ui.look.gradient.top} bind:bottom={app.ui.look.gradient.bottom} bind:style={app.ui.look.gradient.style} onchange={() => { app.ui.look.gradient.on = true; changed(); }} />
+    </section>
     {/if}
 
     {#if show("look-window")}
