@@ -119,17 +119,28 @@ pub(crate) fn launch(app: &AppHandle, game: &Game) -> Res<()> {
     run_script(&m.before, dir.as_deref(), true);
     library::launch(&target).map_err(err)?;
     let track = app.state::<AppState>().settings.lock().track_playtime;
-    if !track && m.after.trim().is_empty() {
-        return Ok(());
-    }
     let (h, id, after, name) = (app.clone(), game.id.clone(), m.after.clone(), game.name.clone());
     let exe_dir = match &game.launch {
         LaunchTarget::Exe { path, .. } => std::path::Path::new(path).parent().map(|p| p.to_string_lossy().to_string()),
         _ => None,
     };
     let watch_dir = dir.or(exe_dir);
+    // Discord presence while it runs (needs a folder to watch for the end).
+    let pkey = format!("game:{}", game.id);
+    if watch_dir.is_some() {
+        let cover = m.cover.clone().or_else(|| game.cover.clone()).filter(|c| c.starts_with("https://")).or_else(|| {
+            game.id.strip_prefix("steam:").map(|id| format!("https://shared.steamstatic.com/store_item_assets/steam/apps/{id}/library_600x900.jpg"))
+        });
+        crate::presence::game_start(&pkey, crate::presence::Game {
+            kind: crate::presence::Kind::Game { launcher: game.source.label().to_string() },
+            title: m.rename.clone().filter(|r| !r.trim().is_empty()).unwrap_or_else(|| game.name.clone()),
+            detail: None,
+            image: cover,
+        });
+    }
     std::thread::spawn(move || {
         let secs = watch_dir.as_deref().map(watch).unwrap_or(0);
+        crate::presence::game_end(&pkey);
         if track && secs > 0 {
             let _ = meta::add_play(&id, secs, now());
             let _ = h.emit("library-played", serde_json::json!({ "id": id, "name": name, "seconds": secs }));

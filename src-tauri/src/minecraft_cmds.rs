@@ -229,6 +229,17 @@ pub async fn mc_play(app: AppHandle, id: String, join: Option<String>) -> Res<()
         st.mc_running.lock().insert(id.clone(), pid);
     }
     let _ = app.emit("mc-started", &id);
+    let pkey = format!("mc:{id}");
+    crate::presence::game_start(&pkey, crate::presence::Game {
+        kind: crate::presence::Kind::Minecraft {
+            version: inst.mc_version.clone(),
+            loader: inst.loader.label().to_string(),
+            server: join.clone().filter(|j| !j.trim().is_empty()).or_else(|| (!inst.auto_join.trim().is_empty()).then(|| inst.auto_join.clone())),
+        },
+        title: inst.name.clone(),
+        detail: None,
+        image: None,
+    });
 
     for stream in [child.stdout.take().map(|s| Box::new(s) as Box<dyn tokio::io::AsyncRead + Unpin + Send>), child.stderr.take().map(|s| Box::new(s) as _)].into_iter().flatten() {
         let h = app.clone();
@@ -253,6 +264,7 @@ pub async fn mc_play(app: AppHandle, id: String, join: Option<String>) -> Res<()
     tauri::async_runtime::spawn(async move {
         let code = child.wait().await.ok().and_then(|s| s.code());
         let secs = started.elapsed().as_secs();
+        crate::presence::game_end(&pkey);
         h.state::<AppState>().mc_running.lock().remove(&iid);
         if let Ok(mut i) = instance::get(&iid) {
             i.playtime_secs += secs;

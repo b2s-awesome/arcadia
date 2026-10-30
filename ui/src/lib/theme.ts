@@ -333,6 +333,34 @@ export interface ProfilePrefs {
   active: string | null;
 }
 
+/** Discord Rich Presence addon. */
+export interface PresencePrefs {
+  clientId: string;
+  idle: boolean;
+  music: boolean;
+  roblox: boolean;
+  robloxServer: boolean;
+  robloxJoin: boolean;
+  minecraft: boolean;
+  minecraftServer: boolean;
+  games: boolean;
+  elapsed: boolean;
+  hideNames: boolean;
+}
+export const DEFAULT_PRESENCE: PresencePrefs = {
+  clientId: "", idle: false, music: true, roblox: true, robloxServer: true, robloxJoin: false,
+  minecraft: true, minecraftServer: true, games: true, elapsed: true, hideNames: false,
+};
+export function normalizePresence(v: Partial<PresencePrefs> | undefined): PresencePrefs {
+  const out = { ...DEFAULT_PRESENCE };
+  if (!v || typeof v !== "object") return out;
+  for (const k of Object.keys(DEFAULT_PRESENCE) as (keyof PresencePrefs)[]) {
+    if (k === "clientId") out.clientId = typeof v.clientId === "string" ? v.clientId.replace(/\D/g, "").slice(0, 20) : "";
+    else if (typeof v[k] === "boolean") (out as Record<string, unknown>)[k] = v[k];
+  }
+  return out;
+}
+
 export interface UiState {
   brand: Brand;
   look: Look;
@@ -354,6 +382,7 @@ export interface UiState {
   feel: FeelPrefs;
   keys: KeyPrefs;
   profiles: ProfilePrefs;
+  presence: PresencePrefs;
 }
 
 interface Preset {
@@ -502,6 +531,7 @@ export function defaultUi(): UiState {
     feel: { ...DEFAULT_FEEL },
     keys: { bindings: {}, global: [] },
     profiles: { list: [], active: null },
+    presence: { ...DEFAULT_PRESENCE },
   };
 }
 
@@ -543,6 +573,7 @@ export function normalizeUi(v: unknown): UiState {
     feel: normalizeFeel(u.feel),
     keys: normalizeKeys(u.keys),
     profiles: normalizeProfiles(u.profiles),
+    presence: normalizePresence(u.presence),
   };
 }
 

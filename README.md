@@ -204,6 +204,25 @@ The things people install Spicetify for, rebuilt natively. Add them one by one, 
 
 Makes Arcadia's background see-through and lets Windows blur what's behind it, like a riced Linux desktop. Pick **Acrylic** (real blur of the windows behind; can stutter while dragging on some Windows builds), **Mica**, **Mica dark** or **Mica Alt** (wallpaper-tinted, very light; Windows 11), or **Blur**. Tint colour and strength, panel opacity and "keep the wallpaper" are under Appearance. A window's transparency is fixed when it's created, so switching the addon on or off asks for a restart; with it off, Arcadia's windows are created solid exactly as before.
 
+### Discord status (Rich Presence)
+
+Shows what you're doing in Arcadia on your Discord profile:
+
+- **Roblox:** the game, its icon and the server's region, plus a "View game" button and an optional "Join my server" button.
+- **Minecraft:** the instance, version and server.
+- **Library games:** the game and its cover.
+- **Music:** "Listening to", with a progress bar.
+- **Browsing:** an optional "Browsing Arcadia" when nothing else is going on.
+
+Games take priority over music.
+
+**Setup:**
+1. Create a free app called **Arcadia** at the [Discord Developer Portal](https://discord.com/developers/applications).
+2. Under **Rich Presence → Art Assets**, upload `arcadia`, `game`, `cube`, `music` and `paused`.
+3. Paste the app's **Application ID** into the addon's settings and click **Connect**.
+
+It talks only to the Discord app on your PC over its local pipe: no login, token or bot. You choose what's shared, and can hide game names.
+
 ### Profile Studio (first official addon)
 
 A sandbox for your Discord profile. Nothing in it changes your real profile.

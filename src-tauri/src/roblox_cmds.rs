@@ -123,19 +123,37 @@ pub(crate) fn follow(app: &AppHandle, started: SystemTime, mut child: Child, ctx
     let kill = Arc::new(AtomicBool::new(false));
     let current = Arc::new(Mutex::new(None::<Current>));
 
+    // Discord presence: "Roblox" until a game is joined.
+    let pkey = format!("rbx:{session}");
+    let rgame = |place: Option<u64>, job: Option<String>, title: String, image: Option<String>| crate::presence::Game {
+        kind: crate::presence::Kind::Roblox { place, job },
+        title,
+        detail: None,
+        image,
+    };
+    crate::presence::game_start(&pkey, rgame(None, None, "Roblox".into(), None));
+
     let h = app.clone();
-    let (k, cur, acct) = (kill.clone(), current.clone(), ctx.account);
+    let (k, cur, acct, pk) = (kill.clone(), current.clone(), ctx.account, pkey.clone());
     arcadia_core::roblox::activity::watch(started, stop.clone(), move |a| {
         let _ = h.emit("roblox-activity", &a);
         match a {
             Activity::Joining { place_id, job_id } => {
                 let _ = history::joined(session, place_id, &job_id, acct, now());
+                let known = history::load().games.into_iter().find(|g| g.place_id == place_id && !g.name.is_empty());
+                crate::presence::game_start(&pk, rgame(Some(place_id), Some(job_id.clone()), known.as_ref().map(|g| g.name.clone()).unwrap_or_else(|| "Roblox".into()), known.and_then(|g| g.icon)));
                 *cur.lock() = Some(Current { place: place_id, job: job_id });
-                let h = h.clone();
+                let (h, pk) = (h.clone(), pk.clone());
                 tauri::async_runtime::spawn(async move {
                     if let Ok(g) = web::games(&[place_id]).await {
                         if let Some(g) = g.first() {
                             let _ = history::set_info(place_id, &g.name, &g.creator, g.icon.as_deref());
+                            crate::presence::game_update(&pk, |p| {
+                                p.title = g.name.clone();
+                                if g.icon.is_some() {
+                                    p.image = g.icon.clone();
+                                }
+                            });
                         }
                     }
                     let _ = h.emit("roblox-history", ());
@@ -143,10 +161,11 @@ pub(crate) fn follow(app: &AppHandle, started: SystemTime, mut child: Child, ctx
             }
             Activity::ServerIp { ip } => {
                 let job = cur.lock().as_ref().map(|c| c.job.clone());
-                let h = h.clone();
+                let (h, pk) = (h.clone(), pk.clone());
                 tauri::async_runtime::spawn(async move {
                     if let Ok(p) = web::locate(&ip).await {
                         let text = region_text(&p);
+                        crate::presence::game_update(&pk, |g| g.detail = Some(text.clone()));
                         if let Some(j) = job {
                             let _ = history::set_region(&j, &text);
                         }
@@ -179,6 +198,7 @@ pub(crate) fn follow(app: &AppHandle, started: SystemTime, mut child: Child, ctx
             }
         }
         stop.store(true, Ordering::Relaxed);
+        crate::presence::game_end(&pkey);
         let _ = history::left(session, now());
         let left = sessions.fetch_sub(1, Ordering::Relaxed) - 1;
         if left == 0 && clear_on_exit {

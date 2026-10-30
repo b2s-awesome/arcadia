@@ -10,6 +10,7 @@
 
 pub mod addons;
 pub mod backup;
+pub mod discord;
 pub mod library;
 pub mod minecraft;
 pub mod music;

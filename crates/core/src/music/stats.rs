@@ -295,6 +295,8 @@ mod tests {
         // Just today: the older skip drops out, and the day before counts as the previous period.
         let s = lib.stats(Some(now - 86_400), now, 0, 7).unwrap();
         assert_eq!((s.plays, s.skips), (2, 0));
-        assert_eq!(s.previous, Some(0.0));
+        // The older skip lands in the previous day only for part of the day.
+        let in_previous = two_days >= now - 2 * 86_400;
+        assert_eq!(s.previous, Some(if in_previous { 8.0 } else { 0.0 }));
     }
 }
