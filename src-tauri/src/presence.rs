@@ -33,13 +33,16 @@ struct Prefs {
     games: bool,
     elapsed: bool,
     hide_names: bool,
-    /// Look up album covers on the web (Discord can't see covers in files).
+    /// Show album covers (Discord can't see covers inside files).
     covers: bool,
+    /// "own": upload Arcadia's copy of the song's cover (exact);
+    /// "web": look the album up instead (nothing uploaded).
+    cover_source: String,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { client_id: String::new(), idle: false, music: true, roblox: true, roblox_server: true, roblox_join: false, minecraft: true, minecraft_server: true, games: true, elapsed: true, hide_names: false, covers: true }
+        Self { client_id: String::new(), idle: false, music: true, roblox: true, roblox_server: true, roblox_join: false, minecraft: true, minecraft_server: true, games: true, elapsed: true, hide_names: false, covers: true, cover_source: "own".into() }
     }
 }
 
@@ -89,6 +92,8 @@ pub struct Music {
     pub duration: f64,
     /// Where an online song came from (its YouTube thumbnail is the cover).
     pub source_url: Option<String>,
+    /// Arcadia's copy of the song's cover on disk.
+    pub art: Option<String>,
 }
 
 #[derive(Default)]
@@ -191,7 +196,7 @@ pub fn music(m: Option<Music>) {
 }
 
 /// Start looking up the playing song's cover, if it isn't known yet.
-fn want_cover(i: &mut Inner) {
+fn want_cover(i: &mut Inner, own: bool) {
     let Some((m, _)) = &i.music else { return };
     if i.cover.as_ref().is_some_and(|(id, _)| *id == m.id) || i.looking == Some(m.id) {
         return;
@@ -199,7 +204,18 @@ fn want_cover(i: &mut Inner) {
     let m = m.clone();
     i.looking = Some(m.id);
     tauri::async_runtime::spawn(async move {
-        let url = arcadia_core::music::covers::find(&m.artist, &m.album, &m.title, m.source_url.as_deref()).await;
+        use arcadia_core::music::covers;
+        // YouTube songs have a thumbnail already; otherwise the song's own
+        // cover, or (if that's off or there's none) a lookup.
+        let yt = m.source_url.as_deref().and_then(covers::youtube_thumb);
+        let own_url = match (&yt, own, &m.art) {
+            (None, true, Some(p)) => covers::upload_own(std::path::Path::new(p)).await,
+            _ => None,
+        };
+        let url = match (yt, own_url) {
+            (Some(u), _) | (None, Some(u)) => Some(u),
+            _ => covers::find(&m.artist, &m.album, &m.title, m.source_url.as_deref()).await,
+        };
         poke_with(|i| {
             if i.looking == Some(m.id) {
                 i.looking = None;
@@ -272,7 +288,8 @@ fn desired(i: &Inner, p: &Prefs) -> Option<Activity> {
                         Some((id, Some(url))) if *id == m.id && p.covers && !p.hide_names => url.clone(),
                         _ => "music".into(),
                     },
-                    large_text: if m.album.is_empty() { m.title.clone() } else { m.album.clone() },
+                    // No album line rather than "Unknown album".
+                    large_text: if m.album.trim().is_empty() || m.album.eq_ignore_ascii_case("unknown album") { String::new() } else { m.album.clone() },
                     ..Default::default()
                 };
                 if m.playing {
@@ -349,7 +366,7 @@ pub fn start(app: &AppHandle) {
                 }
             }
             if prefs.music && prefs.covers && !prefs.hide_names {
-                want_cover(&mut pr.inner.lock());
+                want_cover(&mut pr.inner.lock(), prefs.cover_source != "web");
             }
             let want = desired(&pr.inner.lock(), &prefs);
             if last.as_ref() == Some(&want) {
@@ -418,7 +435,7 @@ mod tests {
             started: 5,
             game: Game { kind: Kind::Roblox { place: Some(42), job: Some("j".into()) }, title: "Blox Fruits".into(), detail: Some("London, United Kingdom".into()), image: Some("https://tr.rbxcdn.com/x".into()) },
         };
-        let song = Music { id: 1, title: "Lantern Lights".into(), artist: "Ivy".into(), album: "Glow".into(), playing: true, pos: 30.0, duration: 200.0, source_url: None };
+        let song = Music { id: 1, title: "Lantern Lights".into(), artist: "Ivy".into(), album: "Glow".into(), playing: true, pos: 30.0, duration: 200.0, source_url: None, art: None };
 
         // A game beats music.
         let a = desired(&inner(vec![rbx.clone()], Some(song.clone())), &p).unwrap();

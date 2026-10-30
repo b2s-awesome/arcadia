@@ -132,7 +132,20 @@
     {/if}
     <div class="setting"><div><div class="label">Library games</div><div class="desc">Games started from your Library, with their cover.</div></div><Toggle label="Share library games" checked={pr.games} onchange={(v) => set("games", v)} /></div>
     <div class="setting"><div><div class="label">Music</div><div class="desc">“Listening to” with the song, artist and a progress bar.</div></div><Toggle label="Share music" checked={pr.music} onchange={(v) => set("music", v)} /></div>
-    {#if pr.music}<div class="setting sub"><div><div class="label">Album covers</div><div class="desc">Discord can't see covers inside your files, so Arcadia finds the same album's cover on Apple Music or Deezer (YouTube songs use their thumbnail). Sends the artist, album and title; each album is looked up once.</div></div><Toggle label="Album covers" checked={pr.covers} onchange={(v) => set("covers", v)} /></div>{/if}
+    {#if pr.music}
+      <div class="setting sub"><div><div class="label">Album covers</div><div class="desc">Discord can't see covers inside your files, so Arcadia has to put one where Discord can fetch it.</div></div><Toggle label="Album covers" checked={pr.covers} onchange={(v) => set("covers", v)} /></div>
+      {#if pr.covers}
+        <div class="setting sub col">
+          <div class="seg" role="radiogroup" aria-label="Where covers come from">
+            <button role="radio" aria-checked={pr.coverSource === "own"} onclick={() => set("coverSource", "own")}>Your cover</button>
+            <button role="radio" aria-checked={pr.coverSource === "web"} onclick={() => set("coverSource", "web")}>Find online</button>
+          </div>
+          <p class="desc">{pr.coverSource === "own"
+            ? "Exactly the cover Arcadia shows, even for slowed versions and rips. A small copy of the cover (never the song) goes to Litterbox, a free anonymous host that deletes it after 72 hours."
+            : "Nothing is uploaded: Arcadia finds the same album's cover on Apple Music or Deezer from the artist, album and title. Songs without a real album (rips, slowed versions) may get no cover or the original's."}</p>
+        </div>
+      {/if}
+    {/if}
     <div class="setting"><div><div class="label">“Browsing Arcadia”</div><div class="desc">When nothing else is going on.</div></div><Toggle label="Share browsing" checked={pr.idle} onchange={(v) => set("idle", v)} /></div>
     <div class="setting"><div class="label">Time elapsed</div><Toggle label="Show time elapsed" checked={pr.elapsed} onchange={(v) => set("elapsed", v)} /></div>
     <div class="setting"><div><div class="label">Hide game names</div><div class="desc">Shows “Playing a game” instead, with no buttons.</div></div><Toggle label="Hide game names" checked={pr.hideNames} onchange={(v) => set("hideNames", v)} /></div>
@@ -180,6 +193,7 @@
 </div>
 
 <style>
+  .setting.col { flex-direction: column; align-items: flex-start; gap: 0.4rem; }
   .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1.4rem; align-items: start; }
   @media (max-width: 1050px) { .wrap { grid-template-columns: 1fr; } }
   .steps { display: flex; flex-direction: column; gap: 0.7rem; margin-bottom: 1rem; }

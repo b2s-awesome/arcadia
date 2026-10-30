@@ -1,15 +1,20 @@
 //! Album covers on the web, for Discord.
 //!
 //! Discord can only show pictures it can download from an https address:
-//! it can't see the cover inside a file on this PC. So for the song you're
-//! playing, Arcadia looks up the same album's cover on the web:
+//! it can't see the cover inside a file on this PC. Two ways round that,
+//! picked in the Discord status settings:
 //!
-//! 1. Songs from YouTube use the video's thumbnail (no lookup needed).
-//! 2. Apple's iTunes Search (free, no account): the album, then the song.
-//! 3. Deezer's search (free, no account) if Apple has nothing.
+//! * **Your cover** (`upload_own`): Arcadia's small copy of the song's own
+//!   cover goes to Litterbox, a temporary anonymous host that deletes it
+//!   after 72 hours. Always the exact cover Arcadia shows, even for slowed
+//!   versions and rips with no album. Never the music file itself.
+//! * **Find online** (`find`): nothing is uploaded; the same album's cover is
+//!   looked up instead. Songs from YouTube use the video's thumbnail; then
+//!   Apple's iTunes Search, then Deezer (both free, no account). Messy upload
+//!   titles ("°✧ x (ft. y) — z (slowed) ✧°") are tidied first, and an
+//!   artist in the title is tried before the tag's.
 //!
-//! Only the artist, album and title are sent, and only when Discord status
-//! is on with covers allowed. Answers (including "nothing found") are kept in
+//! Only the artist, album and title are sent for a lookup. Answers (including "nothing found") are kept in
 //! `Music/covers.json`, so each album is looked up once; misses are retried
 //! after a week.
 
@@ -199,13 +204,83 @@ async fn deezer(http: &reqwest::Client, artist: &str, album: Option<&str>, title
     (best.0 >= 0.7 && best.1.starts_with("https://")).then_some(best.1)
 }
 
-/// Find a cover for a song, from the cache or the web. `source_url` is
-/// where an online song came from.
+/// How long a Litterbox upload lives (72 h), less a margin.
+const UPLOAD_LIFE: u64 = 70 * 3600;
+
+/// Upload the song's own cover (Arcadia's 512 px copy, never the music
+/// file) to Litterbox, catbox.moe's temporary host: anonymous, no account,
+/// and the file deletes itself after 72 hours. The address is kept until
+/// then, so each cover is uploaded at most once every three days.
+pub async fn upload_own(art: &std::path::Path) -> Option<String> {
+    let stem = art.file_stem()?.to_string_lossy().to_string();
+    let key = format!("own\u{0}{stem}");
+    if let Some(e) = load().remove(&key) {
+        if e.url.is_some() && now().saturating_sub(e.at) < UPLOAD_LIFE {
+            return e.url;
+        }
+    }
+    let bytes = tokio::fs::read(art).await.ok()?;
+    if bytes.is_empty() || bytes.len() > 4 * 1024 * 1024 {
+        return None;
+    }
+    let http = reqwest::Client::builder().user_agent(concat!("Arcadia/", env!("CARGO_PKG_VERSION"))).timeout(std::time::Duration::from_secs(20)).build().ok()?;
+    let part = reqwest::multipart::Part::bytes(bytes).file_name("cover.jpg").mime_str("image/jpeg").ok()?;
+    let form = reqwest::multipart::Form::new().text("reqtype", "fileupload").text("time", "72h").part("fileToUpload", part);
+    let resp = http.post("https://litterbox.catbox.moe/resources/internals/api.php").multipart(form).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let url = resp.text().await.ok()?.trim().to_string();
+    let ok = url.starts_with("https://") && url.len() < 200 && !url.contains(char::is_whitespace);
+    if !ok {
+        return None;
+    }
+    remember(&key, Some(url.clone()));
+    Some(url)
+}
+
+/// Titles from uploads carry decoration: "°✧ x (ft. y) — z (slowed & reverb) ✧°".
+/// Returns (artist guess from the title, clean title).
+fn tidy(title: &str) -> (Option<String>, String) {
+    // Keep letters, digits, spaces and plain punctuation; drop ✧° and the like.
+    let plain: String = title.chars().map(|c| if c.is_alphanumeric() || " -—–'&.,()[]".contains(c) { c } else { ' ' }).collect();
+    let mut t = plain.split_whitespace().collect::<Vec<_>>().join(" ");
+    // Drop bracketed bits: versions, features, "official audio".
+    loop {
+        let Some(i) = t.find(['(', '[']) else { break };
+        let close = if t[i..].starts_with('(') { ')' } else { ']' };
+        let Some(j) = t[i..].find(close).map(|j| i + j) else { break };
+        t.replace_range(i..=j, " ");
+    }
+    for m in [" ft. ", " feat. ", " ft ", " feat "] {
+        if let Some(i) = t.to_lowercase().find(m) {
+            // "x ft. y — z": drop the feature, keep what follows the dash.
+            let rest = &t[i..];
+            let cut = [" — ", " – ", " - "].iter().filter_map(|d| rest.find(d)).min().unwrap_or(rest.len());
+            t.replace_range(i..i + cut, " ");
+        }
+    }
+    let t = t.split_whitespace().collect::<Vec<_>>().join(" ");
+    for dash in [" — ", " – ", " - "] {
+        if let Some(i) = t.find(dash) {
+            let (a, b) = (t[..i].trim(), t[i + dash.len()..].trim());
+            if !a.is_empty() && !b.is_empty() {
+                return (Some(a.to_string()), b.to_string());
+            }
+        }
+    }
+    (None, t)
+}
+
+/// Find a cover on the web for a song, from the cache or a lookup.
+/// `source_url` is where an online song came from.
 pub async fn find(artist: &str, album: &str, title: &str, source_url: Option<&str>) -> Option<String> {
     if let Some(u) = source_url.and_then(youtube_thumb) {
         return Some(u);
     }
-    if artist.trim().is_empty() || fold(artist) == "unknown artist" {
+    let (title_artist, clean) = tidy(title);
+    let tag_artist = Some(artist.trim()).filter(|a| !a.is_empty() && fold(a) != "unknown artist");
+    if tag_artist.is_none() && title_artist.is_none() {
         return None;
     }
     let key = key(artist, album, title);
@@ -214,15 +289,19 @@ pub async fn find(artist: &str, album: &str, title: &str, source_url: Option<&st
     }
     let http = reqwest::Client::builder().user_agent(concat!("Arcadia/", env!("CARGO_PKG_VERSION"))).timeout(std::time::Duration::from_secs(8)).build().ok()?;
     let album = Some(album).filter(|a| !a.trim().is_empty() && !is_unknown(&fold(a)));
-    let mut url = itunes(&http, artist, album, title).await;
-    if url.is_none() && album.is_some() {
-        url = itunes(&http, artist, None, title).await;
-    }
-    if url.is_none() {
-        url = deezer(&http, artist, album, title).await;
-    }
-    if url.is_none() && album.is_some() {
-        url = deezer(&http, artist, None, title).await;
+    // The artist in the title (uploads often tag the uploader) goes first.
+    let artists: Vec<&str> = title_artist.as_deref().into_iter().chain(tag_artist).collect();
+    let mut url = None;
+    'search: for a in &artists {
+        for (al, svc) in [(album, 0), (None, 0), (album, 1), (None, 1)] {
+            if al.is_none() && album.is_some() && svc == 0 && url.is_some() {
+                break 'search;
+            }
+            url = if svc == 0 { itunes(&http, a, al, &clean).await } else { deezer(&http, a, al, &clean).await };
+            if url.is_some() {
+                break 'search;
+            }
+        }
     }
     remember(&key, url.clone());
     url
@@ -244,6 +323,16 @@ mod tests {
     fn keys_share_an_album() {
         assert_eq!(key("Type R", "Sextrance Worldwide Vol. 2", "PUREHEART"), key("type r", "Sextrance Worldwide Vol 2", "Other"));
         assert_ne!(key("x", "Unknown album", "a"), key("x", "Unknown album", "b"));
+    }
+
+    #[test]
+    fn tidies_upload_titles() {
+        let (a, t) = tidy("°✧ asht0nn (ft. RONIN) — HELLO KITTY DRUNK BITCH (slowed & reverb) ✧°");
+        assert_eq!(a.as_deref(), Some("asht0nn"));
+        assert_eq!(t, "HELLO KITTY DRUNK BITCH");
+        assert_eq!(tidy("crush").1, "crush");
+        let (a, t) = tidy("2hollis - crush (official audio)");
+        assert_eq!((a.as_deref(), t.as_str()), (Some("2hollis"), "crush"));
     }
 
     #[test]

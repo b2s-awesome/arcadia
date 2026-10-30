@@ -19,7 +19,13 @@
   let open: Record<string, boolean> = $state({});
   // The tree's groups fold, and long artist lists scroll in their own box
   // with a finder, so the pane never runs off the bottom.
-  let shut = $state({ playlists: false, artists: false });
+  // Artists start folded: big libraries have hundreds. The choice is kept.
+  const saved = (() => { try { return JSON.parse(localStorage.getItem("arcadia.tiled.shut") ?? "null"); } catch { return null; } })();
+  let shut = $state<{ playlists: boolean; artists: boolean }>({ playlists: false, artists: true, ...(saved ?? {}) });
+  $effect(() => {
+    const v = JSON.stringify(shut);
+    try { localStorage.setItem("arcadia.tiled.shut", v); } catch { /* private window */ }
+  });
   let aq = $state("");
   const artists = $derived(aq.trim() ? lib.artists.filter((a) => a.name.toLowerCase().includes(aq.trim().toLowerCase())) : lib.artists);
   let q = $state("");
@@ -183,7 +189,9 @@
   .ph.sub { border-top: 1px solid var(--line-soft); }
   .name { color: var(--m-accent, var(--peach)); font-weight: 700; }
   .items { display: flex; flex-direction: column; padding: 0.3rem 0; }
-  .items button { display: flex; align-items: center; gap: 0.45rem; border: 0; border-radius: 0; background: transparent; padding: 0.22rem 0.7rem; font: inherit; font-weight: 500; color: var(--text); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* flex-shrink 0: in a short pane, rows must scroll, never squash together. */
+  .items > * { flex-shrink: 0; }
+  .items button { display: flex; align-items: center; gap: 0.45rem; border: 0; border-radius: 0; background: transparent; padding: 0.3rem 0.7rem; font: inherit; line-height: 1.35; font-weight: 500; color: var(--text); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .items button:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
   .items button.sel { background: var(--m-accent, var(--peach)); color: var(--m-ink, var(--peach-ink)); font-weight: 700; }
   .items .al { padding-left: 1.9rem; color: var(--muted); }

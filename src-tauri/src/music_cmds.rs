@@ -432,6 +432,7 @@ impl Music {
             pos: s.pos,
             duration: s.duration,
             source_url: t.source_url.clone(),
+            art: t.art.clone(),
         }));
         let _ = app.emit("music-status", s);
     }

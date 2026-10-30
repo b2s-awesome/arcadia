@@ -396,22 +396,27 @@ export interface PresencePrefs {
   games: boolean;
   elapsed: boolean;
   hideNames: boolean;
-  /** Look up album covers on the web for "Listening to". */
+  /** Album covers for "Listening to". */
   covers: boolean;
+  /** "own": upload Arcadia's copy of the song's cover to a temporary host
+   *  (exact); "web": find the album's cover online (nothing uploaded). */
+  coverSource: "own" | "web";
   /** How the preview card looks: Discord's plain dark or light card, or
    *  your profile's two colours. Only the preview; Discord draws the real one. */
   card: { mode: "dark" | "light" | "gradient"; top: string; bottom: string };
 }
 export const DEFAULT_PRESENCE: PresencePrefs = {
   clientId: "", idle: false, music: true, roblox: true, robloxServer: true, robloxJoin: false,
-  minecraft: true, minecraftServer: true, games: true, elapsed: true, hideNames: false, covers: true,
+  minecraft: true, minecraftServer: true, games: true, elapsed: true, hideNames: false, covers: true, coverSource: "own",
   card: { mode: "dark", top: "#f7cfcf", bottom: "#f19ba7" },
 };
 export function normalizePresence(v: Partial<PresencePrefs> | undefined): PresencePrefs {
   const out = { ...DEFAULT_PRESENCE, card: { ...DEFAULT_PRESENCE.card } };
   if (!v || typeof v !== "object") return out;
   for (const k of Object.keys(DEFAULT_PRESENCE) as (keyof PresencePrefs)[]) {
-    if (k === "card") {
+    if (k === "coverSource") {
+      out.coverSource = v.coverSource === "web" ? "web" : "own";
+    } else if (k === "card") {
       const c = v.card;
       out.card = {
         mode: c?.mode === "light" || c?.mode === "gradient" ? c.mode : "dark",
