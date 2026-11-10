@@ -102,6 +102,43 @@ mod imp {
             },
         }
     }
+    // ── FrameForge helpers ────────────────────────────────────────────────
+
+    pub fn read_u32(h: Hive, path: &str, name: &str) -> Option<u32> {
+        hive(h).open_subkey(path).ok()?.get_value::<u32, _>(name).ok()
+    }
+
+    /// Every string value under a key, as `(name, data)`.
+    pub fn string_values(h: Hive, path: &str) -> Vec<(String, String)> {
+        let Ok(k) = hive(h).open_subkey(path) else { return Vec::new() };
+        k.enum_values()
+            .filter_map(Result::ok)
+            .filter_map(|(name, _)| k.get_value::<String, _>(&name).ok().map(|v| (name, v)))
+            .collect()
+    }
+
+    /// Write a DWORD under HKEY_CURRENT_USER, creating the key if needed.
+    pub fn write_user_u32(path: &str, name: &str, value: u32) -> std::io::Result<()> {
+        let (k, _) = RegKey::predef(HKEY_CURRENT_USER).create_subkey(path)?;
+        k.set_value(name, &value)
+    }
+
+    /// Write a string under HKEY_CURRENT_USER, creating the key if needed.
+    pub fn write_user_string(path: &str, name: &str, value: &str) -> std::io::Result<()> {
+        let (k, _) = RegKey::predef(HKEY_CURRENT_USER).create_subkey(path)?;
+        k.set_value(name, &value.to_string())
+    }
+
+    /// Delete a value under HKEY_CURRENT_USER. A value that is already gone is not an error.
+    pub fn delete_user_value(path: &str, name: &str) -> std::io::Result<()> {
+        let Ok(k) = RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(path, winreg::enums::KEY_SET_VALUE) else {
+            return Ok(());
+        };
+        match k.delete_value(name) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        }
+    }
 }
 
 #[cfg(not(windows))]
@@ -124,6 +161,21 @@ mod imp {
     }
     pub fn set_run_on_boot(_: &str, _: Option<&str>) -> std::io::Result<()> {
         Ok(())
+    }
+    pub fn read_u32(_: Hive, _: &str, _: &str) -> Option<u32> {
+        None
+    }
+    pub fn string_values(_: Hive, _: &str) -> Vec<(String, String)> {
+        Vec::new()
+    }
+    pub fn write_user_u32(_: &str, _: &str, _: u32) -> std::io::Result<()> {
+        Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "the registry only exists on Windows"))
+    }
+    pub fn write_user_string(_: &str, _: &str, _: &str) -> std::io::Result<()> {
+        Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "the registry only exists on Windows"))
+    }
+    pub fn delete_user_value(_: &str, _: &str) -> std::io::Result<()> {
+        Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "the registry only exists on Windows"))
     }
 }
 
