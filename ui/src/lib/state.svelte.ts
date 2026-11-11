@@ -3,7 +3,7 @@ import type { Settings } from "./types";
 import { normalizeUi, type UiState } from "./theme";
 
 type Toast = { id: number; text: string; tone: "ok" | "error" };
-export type Page = "library" | "minecraft" | "roblox" | "proxy" | "inspector" | "appearance" | "settings";
+export type Page = "library" | "minecraft" | "roblox" | "performance" | "proxy" | "inspector" | "appearance" | "settings";
 
 export const app = $state({
   settings: null as Settings | null,

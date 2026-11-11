@@ -18,11 +18,13 @@
   import Appearance from "./pages/Appearance.svelte";
   import SettingsPage from "./pages/Settings.svelte";
   import Minecraft from "./minecraft/Minecraft.svelte";
+  import Performance from "./performance/Performance.svelte";
 
   const nav: { id: Page; label: string; icon: string }[] = [
     { id: "library", label: "Library", icon: "library" },
     { id: "minecraft", label: "Minecraft", icon: "cube" },
     { id: "roblox", label: "Roblox", icon: "roblox" },
+    { id: "performance", label: "Performance", icon: "gauge" },
     { id: "proxy", label: "Asset proxy", icon: "proxy" },
     { id: "inspector", label: "Inspector", icon: "inspector" },
     { id: "appearance", label: "Appearance", icon: "brush" },
@@ -81,6 +83,7 @@
     { id: "minecraft", label: "Minecraft", hint: "Instances, modpacks, mods", icon: "cube", run: go("minecraft") },
     { id: "mc-popout", label: "Pop out Minecraft", hint: "Open the launcher in its own window", icon: "cube", run: () => mc.popOut() },
     { id: "mc-security", label: "Minecraft security check", hint: "Scan mods for known incidents", icon: "shield", run: () => { mcs.tab = "security"; app.page = "minecraft"; } },
+    { id: "performance", label: "Performance", hint: "Hardware, live monitor, optimiser", icon: "gauge", run: go("performance") },
     { id: "roblox", label: "Roblox settings", hint: "FastFlags, FPS, mods", icon: "roblox", run: go("roblox") },
     { id: "settings", label: "Settings", hint: "Startup, tray, folders", icon: "settings", run: go("settings") },
     { id: "proxy-toggle", label: "Toggle asset proxy", hint: "Use it on next Roblox launch", icon: "shield", run: () => {
@@ -212,6 +215,7 @@
             {#if app.page === "library"}<Library />
             {:else if app.page === "minecraft"}<Minecraft />
             {:else if app.page === "roblox"}<Roblox />
+            {:else if app.page === "performance"}<Performance />
             {:else if app.page === "proxy"}<Proxy />
             {:else if app.page === "inspector"}<Inspector />
             {:else if app.page === "appearance"}<Appearance />

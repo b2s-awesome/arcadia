@@ -3,6 +3,7 @@
 import type {
   DeviceCode, FoundInstance, Hit, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
   Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RuleConfig, ScanReport, Settings, RulesImported } from "./types";
+import type { FfConfig, MonitorSnapshot, Overview, PresentMonAvailability, ProcessInfo, Sample } from "./fftypes";
 import { mockInvoke, mockListen } from "./mock";
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -128,6 +129,20 @@ export const mc = {
   popOut: () => call<void>("minecraft_pop_out"),
   dock: () => call<void>("minecraft_dock"),
   createShortcut: (name: string) => call<string[]>("create_minecraft_shortcut", { name }),
+};
+
+/** FrameForge: the Performance section. */
+export const ff = {
+  overview: (rescan = false) => call<Overview>("ff_overview", { rescan }),
+  telemetry: () => call<Sample>("ff_telemetry"),
+  processes: () => call<ProcessInfo[]>("ff_processes"),
+  runningGame: () => call<ProcessInfo | null>("ff_running_game"),
+  presentmon: () => call<PresentMonAvailability>("ff_presentmon"),
+  configGet: () => call<FfConfig>("ff_config_get"),
+  configSet: (config: FfConfig) => call<FfConfig>("ff_config_set", { config }),
+  monitorStart: (pid: number, name: string) => call<void>("ff_monitor_start", { pid, name }),
+  monitorStop: () => call<void>("ff_monitor_stop"),
+  monitorSnapshot: () => call<MonitorSnapshot>("ff_monitor_snapshot"),
 };
 
 export async function pickFolder(): Promise<string | null> {
