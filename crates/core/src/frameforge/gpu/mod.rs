@@ -296,6 +296,10 @@ pub trait VendorAdapter: Send + Sync {
 pub trait BaseEnumerator: Send + Sync {
     fn devices(&self) -> Vec<GpuDevice>;
     fn telemetry(&self, device: &GpuDevice) -> GpuTelemetry;
+    /// Per-process GPU load in percent, when the platform measures it.
+    fn process_usage(&self) -> std::collections::HashMap<u32, f64> {
+        std::collections::HashMap::new()
+    }
 }
 
 /// Every GPU in the machine plus the vendor adapters that can talk to them.
@@ -382,6 +386,21 @@ impl GpuRegistry {
         t.note_missing("Not exposed by the driver or Windows for this adapter");
         t.prune();
         t
+    }
+
+    pub fn process_usage(&self) -> std::collections::HashMap<u32, f64> {
+        self.base.as_ref().map(|b| b.process_usage()).unwrap_or_default()
+    }
+
+    /// Variable-refresh support per display (GDI device name), from every vendor that reports it.
+    pub fn vrr(&self) -> BTreeMap<String, bool> {
+        let mut out = BTreeMap::new();
+        for d in self.devices() {
+            if let Some(a) = self.adapter_for(d.vendor).filter(|a| a.status().is_available()) {
+                out.extend(a.vrr(&d));
+            }
+        }
+        out
     }
 
     pub fn controls(&self, device: &GpuDevice) -> Vec<GpuControl> {

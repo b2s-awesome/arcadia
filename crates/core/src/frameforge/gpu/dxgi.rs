@@ -16,19 +16,6 @@ impl DxgiEnumerator {
         Self { counters: Mutex::new(GpuCounters::open()) }
     }
 
-    /// Per-process GPU load (percent of the adapter's 3D engines), across all adapters.
-    pub fn process_usage(&self) -> std::collections::HashMap<u32, f64> {
-        let mut out = std::collections::HashMap::new();
-        if let Some(c) = self.counters.lock().as_mut() {
-            for usage in c.snapshot().usage.values() {
-                for (pid, v) in &usage.by_pid {
-                    let e = out.entry(*pid).or_insert(0.0f64);
-                    *e = e.max(*v);
-                }
-            }
-        }
-        out
-    }
 }
 
 impl Default for DxgiEnumerator {
@@ -91,6 +78,20 @@ impl BaseEnumerator for DxgiEnumerator {
                 outputs,
                 ..Default::default()
             });
+        }
+        out
+    }
+
+    /// Per-process GPU load (percent of the adapter's 3D engines), across all adapters.
+    fn process_usage(&self) -> std::collections::HashMap<u32, f64> {
+        let mut out = std::collections::HashMap::new();
+        if let Some(c) = self.counters.lock().as_mut() {
+            for usage in c.snapshot().usage.values() {
+                for (pid, v) in &usage.by_pid {
+                    let e = out.entry(*pid).or_insert(0.0f64);
+                    *e = e.max(*v);
+                }
+            }
         }
         out
     }

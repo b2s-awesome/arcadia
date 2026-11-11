@@ -18,14 +18,22 @@
 //! cache\               disposable monitoring data
 //! ```
 
+pub mod config;
 pub mod ffi;
 pub mod gpu;
 pub mod hardware;
 #[cfg(windows)]
 pub(crate) mod hardware_win;
+pub mod monitor;
+pub mod presentmon;
+pub mod processes;
+pub mod service;
 pub mod stats;
+pub mod telemetry;
 #[cfg(windows)]
 pub mod winsys;
+
+pub use service::FrameForge;
 
 use std::path::PathBuf;
 

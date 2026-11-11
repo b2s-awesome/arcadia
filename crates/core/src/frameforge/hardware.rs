@@ -198,8 +198,13 @@ pub fn scan(gpus: &super::gpu::GpuRegistry) -> Inventory {
     if inv.gpus.is_empty() {
         inv.warnings.push("No graphics adapter was found.".into());
     }
-    // Tie each display to the adapter the vendor layer says drives it.
+    let vrr = gpus.vrr();
+    // Tie each display to the adapter that drives it, and add what the vendor says about VRR.
     for d in &mut inv.displays {
+        if let Some(v) = vrr.get(&d.device) {
+            d.vrr_supported = Some(*v);
+            d.vrr_note = None;
+        }
         if d.adapter.is_none() {
             d.adapter = inv.gpus.iter().find(|g| g.outputs.iter().any(|o| o.eq_ignore_ascii_case(&d.device))).map(|g| g.name.clone());
         }

@@ -37,7 +37,7 @@ sha2 = "0.10"
 toml = "0.8"
 hex = "0.4"
 # FrameForge
-sysinfo = { version = "0.40", default-features = false, features = ["system", "disk", "gpu"] }
+sysinfo = { version = "0.40", default-features = false, features = ["system", "disk", "gpu", "user"] }
 quick-xml = "0.42"
 base64 = "0.22"
 libloading = "0.8"

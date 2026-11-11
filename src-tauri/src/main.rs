@@ -15,6 +15,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
+mod frameforge_cmds;
 mod minecraft_cmds;
 
 pub(crate) struct AppState {
@@ -26,6 +27,8 @@ pub(crate) struct AppState {
     exe: String,
     /// Running Minecraft instances: instance id → process id.
     mc_running: Mutex<std::collections::HashMap<String, u32>>,
+    /// FrameForge (Performance section), created on first use.
+    pub(crate) ff: std::sync::OnceLock<Arc<arcadia_core::frameforge::FrameForge>>,
 }
 
 pub(crate) type Res<T> = Result<T, String>;
@@ -61,6 +64,10 @@ async fn save_settings(st: State<'_, AppState>, settings: Settings) -> Res<()> {
 async fn scan_library(st: State<'_, AppState>) -> Res<library::ScanReport> {
     let report = tauri::async_runtime::spawn_blocking(library::scan).await.map_err(err)?;
     *st.games.lock() = report.games.clone();
+    // Keep FrameForge's process-to-game matching in step with the library.
+    if let Some(f) = st.ff.get() {
+        f.set_games(&report.games);
+    }
     Ok(report)
 }
 
@@ -492,6 +499,7 @@ fn main() {
             sessions: Arc::new(AtomicUsize::new(0)),
             exe,
             mc_running: Mutex::new(Default::default()),
+            ff: std::sync::OnceLock::new(),
         })
         .setup(|app| {
             let h = app.handle().clone();
@@ -623,6 +631,16 @@ fn main() {
             minecraft_cmds::open_url,
             inspector_snapshot,
             inspector_clear,
+            frameforge_cmds::ff_overview,
+            frameforge_cmds::ff_telemetry,
+            frameforge_cmds::ff_processes,
+            frameforge_cmds::ff_running_game,
+            frameforge_cmds::ff_presentmon,
+            frameforge_cmds::ff_config_get,
+            frameforge_cmds::ff_config_set,
+            frameforge_cmds::ff_monitor_start,
+            frameforge_cmds::ff_monitor_stop,
+            frameforge_cmds::ff_monitor_snapshot,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Arcadia");
