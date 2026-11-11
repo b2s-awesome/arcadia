@@ -130,6 +130,42 @@ export const mc = {
   createShortcut: (name: string) => call<string[]>("create_minecraft_shortcut", { name }),
 };
 
+/** One looked-up Discord account (see crates/core/src/addons/discord.rs). */
+export interface DiscordFound {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string;
+  avatarAnimated: boolean;
+  bannerUrl: string | null;
+  bannerAnimated: boolean;
+  accentColor: string | null;
+  decorationUrl: string | null;
+  createdAt: number | null;
+  bot: boolean;
+  source: "discord" | "lanyard";
+  notes: string[];
+}
+
+/** Marketplace addons: sandboxed storage and their backends. */
+export const addons = {
+  get: <T>(addon: string, key: string) => call<T | null>("addon_get", { addon, key }),
+  set: (addon: string, key: string, value: unknown) => call<void>("addon_set", { addon, key, value }),
+  keys: (addon: string) => call<string[]>("addon_keys", { addon }),
+  clear: (addon: string) => call<void>("addon_clear", { addon }),
+  setSecret: (addon: string, name: string, value: string | null) => call<void>("addon_secret_set", { addon, name, value }),
+  secrets: (addon: string) => call<string[]>("addon_secrets", { addon }),
+  discordLookup: (query: string) => call<DiscordFound>("discord_lookup", { query }),
+  discordImage: (url: string) => call<string>("discord_image", { url }),
+};
+
+/** This webview's window label ("main" or "minecraft"). */
+export async function windowLabel(): Promise<string> {
+  if (!inTauri) return "main";
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  return getCurrentWindow().label;
+}
+
 export async function pickFolder(): Promise<string | null> {
   if (!inTauri) return "C:\\Users\\you\\AppData\\Roaming\\PrismLauncher\\instances\\Fabulously Optimized";
   const { open } = await import("@tauri-apps/plugin-dialog");

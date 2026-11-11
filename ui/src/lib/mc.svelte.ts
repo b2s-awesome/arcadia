@@ -89,3 +89,19 @@ export function ago(secs: number | null): string {
   if (d < 86400) return `${Math.round(d / 3600)} h ago`;
   return `${Math.round(d / 86400)} days ago`;
 }
+
+/** Move the launcher into its own window (or back), reporting failures. */
+export async function popOut() {
+  try {
+    await mc.popOut();
+  } catch (e) {
+    toast(String(e), "error");
+  }
+}
+export async function dock() {
+  try {
+    await mc.dock();
+  } catch (e) {
+    toast(String(e), "error");
+  }
+}
