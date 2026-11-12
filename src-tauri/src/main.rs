@@ -708,6 +708,14 @@ fn main() {
             frameforge_cmds::ff_nv_npi_export,
             frameforge_cmds::ff_nv_set_npi,
             frameforge_cmds::ff_nv_load_reference,
+            frameforge_cmds::ff_gpu_controls,
+            frameforge_cmds::ff_presets,
+            frameforge_cmds::ff_preset_capture,
+            frameforge_cmds::ff_preset_check,
+            frameforge_cmds::ff_preset_apply,
+            frameforge_cmds::ff_preset_import,
+            frameforge_cmds::ff_preset_export,
+            frameforge_cmds::ff_preset_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Arcadia");

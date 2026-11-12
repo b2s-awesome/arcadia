@@ -333,3 +333,70 @@ pub async fn ff_nv_set_npi(app: AppHandle, path: Option<String>) -> Res<ff::conf
 pub async fn ff_nv_load_reference(app: AppHandle) -> Res<usize> {
     blocking(&app, |f| f.nvidia_load_reference()).await?.map_err(err)
 }
+
+// ── GPU controls and Arcadia presets ────────────────────────────────────
+
+use ff::presets::{Preset, PresetCheck, PresetOutcome, MAX_PRESET_BYTES};
+
+#[tauri::command]
+pub async fn ff_gpu_controls(app: AppHandle) -> Res<Vec<ff::service::GpuControlsView>> {
+    blocking(&app, |f| f.gpu_controls()).await
+}
+
+#[tauri::command]
+pub async fn ff_presets(app: AppHandle) -> Res<Vec<Preset>> {
+    blocking(&app, |f| f.presets().list()).await
+}
+
+/// Capture the current driver settings of one GPU and save them as a preset.
+#[tauri::command]
+pub async fn ff_preset_capture(
+    app: AppHandle,
+    gpu: String,
+    name: String,
+    game_exe: Option<String>,
+    notes: String,
+) -> Res<Preset> {
+    blocking(&app, move |f| {
+        let preset = f.preset_capture(&gpu, &name, game_exe.as_deref(), &notes)?;
+        f.presets().add(preset)
+    })
+    .await?
+    .map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_preset_check(app: AppHandle, id: String) -> Res<PresetCheck> {
+    blocking(&app, move |f| f.presets().get(&id).map(|p| f.preset_check(&p)))
+        .await?
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_preset_apply(app: AppHandle, id: String, level: u8) -> Res<PresetOutcome> {
+    blocking(&app, move |f| f.preset_apply(&f.presets().get(&id)?, level))
+        .await?
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_preset_import(app: AppHandle, path: String) -> Res<Preset> {
+    blocking(&app, move |f| {
+        let bytes = FrameForge::read_user_file(&PathBuf::from(path), MAX_PRESET_BYTES as u64)?;
+        f.preset_import(&bytes)
+    })
+    .await?
+    .map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_preset_export(app: AppHandle, id: String, path: String) -> Res<()> {
+    blocking(&app, move |f| f.preset_export(&id, &PathBuf::from(path)))
+        .await?
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_preset_delete(app: AppHandle, id: String) -> Res<()> {
+    blocking(&app, move |f| f.presets().delete(&id)).await?.map_err(err)
+}

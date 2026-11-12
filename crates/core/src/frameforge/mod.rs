@@ -29,6 +29,7 @@ pub mod monitor;
 pub mod nvidia;
 pub mod optimizer;
 pub mod presentmon;
+pub mod presets;
 pub mod processes;
 pub mod service;
 pub mod stats;

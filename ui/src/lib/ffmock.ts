@@ -5,6 +5,7 @@
 // none of these values exist. The preview machine names itself as such.
 import { optMock } from "./ffmockOpt";
 import { nvMock } from "./ffmockNv";
+import { gpuMock } from "./ffmockGpu";
 import type { FfConfig, FrameStats, GpuDevice, GpuSample, MonitorSnapshot, Overview, ProcessInfo, Sample } from "./fftypes";
 
 const GB = 1024 ** 3;
@@ -182,7 +183,7 @@ function snapshot(): MonitorSnapshot {
   };
 }
 
-export const ffMockExtra: Record<string, (args: Record<string, unknown>) => unknown> = { ...optMock, ...nvMock };
+export const ffMockExtra: Record<string, (args: Record<string, unknown>) => unknown> = { ...optMock, ...nvMock, ...gpuMock(gpus, optMock.ff_opt_apply) };
 
 export function ffMock(cmd: string, args: Record<string, unknown>): unknown {
   switch (cmd) {
@@ -192,7 +193,7 @@ export function ffMock(cmd: string, args: Record<string, unknown>): unknown {
     case "ff_running_game": return ffMockProcesses[0];
     case "ff_presentmon": return presentmon();
     case "ff_config_get": return structuredClone(config);
-    case "ff_config_set": config = args.config as FfConfig; return structuredClone(config);
+    case "ff_config_set": config = JSON.parse(JSON.stringify(args.config)) as FfConfig; return structuredClone(config);
     case "ff_monitor_start": monitor = { pid: args.pid as number, name: args.name as string, started: Date.now(), frames: [], history: [] }; return;
     case "ff_monitor_stop": monitor = null; return;
     case "ff_monitor_snapshot": return snapshot();

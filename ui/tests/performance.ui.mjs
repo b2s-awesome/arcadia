@@ -285,6 +285,40 @@ await check("GPU Control: each vendor shows only what its API supports", async (
   return page;
 });
 
+await check("GPU Control: locked until the level allows it, then stage, review, apply", async () => {
+  const page = await open("perftab=gpu&ffgpu=intel");
+  await waitText(page, "Low latency mode");
+  const select = () => page.evaluate(() => document.querySelector('select[aria-label="Low latency mode"]')?.disabled);
+  if ((await select()) !== true) throw new Error("an Advanced control is editable at the Safe level");
+  if (await page.evaluate(() => !!document.querySelector('[aria-label="Variable refresh rate in windowed games"]'))) throw new Error("an unsupported control has an input");
+  await click(page, "Optimizer");
+  await click(page, "Advanced");
+  await click(page, "GPU Control");
+  await waitText(page, "Low latency mode");
+  await page.waitForFunction(() => document.querySelector('select[aria-label="Low latency mode"]')?.disabled === false, { timeout: 3000 }).catch(() => {
+    throw new Error("the control stayed locked at the Advanced level");
+  });
+  if ((await page.evaluate(() => document.querySelector('input[aria-label="Sustained power limit"]')?.disabled)) !== true) throw new Error("an Expert limit is editable at the Advanced level");
+  await page.evaluate(() => {
+    const el = document.querySelector('select[aria-label="Low latency mode"]');
+    el.value = "1";
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await waitText(page, "1 change(s) not applied yet");
+  await click(page, "Review and apply");
+  if ((await dialogTitle(page)) !== "Apply driver controls") throw new Error("no review step before applying");
+  await click(page, "Apply", { dialog: true });
+  await waitText(page, "driver control(s) changed");
+  await waitText(page, "Now: On");
+  // Presets: the check lists what would change before anything is applied.
+  await click(page, "Check and apply");
+  await waitText(page, "Will change");
+  await waitText(page, "Skipped");
+  await click(page, "Apply preset", { dialog: true });
+  await waitText(page, "read back");
+  return page;
+});
+
 await check("Game Profiles: create, edit, duplicate", async () => {
   const page = await open("perftab=profiles");
   await waitText(page, "Game Profiles");

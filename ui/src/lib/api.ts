@@ -6,6 +6,7 @@ import type {
 import type {
   ActionView, ApplyRequest, Diagnosis, FfConfig, MonitorSnapshot, NipDiff, NipFile, NpiRun, NvApplyOutcome, NvBackup, NvChange, NvDiffLine, NvImportOutcome,
   NvImportPreview, NvProfileDetail, NvProfileSummary, NvStatus, OptSession, Overview, PresentMonAvailability, ProcessInfo, Sample,
+  GpuControlsView, GpuPreset, PresetCheck, PresetOutcome,
 } from "./fftypes";
 import { mockInvoke, mockListen } from "./mock";
 
@@ -153,6 +154,14 @@ export const ff = {
   optRevertSession: (sessionId: string) => call<OptSession>("ff_opt_revert_session", { sessionId }),
   optHistory: () => call<OptSession[]>("ff_opt_history"),
   openSettings: (uri: string) => call<void>("ff_open_settings", { uri }),
+  gpuControls: () => call<GpuControlsView[]>("ff_gpu_controls"),
+  presets: () => call<GpuPreset[]>("ff_presets"),
+  presetCapture: (gpu: string, name: string, gameExe: string | null, notes: string) => call<GpuPreset>("ff_preset_capture", { gpu, name, gameExe, notes }),
+  presetCheck: (id: string) => call<PresetCheck>("ff_preset_check", { id }),
+  presetApply: (id: string, level: number) => call<PresetOutcome>("ff_preset_apply", { id, level }),
+  presetImport: (path: string) => call<GpuPreset>("ff_preset_import", { path }),
+  presetExport: (id: string, path: string) => call<void>("ff_preset_export", { id, path }),
+  presetDelete: (id: string) => call<void>("ff_preset_delete", { id }),
 };
 
 /** NVIDIA driver profiles. Every write goes through snapshot, apply, save, read-back in the backend. */

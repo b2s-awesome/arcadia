@@ -460,3 +460,52 @@ export const NV_NAME_SOURCE: Record<NvNameSource, string> = {
 };
 
 export const VENDOR_LABEL: Record<Vendor, string> = { nvidia: "NVIDIA", amd: "AMD", intel: "Intel", other: "Other" };
+
+// ── GPU controls and Arcadia presets ─────────────────────────────────────
+
+export type ControlKind =
+  | { type: "toggle" }
+  | { type: "range"; min: number; max: number; step: number; unit: string }
+  | { type: "choice"; options: { value: number; label: string }[] }
+  | { type: "readOnly" };
+
+/** One control a vendor API reports for a GPU. Limits come from the driver. */
+export interface GpuControl {
+  id: string;
+  vendor: Vendor;
+  name: string;
+  description: string;
+  category: string;
+  kind: ControlKind;
+  value: number | null;
+  default: number | null;
+  supported: boolean;
+  unsupportedReason: string | null;
+  risk: Risk;
+  level: number;
+  requiresRestart: boolean;
+}
+
+export interface GpuControlsView { gpu: GpuDevice; api: ApiStatus; controls: GpuControl[]; note: string | null }
+
+export interface PresetSetting { id: string; value: number | NvValue; name: string }
+
+/** An Arcadia preset: vendor-specific settings in a shared JSON container. */
+export interface GpuPreset {
+  schema: number;
+  id: string;
+  name: string;
+  vendor: Vendor;
+  gpuModel: string | null;
+  driverVersion: string | null;
+  minDriver: string | null;
+  gameExe: string | null;
+  settings: PresetSetting[];
+  createdAt: number;
+  createdWith: string;
+  notes: string;
+}
+
+export interface PresetSettingCheck { id: string; name: string; current: string | null; target: string; status: "change" | "same" | "skip"; reason: string | null }
+export interface PresetCheck { usable: boolean; problems: string[]; warnings: string[]; target: string; settings: PresetSettingCheck[]; level: number }
+export interface PresetOutcome { applied: number; skipped: PresetSettingCheck[]; verified: boolean; message: string; sessionId: string | null; backupId: string | null }

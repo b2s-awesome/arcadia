@@ -7,7 +7,7 @@
 
 use super::config::Config;
 use super::diagnostics::{self, Finding, FrameEvidence};
-use super::gpu::{ApiStatus, GpuRegistry, Vendor};
+use super::gpu::{ApiStatus, GpuControl, GpuDevice, GpuRegistry, Vendor};
 use super::hardware::{self, Inventory};
 use super::monitor::{Monitor, Snapshot, State};
 use super::optimizer::ops::{SystemOps, WindowsOps};
@@ -69,6 +69,17 @@ pub struct Overview {
     pub presentmon: Availability,
 }
 
+/// One adapter with its vendor API state and the controls that API offers.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GpuControlsView {
+    pub gpu: GpuDevice,
+    pub api: ApiStatus,
+    pub controls: Vec<GpuControl>,
+    /// Where this vendor's settings live when they are not simple controls.
+    pub note: Option<String>,
+}
+
 pub struct FrameForge {
     gpus: GpuRegistry,
     sampler: Arc<Sampler>,
@@ -112,6 +123,12 @@ impl FrameForge {
             lister: Mutex::new(ProcessLister::new().ok()),
             games: Mutex::new(GameIndex::default()),
         }
+    }
+
+    /// Swap the NVIDIA profile backend (tests use an in-memory driver).
+    pub fn with_nvidia(mut self, nvidia: super::nvidia::NvidiaProfiles) -> Self {
+        self.nvidia = nvidia;
+        self
     }
 
     pub fn gpus(&self) -> &GpuRegistry {
@@ -171,6 +188,25 @@ impl FrameForge {
             r.pop_front();
         }
         s
+    }
+
+    /// Every adapter with the controls its vendor API reports. Nothing is
+    /// listed for an adapter whose API is unavailable; the reason is in `api`.
+    pub fn gpu_controls(&self) -> Vec<GpuControlsView> {
+        self.inventory(false)
+            .gpus
+            .into_iter()
+            .map(|gpu| {
+                let api = self.gpus.adapter_for(gpu.vendor).map(|a| a.status()).unwrap_or(ApiStatus::NotApplicable);
+                let controls = if api.is_available() { self.gpus.controls(&gpu) } else { Vec::new() };
+                let note = match gpu.vendor {
+                    Vendor::Nvidia => Some("NVIDIA keeps 3D settings in driver profiles, one per game plus a global one. They are edited on the NVIDIA Profiles page.".to_string()),
+                    Vendor::Other => Some("No vendor control API exists for this adapter.".to_string()),
+                    _ => None,
+                };
+                GpuControlsView { gpu, api, controls, note }
+            })
+            .collect()
     }
 
     /// NVIDIA driver profiles (browse, edit, `.nip`, snapshots).
