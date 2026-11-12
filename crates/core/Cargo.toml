@@ -70,9 +70,13 @@ wmi = { version = "0.18", default-features = false }
 [dev-dependencies]
 tempfile = "3"
 
+[build-dependencies]
+# Only compiled for the `adlx` feature (see build.rs).
+bindgen = { version = "0.72", optional = true, default-features = false, features = ["runtime"] }
+
 [features]
 # AMD ADLX support. Off by default: AMD's SDK licence does not allow its
 # headers (or code generated from them) to be published as source, so the
 # bindings are generated at build time from an SDK checkout you supply in
-# ADLX_SDK_DIR. See docs/frameforge/vendor-apis.md.
-adlx = []
+# ADLX_SDK_DIR. See build.rs and docs/frameforge/vendor-apis.md.
+adlx = ["dep:bindgen"]
