@@ -46,7 +46,9 @@ fn get_settings(st: State<'_, AppState>) -> Settings {
 #[tauri::command]
 async fn save_settings(st: State<'_, AppState>, settings: Settings) -> Res<()> {
     settings.save().map_err(err)?;
-    let boot = settings.run_on_boot.then(|| format!("\"{}\" --tray", st.exe));
+    let boot = settings
+        .run_on_boot
+        .then(|| format!("\"{}\" --tray", st.exe));
     arcadia_core::registry::set_run_on_boot("Arcadia", boot.as_deref()).map_err(err)?;
     if let Some(p) = st.proxy.lock().await.as_ref() {
         p.set_fflags(live_fflags(&settings));
@@ -62,7 +64,9 @@ async fn save_settings(st: State<'_, AppState>, settings: Settings) -> Res<()> {
 
 #[tauri::command]
 async fn scan_library(st: State<'_, AppState>) -> Res<library::ScanReport> {
-    let report = tauri::async_runtime::spawn_blocking(library::scan).await.map_err(err)?;
+    let report = tauri::async_runtime::spawn_blocking(library::scan)
+        .await
+        .map_err(err)?;
     *st.games.lock() = report.games.clone();
     // Keep FrameForge's process-to-game matching in step with the library.
     if let Some(f) = st.ff.get() {
@@ -99,7 +103,9 @@ pub(crate) fn hide_for_game(app: &AppHandle, settings: &Settings) {
 
 #[tauri::command]
 fn add_custom_game(name: String, target: LaunchTarget, cover: Option<String>) -> Res<()> {
-    library::add_custom(name, target, cover).map(|_| ()).map_err(err)
+    library::add_custom(name, target, cover)
+        .map(|_| ())
+        .map_err(err)
 }
 
 #[tauri::command]
@@ -182,7 +188,10 @@ fn open_folder(which: String) -> Res<()> {
 
 pub(crate) fn open_path(p: &std::path::Path) -> Res<()> {
     #[cfg(windows)]
-    std::process::Command::new("explorer").arg(p).spawn().map_err(err)?;
+    std::process::Command::new("explorer")
+        .arg(p)
+        .spawn()
+        .map_err(err)?;
     #[cfg(not(windows))]
     library::open_uri(&p.to_string_lossy()).map_err(err)?;
     Ok(())
@@ -221,7 +230,11 @@ async fn ensure_proxy(app: &AppHandle) -> anyhow::Result<ProxyHook> {
         .capture_bodies
         .store(settings.proxy_inspector_enabled, Ordering::Relaxed);
     p.prepare_launch();
-    Ok(ProxyHook { port: p.port, ca_pem: p.ca_pem(), intercept: p.intercept_switch() })
+    Ok(ProxyHook {
+        port: p.port,
+        ca_pem: p.ca_pem(),
+        intercept: p.intercept_switch(),
+    })
 }
 
 async fn launch_roblox(app: AppHandle, uri: Option<String>) -> Res<String> {
@@ -394,7 +407,11 @@ fn rules_export(st: State<'_, AppState>, profile: Option<String>) -> Res<String>
     let r = st.rules.lock();
     let out = match profile {
         Some(name) => {
-            let p = r.profiles.iter().find(|p| p.name == name).ok_or("No profile with that name")?;
+            let p = r
+                .profiles
+                .iter()
+                .find(|p| p.name == name)
+                .ok_or("No profile with that name")?;
             serde_json::to_string_pretty(p)
         }
         None => serde_json::to_string_pretty(&*r),
@@ -438,7 +455,13 @@ fn parse_asset_ids(text: String) -> Vec<u64> {
 
 #[tauri::command]
 async fn inspector_snapshot(st: State<'_, AppState>) -> Res<Vec<inspector::Entry>> {
-    Ok(st.proxy.lock().await.as_ref().map(|p| p.inspector().snapshot()).unwrap_or_default())
+    Ok(st
+        .proxy
+        .lock()
+        .await
+        .as_ref()
+        .map(|p| p.inspector().snapshot())
+        .unwrap_or_default())
 }
 
 #[tauri::command]
@@ -465,7 +488,12 @@ fn handle_args(app: &AppHandle, args: &[String]) -> bool {
         minecraft_cmds::open_minecraft(app, true);
         return true;
     }
-    if let Some(uri) = args.iter().skip(1).find(|a| roblox::is_roblox_uri(a)).cloned() {
+    if let Some(uri) = args
+        .iter()
+        .skip(1)
+        .find(|a| roblox::is_roblox_uri(a))
+        .cloned()
+    {
         let h = app.clone();
         tauri::async_runtime::spawn(async move {
             if let Err(e) = launch_roblox(h.clone(), Some(uri)).await {
@@ -505,7 +533,8 @@ fn main() {
             let h = app.handle().clone();
             let show = MenuItem::with_id(app, "show", "Open Arcadia", true, None::<&str>)?;
             let play = MenuItem::with_id(app, "roblox", "Launch Roblox", true, None::<&str>)?;
-            let cache_item = MenuItem::with_id(app, "cache", "Clear Roblox cache", true, None::<&str>)?;
+            let cache_item =
+                MenuItem::with_id(app, "cache", "Clear Roblox cache", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &play, &cache_item, &quit])?;
             TrayIconBuilder::with_id("tray")
@@ -532,7 +561,12 @@ fn main() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, e| {
-                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = e
+                    {
                         show_main(tray.app_handle());
                     }
                 })
@@ -562,7 +596,10 @@ fn main() {
                     let _ = w.hide();
                 } else if w.label() == "minecraft" {
                     // Standalone launcher closed with the hub hidden: quit.
-                    let main_visible = app.get_webview_window("main").and_then(|m| m.is_visible().ok()).unwrap_or(false);
+                    let main_visible = app
+                        .get_webview_window("main")
+                        .and_then(|m| m.is_visible().ok())
+                        .unwrap_or(false);
                     if !main_visible {
                         app.exit(0);
                     }
@@ -641,6 +678,13 @@ fn main() {
             frameforge_cmds::ff_monitor_start,
             frameforge_cmds::ff_monitor_stop,
             frameforge_cmds::ff_monitor_snapshot,
+            frameforge_cmds::ff_diagnose,
+            frameforge_cmds::ff_opt_list,
+            frameforge_cmds::ff_opt_apply,
+            frameforge_cmds::ff_opt_revert_change,
+            frameforge_cmds::ff_opt_revert_session,
+            frameforge_cmds::ff_opt_history,
+            frameforge_cmds::ff_open_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Arcadia");

@@ -253,4 +253,107 @@ export interface FfConfig {
   nvidiaFavourites: number[];
 }
 
+// ── diagnostics and optimiser ────────────────────────────────────────────
+
+export type Risk = "low" | "medium" | "high";
+export type Restart = "none" | "game" | "signOut" | "windows";
+
+export interface Finding {
+  id: string;
+  title: string;
+  severity: "info" | "notice" | "warning";
+  confidence: "low" | "medium" | "high";
+  evidence: string[];
+  why: string;
+  recommendation: string;
+  tradeOff: string;
+  risk: Risk;
+  restart: Restart;
+  reversible: boolean;
+  actions: string[];
+  settingsUri: string | null;
+}
+
+export interface FrameEvidence {
+  process: string;
+  stats: FrameStats;
+  cpuBusyMs: number | null;
+  cpuWaitMs: number | null;
+  gpuBusyMs: number | null;
+  gpuWaitMs: number | null;
+  droppedPct: number | null;
+  generatedPct: number | null;
+}
+
+export interface Diagnosis { generatedAt: number; findings: Finding[]; report: string; frames: FrameEvidence | null; basis: string }
+
+export type ActionCategory = "power" | "windows" | "startup" | "process" | "graphics" | "driver";
+
+export interface ActionView {
+  id: string;
+  name: string;
+  description: string;
+  category: ActionCategory;
+  risk: Risk;
+  level: number;
+  restart: Restart;
+  reversible: boolean;
+  temporary: boolean;
+  tradeOff: string;
+  source: string;
+  hardware: string;
+  os: string;
+  key: string;
+  params: unknown;
+  label: string | null;
+  applicable: boolean;
+  reason: string | null;
+  current: string | null;
+  proposed: string | null;
+  state: "available" | "applied" | "alreadySet" | "notApplicable";
+  sessionId: string | null;
+  changeId: number | null;
+}
+
+export interface ApplyRequest { id: string; params: unknown }
+
+export type ChangeStatus = "pending" | "applied" | "skipped" | "failed" | "rolledBack" | "reverted" | "revertFailed";
+
+export interface OptChange {
+  id: number;
+  actionId: string;
+  key: string;
+  name: string;
+  category: ActionCategory;
+  risk: Risk;
+  level: number;
+  restart: Restart;
+  reversible: boolean;
+  temporary: boolean;
+  params: unknown;
+  beforeText: string;
+  proposedText: string;
+  afterText: string | null;
+  status: ChangeStatus;
+  error: string | null;
+  appliedAt: number;
+  revertedAt: number | null;
+}
+
+export type SessionStatus = "inProgress" | "applied" | "failed" | "failedDirty" | "partlyReverted" | "reverted";
+
+export interface OptSession {
+  schema: number;
+  id: string;
+  label: string;
+  startedAt: number;
+  level: number;
+  status: SessionStatus;
+  error: string | null;
+  changes: OptChange[];
+}
+
+export const RESTART_TEXT: Record<Restart, string> = { none: "", game: "Restart the game", signOut: "Sign out and in", windows: "Restart Windows" };
+export const LEVEL_NAME = ["", "Safe", "Advanced", "Expert"];
+
 export const VENDOR_LABEL: Record<Vendor, string> = { nvidia: "NVIDIA", amd: "AMD", intel: "Intel", other: "Other" };

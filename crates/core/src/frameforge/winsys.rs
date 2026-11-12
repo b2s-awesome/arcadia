@@ -248,6 +248,22 @@ pub fn terminate(pid: u32) -> anyhow::Result<()> {
     r.map_err(|e| anyhow::anyhow!("Ending the process failed: {}", e.message()))
 }
 
+/// Open a URI with the shell (used only for the fixed list of Settings pages).
+pub fn open_uri(uri: &str) -> anyhow::Result<()> {
+    use windows::core::{w, PCWSTR};
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    let wide: Vec<u16> = uri.encode_utf16().chain(std::iter::once(0)).collect();
+    // SAFETY: both strings are NUL-terminated and outlive the call.
+    let r = unsafe { ShellExecuteW(None, w!("open"), PCWSTR(wide.as_ptr()), PCWSTR::null(), PCWSTR::null(), SW_SHOWNORMAL) };
+    // ShellExecute returns a value above 32 on success.
+    if r.0 as isize > 32 {
+        Ok(())
+    } else {
+        anyhow::bail!("Windows could not open {uri}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

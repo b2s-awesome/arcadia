@@ -4,9 +4,11 @@
   import { VENDOR_LABEL } from "../lib/fftypes";
   import Dashboard from "./Dashboard.svelte";
   import LiveMonitor from "./LiveMonitor.svelte";
+  import Optimizer from "./Optimizer.svelte";
 
   const tabs: { id: PerfTab; label: string }[] = [
     { id: "dashboard", label: "Dashboard" },
+    { id: "optimizer", label: "Optimizer" },
     { id: "monitor", label: "Live Monitor" },
   ];
 
@@ -36,6 +38,7 @@
 
   <div class="body">
     {#if ffs.tab === "monitor"}<LiveMonitor />
+    {:else if ffs.tab === "optimizer"}<Optimizer />
     {:else}<Dashboard />{/if}
   </div>
 </div>

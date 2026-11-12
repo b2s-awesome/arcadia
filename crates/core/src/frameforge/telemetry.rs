@@ -61,7 +61,7 @@ impl Sample {
         };
         let Some(g) = target else { return };
         let t = &mut g.telemetry;
-        let mut fill = |slot: &mut Option<f64>, value: Option<f64>, metric: &str, sources: &mut std::collections::BTreeMap<String, String>| {
+        let fill = |slot: &mut Option<f64>, value: Option<f64>, metric: &str, sources: &mut std::collections::BTreeMap<String, String>| {
             if slot.is_none() {
                 if let Some(v) = value {
                     *slot = Some(v);

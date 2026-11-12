@@ -3,6 +3,7 @@
 // This file is used ONLY when the UI runs in a plain browser (design work,
 // UI tests). Inside Arcadia every `ff_*` call goes to the Rust backend and
 // none of these values exist. The preview machine names itself as such.
+import { optMock } from "./ffmockOpt";
 import type { FfConfig, FrameStats, GpuDevice, GpuSample, MonitorSnapshot, Overview, ProcessInfo, Sample } from "./fftypes";
 
 const GB = 1024 ** 3;
@@ -180,7 +181,7 @@ function snapshot(): MonitorSnapshot {
   };
 }
 
-export const ffMockExtra: Record<string, (args: Record<string, unknown>) => unknown> = {};
+export const ffMockExtra: Record<string, (args: Record<string, unknown>) => unknown> = { ...optMock };
 
 export function ffMock(cmd: string, args: Record<string, unknown>): unknown {
   switch (cmd) {

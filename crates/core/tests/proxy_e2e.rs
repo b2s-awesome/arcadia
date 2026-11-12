@@ -14,7 +14,9 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 
-async fn upstream_handler(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
+async fn upstream_handler(
+    req: Request<hyper::body::Incoming>,
+) -> Result<Response<Full<Bytes>>, Infallible> {
     let path = req.uri().path_and_query().unwrap().to_string();
     let method = req.method().clone();
     let body = req.into_body().collect().await.unwrap().to_bytes();
@@ -45,11 +47,18 @@ async fn start_upstream(ca: Arc<CertAuthority>) -> std::net::SocketAddr {
             let (s, _) = l.accept().await.unwrap();
             let ca = ca.clone();
             tokio::spawn(async move {
-                let acc = tokio_rustls::LazyConfigAcceptor::new(rustls::server::Acceptor::default(), s);
+                let acc =
+                    tokio_rustls::LazyConfigAcceptor::new(rustls::server::Acceptor::default(), s);
                 let Ok(start) = acc.await else { return };
-                let sni = start.client_hello().server_name().unwrap_or("localhost").to_string();
+                let sni = start
+                    .client_hello()
+                    .server_name()
+                    .unwrap_or("localhost")
+                    .to_string();
                 let cfg = ca.server_config(&sni).unwrap();
-                let Ok(tls) = start.into_stream(cfg).await else { return };
+                let Ok(tls) = start.into_stream(cfg).await else {
+                    return;
+                };
                 let _ = hyper::server::conn::http1::Builder::new()
                     .serve_connection(TokioIo::new(tls), service_fn(upstream_handler))
                     .await;
@@ -60,7 +69,11 @@ async fn start_upstream(ca: Arc<CertAuthority>) -> std::net::SocketAddr {
 }
 
 fn pem_to_der(pem: &str) -> Vec<u8> {
-    rustls_pemfile::certs(&mut pem.as_bytes()).next().unwrap().unwrap().to_vec()
+    rustls_pemfile::certs(&mut pem.as_bytes())
+        .next()
+        .unwrap()
+        .unwrap()
+        .to_vec()
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -74,7 +87,10 @@ async fn proxy_end_to_end() {
     let proxy = Proxy::start(ProxyConfig {
         port: 0,
         data_dir: home.path().join("proxy"),
-        test_upstream: Some(TestUpstream { addr: up_addr, root_der: pem_to_der(real_ca.pem()) }),
+        test_upstream: Some(TestUpstream {
+            addr: up_addr,
+            root_der: pem_to_der(real_ca.pem()),
+        }),
     })
     .await
     .unwrap();
@@ -86,14 +102,28 @@ async fn proxy_end_to_end() {
             name: "test".into(),
             enabled: true,
             rules: vec![
-                Rule { id: "a".into(), name: "swap".into(), enabled: true, asset_ids: vec![111], action: Action::Replace { with_id: 999 } },
-                Rule { id: "b".into(), name: "rm".into(), enabled: true, asset_ids: vec![222], action: Action::Remove },
+                Rule {
+                    id: "a".into(),
+                    name: "swap".into(),
+                    enabled: true,
+                    asset_ids: vec![111],
+                    action: Action::Replace { with_id: 999 },
+                },
+                Rule {
+                    id: "b".into(),
+                    name: "rm".into(),
+                    enabled: true,
+                    asset_ids: vec![222],
+                    action: Action::Remove,
+                },
                 Rule {
                     id: "c".into(),
                     name: "file".into(),
                     enabled: true,
                     asset_ids: vec![333],
-                    action: Action::File { path: local_file.to_string_lossy().into() },
+                    action: Action::File {
+                        path: local_file.to_string_lossy().into(),
+                    },
                 },
             ],
         }],
@@ -134,13 +164,32 @@ async fn proxy_end_to_end() {
     assert_eq!(r[2]["location"], "https://c0.rbxcdn.com/444");
 
     // ── local file served at the rewritten location ──
-    let f = client.get(file_url(333)).send().await.unwrap().bytes().await.unwrap();
+    let f = client
+        .get(file_url(333))
+        .send()
+        .await
+        .unwrap()
+        .bytes()
+        .await
+        .unwrap();
     assert_eq!(&f[..], b"MY-CUSTOM-SKYBOX");
 
     // ── single-asset GETs ──
-    let s = client.get("https://assetdelivery.roblox.com/v1/asset/?id=111").send().await.unwrap().text().await.unwrap();
+    let s = client
+        .get("https://assetdelivery.roblox.com/v1/asset/?id=111")
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
     assert_eq!(s, "asset-bytes for /v1/asset/?id=999");
-    let st = client.get("https://assetdelivery.roblox.com/v1/asset/?id=222").send().await.unwrap().status();
+    let st = client
+        .get("https://assetdelivery.roblox.com/v1/asset/?id=222")
+        .send()
+        .await
+        .unwrap()
+        .status();
     assert_eq!(st, 404);
 
     // ── live FastFlags ──
@@ -152,10 +201,16 @@ async fn proxy_end_to_end() {
         .json()
         .await
         .unwrap();
-    assert_eq!(v["applicationSettings"]["DFIntTaskSchedulerTargetFps"], "360");
+    assert_eq!(
+        v["applicationSettings"]["DFIntTaskSchedulerTargetFps"],
+        "360"
+    );
     assert_eq!(v["applicationSettings"]["FFlagExisting"], "True");
     // The certificate flag always rides along, so Roblox keeps trusting the proxy.
-    assert_eq!(v["applicationSettings"]["DFFlagHttpUseEmbeddedCaCerts"], "False");
+    assert_eq!(
+        v["applicationSettings"]["DFFlagHttpUseEmbeddedCaCerts"],
+        "False"
+    );
 
     // ── other hosts are tunneled, never decrypted ──
     // This client trusts ONLY the upstream CA, so it would fail if the proxy
@@ -166,15 +221,28 @@ async fn proxy_end_to_end() {
         .add_root_certificate(reqwest::Certificate::from_pem(real_ca.pem().as_bytes()).unwrap())
         .build()
         .unwrap();
-    let t = strict.get("https://auth.roblox.com/v2/login").send().await.unwrap().text().await.unwrap();
+    let t = strict
+        .get("https://auth.roblox.com/v2/login")
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
     assert_eq!(t, "upstream saw /v2/login");
 
     // ── interception switched off (flag cache unusable this launch) ──
     // Asset hosts are then tunneled too, so the strict client succeeds there.
     let switch = proxy.intercept_switch();
     switch.store(false, std::sync::atomic::Ordering::Relaxed);
-    let t = strict.get("https://assetdelivery.roblox.com/v1/asset/?id=111").send().await;
-    assert!(t.is_ok(), "asset host should be a blind tunnel when interception is off: {t:?}");
+    let t = strict
+        .get("https://assetdelivery.roblox.com/v1/asset/?id=111")
+        .send()
+        .await;
+    assert!(
+        t.is_ok(),
+        "asset host should be a blind tunnel when interception is off: {t:?}"
+    );
     switch.store(true, std::sync::atomic::Ordering::Relaxed);
     // The switch applies to new connections (each Roblox launch makes its own).
     let fresh = reqwest::Client::builder()
@@ -183,7 +251,11 @@ async fn proxy_end_to_end() {
         .add_root_certificate(reqwest::Certificate::from_pem(real_ca.pem().as_bytes()).unwrap())
         .build()
         .unwrap();
-    assert!(fresh.get("https://assetdelivery.roblox.com/v1/asset/?id=111").send().await.is_err());
+    assert!(fresh
+        .get("https://assetdelivery.roblox.com/v1/asset/?id=111")
+        .send()
+        .await
+        .is_err());
     drop(fresh);
 
     // ── inspector ──
@@ -195,7 +267,13 @@ async fn proxy_end_to_end() {
     assert_eq!(stats.served_files, 1);
     assert_eq!(stats.fflag_injections, 2); // the FPS flag + the certificate flag
     let log = proxy.inspector().snapshot();
-    assert!(log.iter().any(|e| e.kind == "modified" && e.note.contains("replaced 1")));
-    assert!(log.iter().any(|e| e.kind == "tunnel" && e.url.starts_with("auth.roblox.com")), "{log:#?}");
+    assert!(log
+        .iter()
+        .any(|e| e.kind == "modified" && e.note.contains("replaced 1")));
+    assert!(
+        log.iter()
+            .any(|e| e.kind == "tunnel" && e.url.starts_with("auth.roblox.com")),
+        "{log:#?}"
+    );
     proxy.stop();
 }

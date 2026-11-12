@@ -39,7 +39,9 @@ async fn serve(files: Files) -> String {
                         })
                     }
                 });
-                let _ = hyper::server::conn::http1::Builder::new().serve_connection(TokioIo::new(s), svc).await;
+                let _ = hyper::server::conn::http1::Builder::new()
+                    .serve_connection(TokioIo::new(s), svc)
+                    .await;
             });
         }
     });
@@ -58,7 +60,8 @@ fn jar(files: &[(&str, &[u8])]) -> Vec<u8> {
     {
         let mut z = zip::ZipWriter::new(&mut c);
         for (n, d) in files {
-            z.start_file(*n, zip::write::SimpleFileOptions::default()).unwrap();
+            z.start_file(*n, zip::write::SimpleFileOptions::default())
+                .unwrap();
             z.write_all(d).unwrap();
         }
         z.finish().unwrap();
@@ -123,13 +126,22 @@ async fn install_fabric_build_launch_and_import_mrpack() {
     put("/mc/17.json", index_bytes);
     put("/mc/log.xml", log_cfg);
     put("/libs/org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar", lwjgl);
-    put(&format!("/res/{}/{}", &sha1(&asset_a)[..2], sha1(&asset_a)), asset_a);
-    put(&format!("/res/{}/{}", &sha1(&asset_b)[..2], sha1(&asset_b)), asset_b);
+    put(
+        &format!("/res/{}/{}", &sha1(&asset_a)[..2], sha1(&asset_a)),
+        asset_a,
+    );
+    put(
+        &format!("/res/{}/{}", &sha1(&asset_b)[..2], sha1(&asset_b)),
+        asset_b,
+    );
 
     // ── Fabric profile (newer ASM must replace vanilla's) ──
     let loader_jar = b"fabric loader".to_vec();
     let asm = b"asm 9.7".to_vec();
-    put("/fabric/v2/versions/loader/1.21.1", serde_json::to_vec(&json!([{"loader": {"version": "0.16.9", "stable": true}}])).unwrap());
+    put(
+        "/fabric/v2/versions/loader/1.21.1",
+        serde_json::to_vec(&json!([{"loader": {"version": "0.16.9", "stable": true}}])).unwrap(),
+    );
     put("/fabric/v2/versions/loader/1.21.1/0.16.9/profile/json", serde_json::to_vec(&json!({
         "id": "fabric-loader-0.16.9-1.21.1", "inheritsFrom": "1.21.1",
         "mainClass": "net.fabricmc.loader.impl.launch.knot.KnotClient",
@@ -139,12 +151,21 @@ async fn install_fabric_build_launch_and_import_mrpack() {
             {"name": "org.ow2.asm:asm:9.7", "url": format!("{base}/fabricmaven/"), "sha1": sha1(&asm)}
         ]
     })).unwrap());
-    put("/fabricmaven/net/fabricmc/fabric-loader/0.16.9/fabric-loader-0.16.9.jar", loader_jar);
+    put(
+        "/fabricmaven/net/fabricmc/fabric-loader/0.16.9/fabric-loader-0.16.9.jar",
+        loader_jar,
+    );
     put("/fabricmaven/org/ow2/asm/asm/9.7/asm-9.7.jar", asm);
 
     // ── Java runtime ──
     let java_bin = b"#!/bin/sh\necho java".to_vec();
-    let exe_rel = if cfg!(windows) { "bin/javaw.exe" } else if cfg!(target_os = "macos") { "jre.bundle/Contents/Home/bin/java" } else { "bin/java" };
+    let exe_rel = if cfg!(windows) {
+        "bin/javaw.exe"
+    } else if cfg!(target_os = "macos") {
+        "jre.bundle/Contents/Home/bin/java"
+    } else {
+        "bin/java"
+    };
     let rt_manifest = json!({"files": {
         "bin": {"type": "directory"},
         exe_rel: {"type": "file", "executable": true, "downloads": {"raw": {"url": format!("{base}/java/java"), "sha1": sha1(&java_bin), "size": java_bin.len()}}}
@@ -152,40 +173,85 @@ async fn install_fabric_build_launch_and_import_mrpack() {
     let mut all = serde_json::Map::new();
     all.insert(minecraft::java::platform_key().into(), json!({"java-runtime-delta": [{"manifest": {"url": format!("{base}/java/delta.json"), "sha1": "x"}}]}));
     put("/java/all.json", serde_json::to_vec(&all).unwrap());
-    put("/java/delta.json", serde_json::to_vec(&rt_manifest).unwrap());
+    put(
+        "/java/delta.json",
+        serde_json::to_vec(&rt_manifest).unwrap(),
+    );
     put("/java/java", java_bin);
 
     // ── Create + prepare a Fabric instance ──
-    assert_eq!(minecraft::loaders::versions(Loader::Fabric, "1.21.1").await.unwrap()[0].version, "0.16.9");
-    let mut inst = instance::create("Fabric Test", "1.21.1", Loader::Fabric, Some("0.16.9".into()), 3072).unwrap();
+    assert_eq!(
+        minecraft::loaders::versions(Loader::Fabric, "1.21.1")
+            .await
+            .unwrap()[0]
+            .version,
+        "0.16.9"
+    );
+    let mut inst = instance::create(
+        "Fabric Test",
+        "1.21.1",
+        Loader::Fabric,
+        Some("0.16.9".into()),
+        3072,
+    )
+    .unwrap();
     let events = Arc::new(Mutex::new(Vec::new()));
     let ev = events.clone();
     let on: OnProgress = Arc::new(move |p| ev.lock().unwrap().push(p.message));
-    let session = launch::Session { name: "Alex".into(), uuid: "u-1".into(), access_token: "TOKEN".into(), xuid: "x".into(), client_id: "cid".into() };
+    let session = launch::Session {
+        name: "Alex".into(),
+        uuid: "u-1".into(),
+        access_token: "TOKEN".into(),
+        xuid: "x".into(),
+        client_id: "cid".into(),
+    };
     let ready = launch::prepare(&mut inst, &session, &on).await.unwrap();
 
     assert!(ready.java.exists());
     let a = &ready.args;
     assert_eq!(a[0], "-Xmx3072M");
-    let main = a.iter().position(|x| x == "net.fabricmc.loader.impl.launch.knot.KnotClient").expect("fabric main class");
+    let main = a
+        .iter()
+        .position(|x| x == "net.fabricmc.loader.impl.launch.knot.KnotClient")
+        .expect("fabric main class");
     let cp = &a[a.iter().position(|x| x == "-cp").unwrap() + 1];
-    assert!(cp.contains("fabric-loader-0.16.9.jar") && cp.contains("asm-9.7.jar") && !cp.contains("asm-9.3"), "{cp}");
-    assert!(cp.contains("lwjgl-3.3.3.jar") && cp.ends_with("1.21.1.jar"), "client jar last: {cp}");
+    assert!(
+        cp.contains("fabric-loader-0.16.9.jar")
+            && cp.contains("asm-9.7.jar")
+            && !cp.contains("asm-9.3"),
+        "{cp}"
+    );
+    assert!(
+        cp.contains("lwjgl-3.3.3.jar") && cp.ends_with("1.21.1.jar"),
+        "client jar last: {cp}"
+    );
     assert!(!cp.contains("x.jar"), "library for another OS skipped");
-    assert!(a.iter().any(|x| x.starts_with("-Dlog4j.configurationFile=") && x.ends_with("client-1.12.xml")));
+    assert!(a
+        .iter()
+        .any(|x| x.starts_with("-Dlog4j.configurationFile=") && x.ends_with("client-1.12.xml")));
     assert!(a[main..].windows(2).any(|w| w == ["--username", "Alex"]));
     assert!(a[main..].windows(2).any(|w| w == ["--assetIndex", "17"]));
     let objects = minecraft::assets_dir().join("objects");
     assert_eq!(std::fs::read_dir(&objects).unwrap().count(), 2);
-    assert_eq!(instance::get(&inst.id).unwrap().version_id.as_deref(), Some("fabric-loader-0.16.9-1.21.1"));
-    assert!(events.lock().unwrap().iter().any(|m| m.contains("Downloading game files")));
+    assert_eq!(
+        instance::get(&inst.id).unwrap().version_id.as_deref(),
+        Some("fabric-loader-0.16.9-1.21.1")
+    );
+    assert!(events
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|m| m.contains("Downloading game files")));
 
     // Second prepare: nothing to download, still works offline from cache.
     files.lock().unwrap().remove("/mc/manifest.json");
     launch::prepare(&mut inst, &session, &on).await.unwrap();
 
     // ── Modrinth pack import ──
-    let sodium = jar(&[("fabric.mod.json", br#"{"id":"sodium","name":"Sodium","version":"0.6.0"}"#)]);
+    let sodium = jar(&[(
+        "fabric.mod.json",
+        br#"{"id":"sodium","name":"Sodium","version":"0.6.0"}"#,
+    )]);
     let server_only = b"server".to_vec();
     put("/cdn/sodium.jar", sodium.clone());
     put("/cdn/server.jar", server_only.clone());
@@ -199,23 +265,47 @@ async fn install_fabric_build_launch_and_import_mrpack() {
         ]
     });
     let pack = home.path().join("cozy.mrpack");
-    std::fs::write(&pack, jar(&[
-        ("modrinth.index.json", serde_json::to_string(&idx).unwrap().as_bytes()),
-        ("overrides/config/sodium-options.json", b"{\"quality\":\"fancy\"}"),
-        ("client-overrides/options.txt", b"fov:90"),
-        ("overrides/../../evil.txt", b"no"),
-    ])).unwrap();
+    std::fs::write(
+        &pack,
+        jar(&[
+            (
+                "modrinth.index.json",
+                serde_json::to_string(&idx).unwrap().as_bytes(),
+            ),
+            (
+                "overrides/config/sodium-options.json",
+                b"{\"quality\":\"fancy\"}",
+            ),
+            ("client-overrides/options.txt", b"fov:90"),
+            ("overrides/../../evil.txt", b"no"),
+        ]),
+    )
+    .unwrap();
     let r = import::any(&pack, "", &on).await.unwrap();
     let g = instance::game_dir(&r.instance.id);
     assert_eq!(r.instance.name, "Cozy Pack");
     assert_eq!(r.instance.loader, Loader::Fabric);
     assert!(g.join("mods/sodium.jar").exists());
-    assert!(!g.join("mods/server-only.jar").exists(), "server-only files skipped");
+    assert!(
+        !g.join("mods/server-only.jar").exists(),
+        "server-only files skipped"
+    );
     assert!(g.join("config/sodium-options.json").exists() && g.join("options.txt").exists());
     assert!(!home.path().join("escape.jar").exists() && !home.path().join("evil.txt").exists());
     assert!(r.warnings.iter().any(|w| w.contains("unsafe path")));
-    assert!(r.warnings.iter().any(|w| w.contains("doesn't vet")), "local host isn't on Modrinth's list: {:?}", r.warnings);
-    assert_eq!(instance::mods(&r.instance.id).unwrap()[0].meta.as_ref().unwrap().name, "Sodium");
+    assert!(
+        r.warnings.iter().any(|w| w.contains("doesn't vet")),
+        "local host isn't on Modrinth's list: {:?}",
+        r.warnings
+    );
+    assert_eq!(
+        instance::mods(&r.instance.id).unwrap()[0]
+            .meta
+            .as_ref()
+            .unwrap()
+            .name,
+        "Sodium"
+    );
 
     // A tampered download must fail the import.
     put("/cdn/sodium.jar", b"tampered".to_vec());
@@ -223,7 +313,14 @@ async fn install_fabric_build_launch_and_import_mrpack() {
     let idx2 = json!({"formatVersion": 1, "game": "minecraft", "versionId": "1", "name": "Bad Pack",
         "dependencies": {"minecraft": "1.21.1"},
         "files": [{"path": "mods/sodium.jar", "hashes": {"sha1": sha1(&sodium), "sha512": sha512(&sodium)}, "downloads": [format!("{base}/cdn/sodium.jar")], "fileSize": sodium.len()}]});
-    std::fs::write(&bad, jar(&[("modrinth.index.json", serde_json::to_string(&idx2).unwrap().as_bytes())])).unwrap();
+    std::fs::write(
+        &bad,
+        jar(&[(
+            "modrinth.index.json",
+            serde_json::to_string(&idx2).unwrap().as_bytes(),
+        )]),
+    )
+    .unwrap();
     let err = import::any(&bad, "", &on).await.unwrap_err();
     assert!(format!("{err:#}").contains("checksum mismatch"), "{err:#}");
 }

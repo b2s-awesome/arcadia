@@ -3,7 +3,7 @@
 import type {
   DeviceCode, FoundInstance, Hit, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
   Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RuleConfig, ScanReport, Settings, RulesImported } from "./types";
-import type { FfConfig, MonitorSnapshot, Overview, PresentMonAvailability, ProcessInfo, Sample } from "./fftypes";
+import type { ActionView, ApplyRequest, Diagnosis, FfConfig, MonitorSnapshot, OptSession, Overview, PresentMonAvailability, ProcessInfo, Sample } from "./fftypes";
 import { mockInvoke, mockListen } from "./mock";
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -143,6 +143,13 @@ export const ff = {
   monitorStart: (pid: number, name: string) => call<void>("ff_monitor_start", { pid, name }),
   monitorStop: () => call<void>("ff_monitor_stop"),
   monitorSnapshot: () => call<MonitorSnapshot>("ff_monitor_snapshot"),
+  diagnose: () => call<Diagnosis>("ff_diagnose"),
+  optList: () => call<ActionView[]>("ff_opt_list"),
+  optApply: (requests: ApplyRequest[], level: number, label: string) => call<OptSession>("ff_opt_apply", { requests, level, label }),
+  optRevertChange: (sessionId: string, changeId: number) => call<OptSession>("ff_opt_revert_change", { sessionId, changeId }),
+  optRevertSession: (sessionId: string) => call<OptSession>("ff_opt_revert_session", { sessionId }),
+  optHistory: () => call<OptSession[]>("ff_opt_history"),
+  openSettings: (uri: string) => call<void>("ff_open_settings", { uri }),
 };
 
 export async function pickFolder(): Promise<string | null> {

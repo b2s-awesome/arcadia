@@ -212,6 +212,14 @@ pub fn scan(gpus: &super::gpu::GpuRegistry) -> Inventory {
     inv
 }
 
+/// Re-read power plans, start-up apps and gaming settings (cheap; no WMI).
+pub fn refresh_system(inv: &mut Inventory) {
+    #[cfg(windows)]
+    super::hardware_win::refresh_system(inv);
+    #[cfg(not(windows))]
+    let _ = inv;
+}
+
 /// CPU, memory totals and drives from `sysinfo` (works on every platform).
 fn scan_portable(inv: &mut Inventory) {
     use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};

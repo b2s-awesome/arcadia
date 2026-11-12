@@ -6,16 +6,50 @@
 //! cheap pull, *monitoring* only exists while switched on.
 
 use super::config::Config;
+use super::diagnostics::{self, Finding, FrameEvidence};
 use super::gpu::{ApiStatus, GpuRegistry, Vendor};
 use super::hardware::{self, Inventory};
 use super::monitor::{Monitor, Snapshot, State};
+use super::optimizer::ops::{SystemOps, WindowsOps};
+use super::optimizer::{ActionView, ApplyRequest, Ctx, Engine, Session};
 use super::presentmon::{self, Availability};
-use super::processes::{GameIndex, ProcessInfo, ProcessLister};
-use super::telemetry::{Sample, Sampler};
+use super::processes::{GameIndex, ProcessInfo, ProcessLister, ProcessOps, SystemProcessOps};
+use super::telemetry::{self, Sample, Sampler};
 use crate::library::Game;
 use parking_lot::Mutex;
 use serde::Serialize;
+use std::collections::VecDeque;
 use std::sync::Arc;
+
+/// Telemetry samples kept for diagnostics when no game is being monitored.
+const RECENT_SAMPLES: usize = 30;
+
+/// Windows Settings pages FrameForge may open. Nothing else is accepted.
+pub const SETTINGS_PAGES: &[&str] = &[
+    "ms-settings:gaming-gamemode",
+    "ms-settings:gaming-gamedvr",
+    "ms-settings:gaming-gamebar",
+    "ms-settings:display",
+    "ms-settings:display-advanced",
+    "ms-settings:display-advancedgraphics",
+    "ms-settings:storagesense",
+    "ms-settings:powersleep",
+    "ms-settings:startupapps",
+];
+
+/// Result of one diagnostic run.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Diagnosis {
+    pub generated_at: u64,
+    pub findings: Vec<Finding>,
+    /// Plain-text report of the same findings.
+    pub report: String,
+    /// Frame measurements the findings rest on, when a game was monitored.
+    pub frames: Option<FrameEvidence>,
+    /// What data the run had, in plain words.
+    pub basis: String,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,6 +77,10 @@ pub struct FrameForge {
     monitor: Mutex<Option<Monitor>>,
     lister: Mutex<Option<ProcessLister>>,
     games: Mutex<GameIndex>,
+    recent: Mutex<VecDeque<Sample>>,
+    engine: Engine,
+    ops: Arc<dyn SystemOps>,
+    procs: Arc<dyn ProcessOps>,
 }
 
 impl FrameForge {
@@ -53,8 +91,17 @@ impl FrameForge {
     }
 
     pub fn with_registry(gpus: GpuRegistry) -> Self {
+        Self::with_parts(gpus, Arc::new(WindowsOps), Arc::new(SystemProcessOps))
+    }
+
+    /// Build with explicit system backends (tests use in-memory ones).
+    pub fn with_parts(gpus: GpuRegistry, ops: Arc<dyn SystemOps>, procs: Arc<dyn ProcessOps>) -> Self {
         let _ = std::fs::create_dir_all(super::data_dir());
         Self {
+            recent: Mutex::new(VecDeque::new()),
+            engine: Engine::new(super::history_dir()),
+            ops,
+            procs,
             sampler: Arc::new(Sampler::new(gpus.clone())),
             gpus,
             inventory: Mutex::new(None),
@@ -115,7 +162,151 @@ impl FrameForge {
     }
 
     pub fn telemetry(&self) -> Sample {
-        self.sampler.sample()
+        let s = self.sampler.sample();
+        let mut r = self.recent.lock();
+        r.push_back(s.clone());
+        while r.len() > RECENT_SAMPLES {
+            r.pop_front();
+        }
+        s
+    }
+
+    pub fn engine(&self) -> &Engine {
+        &self.engine
+    }
+
+    /// Re-read the parts of the inventory that optimiser actions change.
+    fn refresh_system(&self) {
+        if let Some(inv) = self.inventory.lock().as_mut() {
+            hardware::refresh_system(inv);
+        }
+    }
+
+    /// Run `f` with everything an optimiser action may use.
+    pub fn with_ctx<T>(&self, with_processes: bool, f: impl FnOnce(&Ctx) -> T) -> T {
+        let inv = self.inventory(false);
+        let processes = if with_processes { self.processes() } else { Vec::new() };
+        f(&Ctx { ops: &*self.ops, procs: &*self.procs, gpus: &self.gpus, inv: &inv, processes: &processes })
+    }
+
+    /// Analyse the system. Uses the monitored game's frame data when there
+    /// is some, otherwise configuration checks and recent hardware readings.
+    pub fn diagnose(&self) -> Diagnosis {
+        let inv = self.inventory(false);
+        let processes = self.processes();
+        let gpu_id = inv.primary_gpu().map(|g| g.id.clone());
+        let monitored = self.with_monitor(|m| (m.snapshot(), m.telemetry_history()));
+        let (frames, samples) = match monitored {
+            Some((snap, history)) if snap.total_frames > 0 => (
+                Some(FrameEvidence {
+                    process: snap.process.clone(),
+                    stats: snap.presented.clone(),
+                    cpu_busy_ms: snap.cpu_busy_ms,
+                    cpu_wait_ms: snap.cpu_wait_ms,
+                    gpu_busy_ms: snap.gpu_busy_ms,
+                    gpu_wait_ms: snap.gpu_wait_ms,
+                    dropped_pct: snap.dropped_pct,
+                    generated_pct: snap.generated_pct,
+                }),
+                history,
+            ),
+            _ => {
+                self.telemetry();
+                (None, self.recent.lock().iter().cloned().collect())
+            }
+        };
+        let summary = (!samples.is_empty()).then(|| telemetry::summarize(&samples, gpu_id.as_deref()));
+        let vendor_apis = self.gpus.api_statuses();
+        let input = diagnostics::Input {
+            inv: &inv,
+            summary: summary.as_ref(),
+            frames: frames.as_ref(),
+            processes: &processes,
+            vendor_apis: &vendor_apis,
+            presentmon_ready: self.presentmon().will_use.is_some(),
+        };
+        let findings = diagnostics::analyze(&input);
+        let report = diagnostics::report(&input, &findings);
+        let basis = match &frames {
+            Some(f) if f.stats.duration_ms >= diagnostics::MIN_SECONDS * 1000.0 => {
+                format!("{:.0} seconds of frame data from {}, {} hardware readings and the current Windows configuration.", f.stats.duration_ms / 1000.0, f.process, samples.len())
+            }
+            Some(f) => format!(
+                "Only {:.0} seconds of frame data from {} so far; frame-based checks need {:.0}. Configuration checks and {} hardware readings were used.",
+                f.stats.duration_ms / 1000.0,
+                f.process,
+                diagnostics::MIN_SECONDS,
+                samples.len()
+            ),
+            None => format!("No game is being monitored, so there is no frame data. Configuration checks and {} hardware readings were used.", samples.len()),
+        };
+        Diagnosis { generated_at: hardware::now_secs(), findings, report, frames, basis }
+    }
+
+    pub fn optimizer_list(&self) -> Vec<ActionView> {
+        self.with_ctx(false, |ctx| self.engine.list(ctx))
+    }
+
+    /// Apply actions as one recorded session. `approved_level` is the level
+    /// the user confirmed in the dialog; level 3 also needs the expert
+    /// acknowledgement stored in the config.
+    pub fn optimizer_apply(&self, requests: &[ApplyRequest], approved_level: u8, label: &str) -> anyhow::Result<Session> {
+        let ceiling = if self.config.lock().expert_acknowledged { 3 } else { 2 };
+        let level = approved_level.clamp(1, 3);
+        if level > ceiling {
+            anyhow::bail!("Expert actions are locked. Turn on Expert mode in the Optimizer first.");
+        }
+        let needs_processes = requests.iter().any(|r| r.id.starts_with("process."));
+        if needs_processes {
+            self.settle_exited_processes();
+        }
+        let session = self.with_ctx(needs_processes, |ctx| self.engine.apply(ctx, requests, level, label))?;
+        self.refresh_system();
+        Ok(session)
+    }
+
+    /// Close the record of temporary process changes whose process has
+    /// exited, so a reused process id is never mistaken for the old one.
+    pub fn settle_exited_processes(&self) {
+        for (sid, c) in self.engine.active_changes() {
+            let pid = c.params.get("pid").and_then(|p| p.as_u64()).and_then(|p| u32::try_from(p).ok());
+            if let (true, Some(pid)) = (c.temporary, pid) {
+                if !self.procs.is_running(pid) {
+                    let _ = self.with_ctx(false, |ctx| self.engine.revert_change(ctx, &sid, c.id));
+                }
+            }
+        }
+    }
+
+    pub fn optimizer_revert_change(&self, session_id: &str, change_id: u32) -> anyhow::Result<Session> {
+        let r = self.with_ctx(false, |ctx| self.engine.revert_change(ctx, session_id, change_id));
+        self.refresh_system();
+        r
+    }
+
+    pub fn optimizer_revert_session(&self, session_id: &str) -> anyhow::Result<Session> {
+        let r = self.with_ctx(false, |ctx| self.engine.revert_session(ctx, session_id));
+        self.refresh_system();
+        r
+    }
+
+    pub fn optimizer_history(&self) -> Vec<Session> {
+        self.engine.history()
+    }
+
+    /// Open one of the allowed Windows Settings pages.
+    pub fn open_settings_page(&self, uri: &str) -> anyhow::Result<()> {
+        if !SETTINGS_PAGES.contains(&uri) {
+            anyhow::bail!("Arcadia does not open that settings page");
+        }
+        #[cfg(windows)]
+        {
+            super::winsys::open_uri(uri)
+        }
+        #[cfg(not(windows))]
+        {
+            anyhow::bail!("Windows Settings only exists on Windows")
+        }
     }
 
     /// Tell FrameForge which games the library knows, so processes can be matched to them.
@@ -239,6 +430,58 @@ mod tests {
         assert!((s.presented.avg_fps.unwrap() - 125.0).abs() < 1e-6);
         ff.monitor_stop();
         assert_eq!(ff.monitor_snapshot().state, State::Idle);
+    }
+
+    #[test]
+    fn diagnose_without_a_game_says_what_it_used() {
+        let (_g, _home) = crate::minecraft::test_home();
+        let ff = FrameForge::with_registry(test_registry());
+        let d = ff.diagnose();
+        assert!(d.frames.is_none());
+        assert!(d.basis.contains("No game is being monitored"));
+        assert!(d.report.starts_with("SYSTEM ANALYSIS"));
+        // Deterministic: the same state gives the same finding ids.
+        let again: Vec<String> = ff.diagnose().findings.into_iter().map(|f| f.id).collect();
+        assert_eq!(d.findings.iter().map(|f| f.id.clone()).collect::<Vec<_>>(), again);
+    }
+
+    #[test]
+    fn diagnose_uses_the_monitored_game() {
+        let (_g, _home) = crate::minecraft::test_home();
+        let ff = FrameForge::with_registry(test_registry());
+        // 20 s at 10 ms per frame with the GPU busy 9.6 ms of each: GPU-bound.
+        let frames: Vec<Frame> = (0..2000).map(|_| Frame { frame_time_ms: 10.0, displayed_time_ms: Some(10.0), gpu_busy_ms: Some(9.6), cpu_busy_ms: Some(3.0), ..Default::default() }).collect();
+        ff.monitor_start_with(Box::new(ReplaySource::new(vec![frames])), 5, "game.exe".into());
+        for _ in 0..300 {
+            if ff.monitor_snapshot().state == State::Ended {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let d = ff.diagnose();
+        assert_eq!(d.frames.as_ref().unwrap().process, "game.exe");
+        assert!(d.findings.iter().any(|f| f.id == "limit.gpu"), "{:?}", d.findings.iter().map(|f| &f.id).collect::<Vec<_>>());
+        assert!(d.basis.contains("game.exe"));
+    }
+
+    #[test]
+    fn optimizer_through_the_facade_applies_reverts_and_gates_expert() {
+        use crate::frameforge::optimizer::ops::{MockOps, MockProcs};
+        use crate::frameforge::optimizer::{ChangeStatus, SessionStatus};
+        let (_g, _home) = crate::minecraft::test_home();
+        let ops = Arc::new(MockOps::typical());
+        let ff = FrameForge::with_parts(test_registry(), ops.clone(), Arc::new(MockProcs::with(&[10])));
+        // The portable scan marks non-Windows hosts; power actions only need plans from `ops`.
+        let req = |id: &str| ApplyRequest { id: id.into(), params: serde_json::Value::Null };
+        assert!(ff.optimizer_apply(&[req("power.plan.high_performance")], 3, "x").unwrap_err().to_string().contains("Expert"));
+        let s = ff.optimizer_apply(&[req("power.plan.high_performance")], 1, "Safe pass").unwrap();
+        assert_eq!(s.status, SessionStatus::Applied);
+        assert_eq!(ff.optimizer_history().len(), 1);
+        assert!(ff.optimizer_list().iter().any(|v| v.meta.id == "power.plan.high_performance" && v.state == "applied"));
+        let s = ff.optimizer_revert_session(&s.id).unwrap();
+        assert_eq!(s.changes[0].status, ChangeStatus::Reverted);
+        assert!(ops.power_plans().iter().any(|p| p.active && p.name == "Balanced"));
+        assert!(ff.open_settings_page("ms-settings:../cmd").is_err());
     }
 
     #[test]

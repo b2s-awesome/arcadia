@@ -38,6 +38,15 @@ pub(crate) fn scan(inv: &mut Inventory) {
     }
 }
 
+pub(crate) fn refresh_system(inv: &mut Inventory) {
+    let plans: Vec<PowerPlan> = winsys::power_schemes().into_iter().map(|(guid, name, active)| PowerPlan { guid, name, active }).collect();
+    if !plans.is_empty() {
+        inv.system.power_plans = plans;
+    }
+    inv.system.startup_apps = startup_apps();
+    inv.system.gaming = gaming_config();
+}
+
 fn windows_version(inv: &mut Inventory) {
     const KEY: &str = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion";
     let build = read_string(Hive::LocalMachine, KEY, "CurrentBuildNumber").unwrap_or_default();

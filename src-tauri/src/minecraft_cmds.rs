@@ -26,11 +26,17 @@ fn on_progress(app: &AppHandle) -> OnProgress {
 #[tauri::command]
 pub async fn mc_versions(snapshots: bool) -> Res<Vec<minecraft::version::ManifestEntry>> {
     let m = minecraft::install::manifest().await.map_err(err)?;
-    Ok(m.versions.into_iter().filter(|v| v.kind == "release" || (snapshots && v.kind == "snapshot")).collect())
+    Ok(m.versions
+        .into_iter()
+        .filter(|v| v.kind == "release" || (snapshots && v.kind == "snapshot"))
+        .collect())
 }
 
 #[tauri::command]
-pub async fn mc_loader_versions(loader: loaders::Loader, mc: String) -> Res<Vec<loaders::LoaderVersion>> {
+pub async fn mc_loader_versions(
+    loader: loaders::Loader,
+    mc: String,
+) -> Res<Vec<loaders::LoaderVersion>> {
     loaders::versions(loader, &mc).await.map_err(err)
 }
 
@@ -40,13 +46,24 @@ pub fn mc_instances() -> Vec<instance::Instance> {
 }
 
 #[tauri::command]
-pub fn mc_create(name: String, mc: String, loader: loaders::Loader, loader_version: Option<String>, memory_mb: u32) -> Res<instance::Instance> {
+pub fn mc_create(
+    name: String,
+    mc: String,
+    loader: loaders::Loader,
+    loader_version: Option<String>,
+    memory_mb: u32,
+) -> Res<instance::Instance> {
     instance::create(&name, &mc, loader, loader_version, memory_mb).map_err(err)
 }
 
 /// Save editable fields (name, memory, JVM arguments).
 #[tauri::command]
-pub fn mc_update(id: String, name: String, memory_mb: u32, java_args: String) -> Res<instance::Instance> {
+pub fn mc_update(
+    id: String,
+    name: String,
+    memory_mb: u32,
+    java_args: String,
+) -> Res<instance::Instance> {
     let mut i = instance::get(&id).map_err(err)?;
     if !name.trim().is_empty() {
         i.name = name.trim().to_string();
@@ -98,13 +115,32 @@ pub fn mc_open_folder(id: String, sub: Option<String>) -> Res<()> {
 // ───────────────────────── content ─────────────────────────
 
 #[tauri::command]
-pub async fn mc_search(app: AppHandle, source: String, query: String, kind: String, instance_id: Option<String>) -> Res<Vec<modrinth::Hit>> {
+pub async fn mc_search(
+    app: AppHandle,
+    source: String,
+    query: String,
+    kind: String,
+    instance_id: Option<String>,
+) -> Res<Vec<modrinth::Hit>> {
     let inst = instance_id.as_deref().and_then(|i| instance::get(i).ok());
     let mc = inst.as_ref().map(|i| i.mc_version.clone());
-    let loader = inst.as_ref().map(|i| i.loader).filter(|l| *l != loaders::Loader::Vanilla);
+    let loader = inst
+        .as_ref()
+        .map(|i| i.loader)
+        .filter(|l| *l != loaders::Loader::Vanilla);
     match source.as_str() {
-        "curseforge" => curseforge::search(&settings(&app).curseforge_api_key, &query, &kind, mc.as_deref(), loader).await.map_err(err),
-        _ => modrinth::search(&query, &kind, mc.as_deref(), loader).await.map_err(err),
+        "curseforge" => curseforge::search(
+            &settings(&app).curseforge_api_key,
+            &query,
+            &kind,
+            mc.as_deref(),
+            loader,
+        )
+        .await
+        .map_err(err),
+        _ => modrinth::search(&query, &kind, mc.as_deref(), loader)
+            .await
+            .map_err(err),
     }
 }
 
@@ -116,36 +152,79 @@ pub struct InstallResult {
 }
 
 #[tauri::command]
-pub async fn mc_install(app: AppHandle, source: String, project_id: String, kind: String, instance_id: String) -> Res<InstallResult> {
+pub async fn mc_install(
+    app: AppHandle,
+    source: String,
+    project_id: String,
+    kind: String,
+    instance_id: String,
+) -> Res<InstallResult> {
     match source.as_str() {
         "curseforge" => {
             let id: u64 = project_id.parse().map_err(err)?;
-            let f = curseforge::install_project(&settings(&app).curseforge_api_key, &instance_id, id, &kind).await.map_err(err)?;
-            Ok(InstallResult { file_name: f, dependencies_added: vec![] })
+            let f = curseforge::install_project(
+                &settings(&app).curseforge_api_key,
+                &instance_id,
+                id,
+                &kind,
+            )
+            .await
+            .map_err(err)?;
+            Ok(InstallResult {
+                file_name: f,
+                dependencies_added: vec![],
+            })
         }
         _ => {
-            let r = modrinth::install_project(&instance_id, &project_id, &kind).await.map_err(err)?;
-            Ok(InstallResult { file_name: r.file_name, dependencies_added: r.dependencies_added })
+            let r = modrinth::install_project(&instance_id, &project_id, &kind)
+                .await
+                .map_err(err)?;
+            Ok(InstallResult {
+                file_name: r.file_name,
+                dependencies_added: r.dependencies_added,
+            })
         }
     }
 }
 
 #[tauri::command]
-pub async fn mc_install_pack(app: AppHandle, source: String, project_id: String) -> Res<import::ImportResult> {
+pub async fn mc_install_pack(
+    app: AppHandle,
+    source: String,
+    project_id: String,
+) -> Res<import::ImportResult> {
     let on = on_progress(&app);
     let s = settings(&app);
     match source.as_str() {
         "curseforge" => {
             let id: u64 = project_id.parse().map_err(err)?;
-            let path = curseforge::download_pack(&s.curseforge_api_key, id).await.map_err(err)?;
-            let src = instance::PackSource { platform: "curseforge".into(), project_id: Some(project_id), version_id: None, name: None };
-            import::curseforge_zip(&path, &s.curseforge_api_key, Some(src), &on).await.map_err(err)
+            let path = curseforge::download_pack(&s.curseforge_api_key, id)
+                .await
+                .map_err(err)?;
+            let src = instance::PackSource {
+                platform: "curseforge".into(),
+                project_id: Some(project_id),
+                version_id: None,
+                name: None,
+            };
+            import::curseforge_zip(&path, &s.curseforge_api_key, Some(src), &on)
+                .await
+                .map_err(err)
         }
         _ => {
-            let versions = modrinth::versions(&project_id, None, None).await.map_err(err)?;
-            let v = versions.first().ok_or("This modpack has no versions to install")?;
+            let versions = modrinth::versions(&project_id, None, None)
+                .await
+                .map_err(err)?;
+            let v = versions
+                .first()
+                .ok_or("This modpack has no versions to install")?;
             let path = modrinth::download_pack(&v.id).await.map_err(err)?;
-            let src = instance::PackSource { platform: "modrinth".into(), project_id: Some(project_id), version_id: Some(v.id.clone()), name: Some(v.name.clone()) };
+            let src = instance::PackSource {
+                platform: "modrinth".into(),
+                project_id: Some(project_id),
+                version_id: Some(v.id.clone()),
+                name: Some(v.name.clone()),
+            };
             import::mrpack(&path, Some(src), &on).await.map_err(err)
         }
     }
@@ -154,7 +233,13 @@ pub async fn mc_install_pack(app: AppHandle, source: String, project_id: String)
 #[tauri::command]
 pub async fn mc_import(app: AppHandle, path: String) -> Res<import::ImportResult> {
     let on = on_progress(&app);
-    import::any(&PathBuf::from(path), &settings(&app).curseforge_api_key, &on).await.map_err(err)
+    import::any(
+        &PathBuf::from(path),
+        &settings(&app).curseforge_api_key,
+        &on,
+    )
+    .await
+    .map_err(err)
 }
 
 #[tauri::command]
@@ -171,12 +256,16 @@ pub fn mc_accounts() -> Vec<auth::Account> {
 
 #[tauri::command]
 pub async fn mc_login_start(app: AppHandle) -> Res<auth::DeviceCode> {
-    auth::start(&settings(&app).minecraft_client_id).await.map_err(err)
+    auth::start(&settings(&app).minecraft_client_id)
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]
 pub async fn mc_login_finish(app: AppHandle, code: auth::DeviceCode) -> Res<auth::Account> {
-    auth::finish(&settings(&app).minecraft_client_id, &code).await.map_err(err)
+    auth::finish(&settings(&app).minecraft_client_id, &code)
+        .await
+        .map_err(err)
 }
 
 #[tauri::command]
@@ -213,24 +302,42 @@ pub async fn mc_play(app: AppHandle, id: String) -> Res<()> {
         return Err("This instance is already running".into());
     }
     let s = settings(&app);
-    let session = auth::session(&s.minecraft_client_id, None).await.map_err(err)?;
+    let session = auth::session(&s.minecraft_client_id, None)
+        .await
+        .map_err(err)?;
     let mut inst = instance::get(&id).map_err(err)?;
     let on = on_progress(&app);
-    let ready = launch::prepare(&mut inst, &session, &on).await.map_err(err)?;
+    let ready = launch::prepare(&mut inst, &session, &on)
+        .await
+        .map_err(err)?;
 
     let mut cmd = tokio::process::Command::new(&ready.java);
-    cmd.args(&ready.args).current_dir(&ready.game_dir).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    cmd.args(&ready.args)
+        .current_dir(&ready.game_dir)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
     #[cfg(windows)]
     {
         cmd.creation_flags(0x0800_0000); // no console window
     }
-    let mut child = cmd.spawn().map_err(|e| format!("Couldn't start Java: {e}"))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Couldn't start Java: {e}"))?;
     if let Some(pid) = child.id() {
         st.mc_running.lock().insert(id.clone(), pid);
     }
     let _ = app.emit("mc-started", &id);
 
-    for stream in [child.stdout.take().map(|s| Box::new(s) as Box<dyn tokio::io::AsyncRead + Unpin + Send>), child.stderr.take().map(|s| Box::new(s) as _)].into_iter().flatten() {
+    for stream in [
+        child
+            .stdout
+            .take()
+            .map(|s| Box::new(s) as Box<dyn tokio::io::AsyncRead + Unpin + Send>),
+        child.stderr.take().map(|s| Box::new(s) as _),
+    ]
+    .into_iter()
+    .flatten()
+    {
         let h = app.clone();
         let iid = id.clone();
         let session = session.clone();
@@ -239,7 +346,13 @@ pub async fn mc_play(app: AppHandle, id: String) -> Res<()> {
             while let Ok(Some(l)) = lines.next_line().await {
                 // Never let the access token reach the UI or logs.
                 let line = l.replace(&session.access_token, "<token>");
-                let _ = h.emit("mc-log", LogLine { instance: iid.clone(), line });
+                let _ = h.emit(
+                    "mc-log",
+                    LogLine {
+                        instance: iid.clone(),
+                        line,
+                    },
+                );
             }
         });
     }
@@ -257,7 +370,14 @@ pub async fn mc_play(app: AppHandle, id: String) -> Res<()> {
             i.playtime_secs += secs;
             let _ = instance::save(&i);
         }
-        let _ = h.emit("mc-exited", Exited { instance: iid, code, seconds: secs });
+        let _ = h.emit(
+            "mc-exited",
+            Exited {
+                instance: iid,
+                code,
+                seconds: secs,
+            },
+        );
     });
     hide_for_game(&app, &s);
     Ok(())
@@ -265,20 +385,38 @@ pub async fn mc_play(app: AppHandle, id: String) -> Res<()> {
 
 #[tauri::command]
 pub fn mc_running(app: AppHandle) -> Vec<String> {
-    app.state::<AppState>().mc_running.lock().keys().cloned().collect()
+    app.state::<AppState>()
+        .mc_running
+        .lock()
+        .keys()
+        .cloned()
+        .collect()
 }
 
 #[tauri::command]
 pub fn mc_kill(app: AppHandle, id: String) -> Res<()> {
-    let pid = app.state::<AppState>().mc_running.lock().get(&id).copied().ok_or("That instance isn't running")?;
+    let pid = app
+        .state::<AppState>()
+        .mc_running
+        .lock()
+        .get(&id)
+        .copied()
+        .ok_or("That instance isn't running")?;
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        std::process::Command::new("taskkill").args(["/PID", &pid.to_string(), "/T", "/F"]).creation_flags(0x0800_0000).status().map_err(err)?;
+        std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .creation_flags(0x0800_0000)
+            .status()
+            .map_err(err)?;
     }
     #[cfg(not(windows))]
     {
-        std::process::Command::new("kill").arg(pid.to_string()).status().map_err(err)?;
+        std::process::Command::new("kill")
+            .arg(pid.to_string())
+            .status()
+            .map_err(err)?;
     }
     Ok(())
 }
@@ -306,7 +444,11 @@ pub async fn mc_security_scan() -> Res<SecurityReport> {
         SecurityReport {
             findings: list.iter().flat_map(security::scan_instance).collect(),
             leftovers: security::check_leftovers(),
-            pipeblocker_advised: list.iter().filter(|i| security::pipeblocker_advised(i)).map(|i| i.name.clone()).collect(),
+            pipeblocker_advised: list
+                .iter()
+                .filter(|i| security::pipeblocker_advised(i))
+                .map(|i| i.name.clone())
+                .collect(),
             checked_instances: list.len(),
         }
     })
@@ -316,7 +458,9 @@ pub async fn mc_security_scan() -> Res<SecurityReport> {
 
 #[tauri::command]
 pub async fn mc_verify(app: AppHandle, id: String) -> Res<Vec<security::Verified>> {
-    security::verify_instance(&id, &settings(&app).curseforge_api_key).await.map_err(err)
+    security::verify_instance(&id, &settings(&app).curseforge_api_key)
+        .await
+        .map_err(err)
 }
 
 // ───────────────────────── standalone window ─────────────────────────
@@ -336,13 +480,17 @@ pub fn open_minecraft(app: &AppHandle, force_window: bool) {
         let _ = w.set_focus();
         return;
     }
-    let _ = WebviewWindowBuilder::new(app, "minecraft", WebviewUrl::App("index.html?mode=minecraft".into()))
-        .title("Minecraft")
-        .inner_size(1180.0, 760.0)
-        .min_inner_size(900.0, 580.0)
-        .decorations(false)
-        .center()
-        .build();
+    let _ = WebviewWindowBuilder::new(
+        app,
+        "minecraft",
+        WebviewUrl::App("index.html?mode=minecraft".into()),
+    )
+    .title("Minecraft")
+    .inner_size(1180.0, 760.0)
+    .min_inner_size(900.0, 580.0)
+    .decorations(false)
+    .center()
+    .build();
 }
 
 #[tauri::command]
@@ -381,8 +529,15 @@ pub fn open_url(url: String) -> Res<()> {
 #[tauri::command]
 pub fn create_minecraft_shortcut(app: AppHandle, name: String) -> Res<Vec<String>> {
     let exe = app.state::<AppState>().exe.clone();
-    let clean: String = name.chars().filter(|c| c.is_alphanumeric() || " -_()".contains(*c)).collect();
-    let label = if clean.trim().is_empty() { "Arcadia Minecraft".to_string() } else { clean.trim().to_string() };
+    let clean: String = name
+        .chars()
+        .filter(|c| c.is_alphanumeric() || " -_()".contains(*c))
+        .collect();
+    let label = if clean.trim().is_empty() {
+        "Arcadia Minecraft".to_string()
+    } else {
+        clean.trim().to_string()
+    };
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -392,7 +547,11 @@ pub fn create_minecraft_shortcut(app: AppHandle, name: String) -> Res<Vec<String
             targets.push(d.join(format!("{label}.lnk")));
         }
         if let Ok(appdata) = std::env::var("APPDATA") {
-            targets.push(PathBuf::from(appdata).join(r"Microsoft\Windows\Start Menu\Programs").join(format!("{label}.lnk")));
+            targets.push(
+                PathBuf::from(appdata)
+                    .join(r"Microsoft\Windows\Start Menu\Programs")
+                    .join(format!("{label}.lnk")),
+            );
         }
         for t in targets {
             let ps = format!(
@@ -425,5 +584,8 @@ pub fn create_minecraft_shortcut(app: AppHandle, name: String) -> Res<Vec<String
 
 #[cfg(windows)]
 fn dirs_desktop() -> Option<PathBuf> {
-    std::env::var("USERPROFILE").ok().map(|p| PathBuf::from(p).join("Desktop")).filter(|p| p.is_dir())
+    std::env::var("USERPROFILE")
+        .ok()
+        .map(|p| PathBuf::from(p).join("Desktop"))
+        .filter(|p| p.is_dir())
 }
