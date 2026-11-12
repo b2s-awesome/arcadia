@@ -27,7 +27,6 @@
 //! JSON presets (`frameforge::presets`).
 
 pub mod driver_settings;
-#[cfg(windows)]
 pub mod drs;
 pub mod meta;
 pub mod mock;
@@ -302,13 +301,10 @@ impl NvidiaProfiles {
         Self { backend, store: BackupStore::new(backups_dir), lock: Mutex::new(()), cache: Mutex::new(None), reference: Mutex::new(None), internal: Mutex::new(None), exposed: std::sync::OnceLock::new() }
     }
 
-    /// The real driver on Windows; elsewhere a backend that explains why not.
+    /// The installed NVIDIA driver. Where there is none (or the platform is
+    /// not Windows) every call reports why.
     pub fn system() -> Self {
-        #[cfg(windows)]
-        let backend: Arc<dyn DrsBackend> = Arc::new(drs::NvapiDrs::new());
-        #[cfg(not(windows))]
-        let backend: Arc<dyn DrsBackend> = Arc::new(mock::MockDrs::without_driver("NVIDIA driver profiles are only available on Windows"));
-        Self::new(backend, crate::frameforge::nvidia_backups_dir())
+        Self::new(Arc::new(drs::NvapiDrs::new()), crate::frameforge::nvidia_backups_dir())
     }
 
     fn with_meta<T>(&self, f: impl FnOnce(&Meta) -> T) -> T {
@@ -1255,6 +1251,14 @@ impl NvidiaProfiles {
 
     pub fn delete_backup(&self, id: &str) -> anyhow::Result<()> {
         self.store.delete(id)
+    }
+
+    /// Save an edited profile file. It goes through the reader once more,
+    /// so only a valid `.nip` file is ever written.
+    pub fn save_file(&self, path: &std::path::Path, file: &NipFile) -> anyhow::Result<()> {
+        check_output_path(path, "nip")?;
+        let checked = nip::parse(&nip::write(file)).map_err(|e| anyhow::anyhow!(e))?;
+        crate::frameforge::write_atomic(path, &nip::write(&checked))
     }
 
     /// Compare two `.nip` files, naming settings where a name is known.

@@ -81,6 +81,7 @@ pub struct FrameForge {
     engine: Engine,
     ops: Arc<dyn SystemOps>,
     procs: Arc<dyn ProcessOps>,
+    nvidia: super::nvidia::NvidiaProfiles,
 }
 
 impl FrameForge {
@@ -102,6 +103,7 @@ impl FrameForge {
             engine: Engine::new(super::history_dir()),
             ops,
             procs,
+            nvidia: super::nvidia::NvidiaProfiles::system(),
             sampler: Arc::new(Sampler::new(gpus.clone())),
             gpus,
             inventory: Mutex::new(None),
@@ -169,6 +171,33 @@ impl FrameForge {
             r.pop_front();
         }
         s
+    }
+
+    /// NVIDIA driver profiles (browse, edit, `.nip`, snapshots).
+    pub fn nvidia(&self) -> &super::nvidia::NvidiaProfiles {
+        &self.nvidia
+    }
+
+    /// Read a user-chosen file, refusing anything implausibly large before it is loaded.
+    pub fn read_user_file(path: &std::path::Path, max_bytes: u64) -> anyhow::Result<Vec<u8>> {
+        let meta = std::fs::metadata(path).map_err(|_| anyhow::anyhow!("That file could not be opened"))?;
+        if !meta.is_file() {
+            anyhow::bail!("That is not a file");
+        }
+        if meta.len() > max_bytes {
+            anyhow::bail!("The file is larger than {} MB and was not read", max_bytes / (1024 * 1024));
+        }
+        std::fs::read(path).map_err(|_| anyhow::anyhow!("That file could not be read"))
+    }
+
+    /// Names from the user's own Profile Inspector `Reference.xml`, if the
+    /// configured executable has one next to it. Returns how many settings are then known.
+    pub fn nvidia_load_reference(&self) -> anyhow::Result<usize> {
+        let exe = self.config.lock().npi_exe.clone().ok_or_else(|| anyhow::anyhow!("Choose your NVIDIA Profile Inspector executable first"))?;
+        let exe = super::nvidia::npi::validate_exe(std::path::Path::new(&exe)).map_err(|e| anyhow::anyhow!(e))?;
+        let path = exe.parent().map(|d| d.join("Reference.xml")).filter(|p| p.is_file()).ok_or_else(|| anyhow::anyhow!("There is no Reference.xml next to that executable"))?;
+        let bytes = Self::read_user_file(&path, 16 * 1024 * 1024)?;
+        self.nvidia.load_reference(&bytes).map_err(|e| anyhow::anyhow!(e))
     }
 
     pub fn engine(&self) -> &Engine {

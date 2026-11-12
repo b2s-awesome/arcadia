@@ -153,3 +153,183 @@ pub async fn ff_open_settings(app: AppHandle, uri: String) -> Res<()> {
         .await?
         .map_err(err)
 }
+
+// ── NVIDIA driver profiles ──────────────────────────────────────────────
+
+use ff::nvidia::{self as nv, nip};
+use std::path::PathBuf;
+
+/// Largest `.nip` file read from disk (same limit the parser enforces).
+const NIP_LIMIT: u64 = nip::MAX_FILE_BYTES as u64;
+
+#[tauri::command]
+pub async fn ff_nv_status(app: AppHandle) -> Res<nv::NvStatus> {
+    blocking(&app, |f| f.nvidia().status()).await
+}
+
+#[tauri::command]
+pub async fn ff_nv_profiles(app: AppHandle, refresh: bool) -> Res<Vec<nv::ProfileSummary>> {
+    blocking(&app, move |f| f.nvidia().list(refresh)).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_nv_profile(app: AppHandle, name: String) -> Res<nv::ProfileDetail> {
+    blocking(&app, move |f| f.nvidia().detail(&name)).await?.map_err(err)
+}
+
+/// What the changes would do. Nothing is written.
+#[tauri::command]
+pub async fn ff_nv_plan(app: AppHandle, profile: String, changes: Vec<nv::Change>) -> Res<Vec<nv::store::DiffLine>> {
+    blocking(&app, move |f| f.nvidia().plan(&profile, &changes)).await?.map_err(err)
+}
+
+/// Snapshot, apply through DRS, save, read back, record.
+#[tauri::command]
+pub async fn ff_nv_apply(app: AppHandle, profile: String, changes: Vec<nv::Change>) -> Res<nv::ApplyOutcome> {
+    blocking(&app, move |f| f.nvidia().apply(&profile, &changes, None)).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_nv_create_profile(app: AppHandle, name: String, exe: Option<String>) -> Res<nv::ApplyOutcome> {
+    blocking(&app, move |f| f.nvidia().create_profile(&name, exe.as_deref())).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_nv_delete_profile(app: AppHandle, name: String) -> Res<nv::ApplyOutcome> {
+    blocking(&app, move |f| f.nvidia().delete_profile(&name)).await?.map_err(err)
+}
+
+/// Export profiles to a `.nip` file. An empty list exports every profile the user changed.
+#[tauri::command]
+pub async fn ff_nv_export(app: AppHandle, path: String, names: Vec<String>) -> Res<usize> {
+    blocking(&app, move |f| {
+        let names = if names.is_empty() { f.nvidia().customised_names()? } else { names };
+        f.nvidia().export_to(&PathBuf::from(path), &names)
+    })
+    .await?
+    .map_err(err)
+}
+
+/// Read a `.nip` file and show it next to the live driver state. Nothing is written.
+#[tauri::command]
+pub async fn ff_nv_import_preview(app: AppHandle, path: String) -> Res<nv::ImportPreview> {
+    blocking(&app, move |f| {
+        let bytes = FrameForge::read_user_file(&PathBuf::from(path), NIP_LIMIT)?;
+        f.nvidia().import_preview(&bytes)
+    })
+    .await?
+    .map_err(err)
+}
+
+/// Re-evaluate a file the user edited in the import dialog.
+#[tauri::command]
+pub async fn ff_nv_preview(app: AppHandle, file: nip::NipFile) -> Res<nv::ImportPreview> {
+    blocking(&app, move |f| {
+        let checked = nip::parse(&nip::write(&file)).map_err(|e| anyhow::anyhow!(e))?;
+        Ok::<_, anyhow::Error>(f.nvidia().preview(checked))
+    })
+    .await?
+    .map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_nv_import(app: AppHandle, file: nip::NipFile, only: Vec<String>, mode: nv::ImportMode, label: String) -> Res<nv::ImportOutcome> {
+    blocking(&app, move |f| f.nvidia().import(&file, &only, mode, &label)).await?.map_err(err)
+}
+
+/// Save an edited (not applied) profile file.
+#[tauri::command]
+pub async fn ff_nv_save_file(app: AppHandle, path: String, file: nip::NipFile) -> Res<()> {
+    blocking(&app, move |f| f.nvidia().save_file(&PathBuf::from(path), &file)).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_nv_compare(app: AppHandle, a: String, b: String) -> Res<nip::NipDiff> {
+    blocking(&app, move |f| {
+        let fa = FrameForge::read_user_file(&PathBuf::from(a), NIP_LIMIT)?;
+        let fb = FrameForge::read_user_file(&PathBuf::from(b), NIP_LIMIT)?;
+        f.nvidia().compare_files(&fa, &fb)
+    })
+    .await?
+    .map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_nv_backups(app: AppHandle) -> Res<Vec<nv::store::BackupEntry>> {
+    blocking(&app, |f| f.nvidia().backups()).await
+}
+
+#[tauri::command]
+pub async fn ff_nv_backup_now(app: AppHandle, names: Vec<String>, label: String) -> Res<nv::store::BackupEntry> {
+    blocking(&app, move |f| {
+        let names = if names.is_empty() { f.nvidia().customised_names()? } else { names };
+        f.nvidia().backup_now(&names, &label)
+    })
+    .await?
+    .map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_nv_backup_contents(app: AppHandle, id: String) -> Res<nv::ImportPreview> {
+    blocking(&app, move |f| f.nvidia().backup_contents(&id)).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_nv_restore_backup(app: AppHandle, id: String) -> Res<nv::ImportOutcome> {
+    blocking(&app, move |f| f.nvidia().restore_backup(&id)).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_nv_delete_backup(app: AppHandle, id: String) -> Res<()> {
+    blocking(&app, move |f| f.nvidia().delete_backup(&id)).await?.map_err(err)
+}
+
+/// Write NVIDIA's own dump of the whole profile database (not a `.nip` file).
+#[tauri::command]
+pub async fn ff_nv_save_database(app: AppHandle, path: String) -> Res<()> {
+    blocking(&app, move |f| f.nvidia().save_driver_database(&PathBuf::from(path))).await?.map_err(err)
+}
+
+/// Fallback: hand a `.nip` file to the user's own NVIDIA Profile Inspector.
+#[tauri::command]
+pub async fn ff_nv_npi_import(app: AppHandle, path: String) -> Res<nv::npi::NpiRun> {
+    blocking(&app, move |f| {
+        let exe = f.config().npi_exe.ok_or("Choose your NVIDIA Profile Inspector executable first")?;
+        nv::npi::import_with(&PathBuf::from(exe), &[PathBuf::from(path)])
+    })
+    .await?
+    .map_err(err)
+}
+
+/// Fallback: ask Profile Inspector to export all customised profiles next to its executable.
+#[tauri::command]
+pub async fn ff_nv_npi_export(app: AppHandle) -> Res<nv::npi::NpiRun> {
+    blocking(&app, move |f| {
+        let exe = f.config().npi_exe.ok_or("Choose your NVIDIA Profile Inspector executable first")?;
+        nv::npi::export_customized_with(&PathBuf::from(exe))
+    })
+    .await?
+    .map_err(err)
+}
+
+/// Check and store the Profile Inspector path; `None` clears it.
+#[tauri::command]
+pub async fn ff_nv_set_npi(app: AppHandle, path: Option<String>) -> Res<ff::config::Config> {
+    blocking(&app, move |f| {
+        let mut c = f.config();
+        c.npi_exe = match path {
+            Some(p) => Some(nv::npi::validate_exe(&PathBuf::from(p)).map_err(|e| anyhow::anyhow!(e))?.to_string_lossy().into_owned()),
+            None => None,
+        };
+        f.set_config(c)?;
+        Ok::<_, anyhow::Error>(f.config())
+    })
+    .await?
+    .map_err(err)
+}
+
+/// Load setting names from the Reference.xml next to the user's Profile Inspector.
+#[tauri::command]
+pub async fn ff_nv_load_reference(app: AppHandle) -> Res<usize> {
+    blocking(&app, |f| f.nvidia_load_reference()).await?.map_err(err)
+}
