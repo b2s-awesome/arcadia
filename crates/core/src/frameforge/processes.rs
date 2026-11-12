@@ -295,6 +295,7 @@ pub trait ProcessOps: Send + Sync {
     fn terminate(&self, pid: u32) -> anyhow::Result<()>;
     fn priority(&self, pid: u32) -> anyhow::Result<String>;
     fn set_priority(&self, pid: u32, class: &str) -> anyhow::Result<()>;
+    fn is_running(&self, pid: u32) -> bool;
 }
 
 pub const ALLOWED_PRIORITIES: &[&str] = &["Idle", "BelowNormal", "Normal", "AboveNormal", "High"];
@@ -356,6 +357,17 @@ impl ProcessOps for SystemProcessOps {
         {
             let _ = pid;
             anyhow::bail!("Process priority is only supported on Windows")
+        }
+    }
+    fn is_running(&self, pid: u32) -> bool {
+        #[cfg(windows)]
+        {
+            super::winsys::is_running(pid)
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = pid;
+            false
         }
     }
 }

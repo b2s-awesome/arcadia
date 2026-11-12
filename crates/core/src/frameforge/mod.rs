@@ -19,12 +19,14 @@
 //! ```
 
 pub mod config;
+pub mod diagnostics;
 pub mod ffi;
 pub mod gpu;
 pub mod hardware;
 #[cfg(windows)]
 pub(crate) mod hardware_win;
 pub mod monitor;
+pub mod optimizer;
 pub mod presentmon;
 pub mod processes;
 pub mod service;

@@ -187,6 +187,19 @@ pub fn get_priority(pid: u32) -> anyhow::Result<String> {
     Ok(priority_name(class))
 }
 
+/// Is the process still running (opened and not yet exited)?
+pub fn is_running(pid: u32) -> bool {
+    // SAFETY: OpenProcess with query rights; handle closed below.
+    let Ok(h) = (unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }) else { return false };
+    let mut code = 0u32;
+    // SAFETY: valid process handle and out-pointer.
+    let ok = unsafe { GetExitCodeProcess(h, &mut code) }.is_ok();
+    // SAFETY: handle opened above.
+    let _ = unsafe { CloseHandle(h) };
+    // 259 = STILL_ACTIVE.
+    ok && code == 259
+}
+
 pub fn set_priority(pid: u32, name: &str) -> anyhow::Result<()> {
     let class = priority_from_name(name).ok_or_else(|| anyhow::anyhow!("'{name}' is not a priority Arcadia will set"))?;
     // SAFETY: OpenProcess with set-information rights; handle closed below.
