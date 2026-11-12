@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="utf-16"?>
+<ArrayOfProfile>
+  <Profile>
+    <ProfileName>Base Profile</ProfileName>
+    <Executeables />
+    <Settings>
+      <ProfileSetting>
+        <SettingNameInfo />
+        <SettingID>390417</SettingID>
+        <SettingValue>929060917</SettingValue>
+        <ValueType>Dword</ValueType>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingNameInfo> </SettingNameInfo>
+        <SettingID>390418</SettingID>
+        <SettingValue>1401246208</SettingValue>
+        <ValueType>Dword</ValueType>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingNameInfo>Example text setting</SettingNameInfo>
+        <SettingID>274197361</SettingID>
+        <SettingValue>Arcadia &lt;test&gt; &amp; more</SettingValue>
+        <ValueType>String</ValueType>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingNameInfo>Example binary setting</SettingNameInfo>
+        <SettingID>274197362</SettingID>
+        <SettingValue>AQIDBP8=</SettingValue>
+        <ValueType>Binary</ValueType>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingNameInfo>Example 64-bit setting</SettingNameInfo>
+        <SettingID>274197363</SettingID>
+        <SettingValue>18446744073709551615</SettingValue>
+        <ValueType>Qword</ValueType>
+      </ProfileSetting>
+    </Settings>
+    <ExecutableFindFiles />
+  </Profile>
+  <Profile>
+    <ProfileName>Test Game &amp; Co</ProfileName>
+    <Executeables>
+      <string>testgame.exe</string>
+      <string>bin\testgame-dx12.exe</string>
+    </Executeables>
+    <Settings>
+      <ProfileSetting>
+        <SettingNameInfo>Vertical Sync</SettingNameInfo>
+        <SettingID>11041231</SettingID>
+        <SettingValue>138504007</SettingValue>
+        <ValueType>Dword</ValueType>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingNameInfo>Power management mode</SettingNameInfo>
+        <SettingID>274197361</SettingID>
+        <SettingValue>1</SettingValue>
+        <ValueType>Dword</ValueType>
+      </ProfileSetting>
+    </Settings>
+    <ExecutableFindFiles>
+      <ExecutableFindFile Executable="testgame.exe" FindFile="steam_api64.dll" />
+    </ExecutableFindFiles>
+  </Profile>
+</ArrayOfProfile>

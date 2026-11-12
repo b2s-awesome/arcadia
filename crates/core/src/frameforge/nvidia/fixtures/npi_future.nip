@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-16"?>
+<ArrayOfProfile>
+  <Profile>
+    <ProfileName>From A Newer Build</ProfileName>
+    <Executeables>
+      <string>newer.exe</string>
+    </Executeables>
+    <Settings>
+      <ProfileSetting>
+        <SettingNameInfo>A setting Arcadia has never heard of</SettingNameInfo>
+        <SettingID>3735928559</SettingID>
+        <SettingValue>7</SettingValue>
+        <ValueType>Dword</ValueType>
+      </ProfileSetting>
+      <ProfileSetting>
+        <SettingNameInfo>A value type from the future</SettingNameInfo>
+        <SettingID>555</SettingID>
+        <SettingValue>1.5</SettingValue>
+        <ValueType>Float</ValueType>
+      </ProfileSetting>
+    </Settings>
+    <ExecutableFindFiles />
+    <GpuSelection>
+      <Gpu Index="0">Preferred &amp; pinned</Gpu>
+    </GpuSelection>
+    <Pinned />
+  </Profile>
+</ArrayOfProfile>

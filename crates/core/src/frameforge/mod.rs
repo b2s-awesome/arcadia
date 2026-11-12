@@ -26,6 +26,7 @@ pub mod hardware;
 #[cfg(windows)]
 pub(crate) mod hardware_win;
 pub mod monitor;
+pub mod nvidia;
 pub mod optimizer;
 pub mod presentmon;
 pub mod processes;
