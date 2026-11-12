@@ -376,6 +376,8 @@ fn parse_profile(reader: &mut Reader<&[u8]>, xml: &str, file: &mut NipFile) -> R
     Ok(p)
 }
 
+// `unescape_value` keeps the attribute text exactly as written, which is what a round trip needs.
+#[allow(deprecated)]
 fn parse_find_file(e: &quick_xml::events::BytesStart) -> Result<FindFile, String> {
     let mut f = FindFile::default();
     for a in e.attributes() {

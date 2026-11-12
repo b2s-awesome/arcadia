@@ -212,6 +212,9 @@ pub struct RawSetting {
     pub is_predefined_valid: bool,
     pub current: Value,
     pub predefined: Value,
+    /// The driver reported a setting type this version does not know (the
+    /// raw type code). The values then hold raw bytes and are read-only.
+    pub unknown_type: Option<i32>,
 }
 
 impl RawSetting {
