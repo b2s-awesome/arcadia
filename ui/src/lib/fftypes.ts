@@ -356,4 +356,107 @@ export interface OptSession {
 export const RESTART_TEXT: Record<Restart, string> = { none: "", game: "Restart the game", signOut: "Sign out and in", windows: "Restart Windows" };
 export const LEVEL_NAME = ["", "Safe", "Advanced", "Expert"];
 
+// ── NVIDIA driver profiles ───────────────────────────────────────────────
+
+export type NvKind = "dword" | "qword" | "wstring" | "ansi" | "binary";
+/** A driver value as text: decimal for numbers, base64 for binary. */
+export interface NvValue { type: NvKind; value: string }
+export interface NvValueLabel { value: number; label: string }
+export interface NvStatus { available: boolean; reason: string | null; driver: { version: string | null; branch: string | null }; knownSettings: number; referenceLoaded: boolean }
+export type NvProfileKind = "global" | "predefined" | "user";
+export interface NvProfileSummary { name: string; kind: NvProfileKind; executables: string[]; settingCount: number; customisedCount: number; userExecutables: number }
+export type NvSettingState = "user" | "nvidia" | "inherited" | "default" | "unset";
+export type NvNameSource = "nvidia" | "profileInspector" | "reference" | "driver" | "none";
+
+export interface NvSetting {
+  id: number;
+  idHex: string;
+  name: string;
+  nameSource: NvNameSource;
+  alternateNames: string[];
+  group: string;
+  description: string;
+  kind: NvKind;
+  kindLabel: string;
+  value: NvValue | null;
+  valueLabel: string | null;
+  raw: string;
+  default: NvValue | null;
+  defaultLabel: string | null;
+  state: NvSettingState;
+  modified: boolean;
+  options: NvValueLabel[];
+  documented: boolean;
+  exposed: boolean;
+  common: boolean;
+  hidden: boolean;
+  internal: boolean;
+  editable: boolean;
+  readOnlyReason: string | null;
+  note: string | null;
+}
+
+export interface NvApp { name: string; friendlyName: string; launcher: string; fileInFolder: string; commandLine: string; isPredefined: boolean }
+export interface NvProfileDetail { summary: NvProfileSummary; apps: NvApp[]; settings: NvSetting[]; groups: string[]; internalScan: boolean }
+
+export type NvChange =
+  | { op: "set"; id: number; value: NvValue }
+  | { op: "restore"; id: number }
+  | { op: "restoreProfile" }
+  | { op: "addApp"; exe: string; findFile?: string | null }
+  | { op: "removeApp"; exe: string };
+
+export interface NvDiffLine { profile: string; settingId: number | null; what: string; before: string; after: string; note: string | null }
+export interface NvApplyOutcome { backupId: string; changes: NvDiffLine[]; verified: boolean; mismatches: string[] }
+
+export interface NipSetting { id: number; nameInfo: string | null; valueType: string; rawValue: string; typeAbsent: boolean }
+export interface NipProfile { name: string; executables: string[]; settings: NipSetting[]; findFiles: { executable: string | null; findFile: string | null }[]; extra: string[] }
+export interface NipFile { profiles: NipProfile[]; encoding: string; hasFindFiles: boolean; warnings: string[] }
+
+export interface NvPreviewSetting {
+  id: number;
+  idHex: string;
+  name: string;
+  nameSource: NvNameSource;
+  documented: boolean;
+  valueType: string;
+  rawValue: string;
+  label: string | null;
+  problem: string | null;
+  live: string | null;
+  sameAsLive: boolean;
+  options: NvValueLabel[];
+}
+export interface NvPreviewProfile { name: string; exists: boolean; kind: NvProfileKind | null; executables: string[]; conflicts: [string, string][]; settings: NvPreviewSetting[]; liveOnly: NvPreviewSetting[]; unknownElements: number }
+export interface NvImportPreview { file: NipFile; profiles: NvPreviewProfile[]; warnings: string[]; driverAvailable: boolean; driverReason: string | null }
+export interface NvImportResult { profile: string; created: boolean; ok: boolean; error: string | null; applied: number; skipped: { id: number; name: string; reason: string }[] }
+export interface NvImportOutcome { backupId: string; profiles: NvImportResult[]; verified: boolean; mismatches: string[] }
+
+export interface NvBackup {
+  id: string;
+  createdAt: number;
+  label: string;
+  reason: "edit" | "import" | "manual" | "restore" | "delete";
+  profiles: string[];
+  createdProfiles: string[];
+  file: string;
+  changes: NvDiffLine[];
+  verified: boolean | null;
+  note: string | null;
+  driverVersion: string | null;
+}
+
+export interface NipSettingDiff { id: number; name: string; a: string | null; b: string | null; aType: string | null; bType: string | null }
+export interface NipProfileDiff { name: string; status: "onlyA" | "onlyB" | "changed" | "same"; settings: NipSettingDiff[]; executablesOnlyA: string[]; executablesOnlyB: string[]; settingsSame: number }
+export interface NipDiff { profiles: NipProfileDiff[]; identical: boolean }
+export interface NpiRun { finished: boolean; exitCode: number | null; message: string }
+
+export const NV_NAME_SOURCE: Record<NvNameSource, string> = {
+  nvidia: "Named by NVIDIA's SDK",
+  profileInspector: "Named by the NVIDIA Profile Inspector project",
+  reference: "Named by your Profile Inspector Reference.xml",
+  driver: "Named by the installed driver",
+  none: "No known name",
+};
+
 export const VENDOR_LABEL: Record<Vendor, string> = { nvidia: "NVIDIA", amd: "AMD", intel: "Intel", other: "Other" };

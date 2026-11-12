@@ -5,11 +5,13 @@
   import Dashboard from "./Dashboard.svelte";
   import LiveMonitor from "./LiveMonitor.svelte";
   import Optimizer from "./Optimizer.svelte";
+  import NvidiaProfiles from "./NvidiaProfiles.svelte";
 
   const tabs: { id: PerfTab; label: string }[] = [
     { id: "dashboard", label: "Dashboard" },
     { id: "optimizer", label: "Optimizer" },
     { id: "monitor", label: "Live Monitor" },
+    { id: "nvidia", label: "NVIDIA Profiles" },
   ];
 
   onMount(() => {
@@ -39,6 +41,7 @@
   <div class="body">
     {#if ffs.tab === "monitor"}<LiveMonitor />
     {:else if ffs.tab === "optimizer"}<Optimizer />
+    {:else if ffs.tab === "nvidia"}<NvidiaProfiles />
     {:else}<Dashboard />{/if}
   </div>
 </div>

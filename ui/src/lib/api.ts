@@ -3,7 +3,10 @@
 import type {
   DeviceCode, FoundInstance, Hit, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
   Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RuleConfig, ScanReport, Settings, RulesImported } from "./types";
-import type { ActionView, ApplyRequest, Diagnosis, FfConfig, MonitorSnapshot, OptSession, Overview, PresentMonAvailability, ProcessInfo, Sample } from "./fftypes";
+import type {
+  ActionView, ApplyRequest, Diagnosis, FfConfig, MonitorSnapshot, NipDiff, NipFile, NpiRun, NvApplyOutcome, NvBackup, NvChange, NvDiffLine, NvImportOutcome,
+  NvImportPreview, NvProfileDetail, NvProfileSummary, NvStatus, OptSession, Overview, PresentMonAvailability, ProcessInfo, Sample,
+} from "./fftypes";
 import { mockInvoke, mockListen } from "./mock";
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -151,6 +154,40 @@ export const ff = {
   optHistory: () => call<OptSession[]>("ff_opt_history"),
   openSettings: (uri: string) => call<void>("ff_open_settings", { uri }),
 };
+
+/** NVIDIA driver profiles. Every write goes through snapshot, apply, save, read-back in the backend. */
+export const nv = {
+  status: () => call<NvStatus>("ff_nv_status"),
+  profiles: (refresh = false) => call<NvProfileSummary[]>("ff_nv_profiles", { refresh }),
+  profile: (name: string) => call<NvProfileDetail>("ff_nv_profile", { name }),
+  plan: (profile: string, changes: NvChange[]) => call<NvDiffLine[]>("ff_nv_plan", { profile, changes }),
+  apply: (profile: string, changes: NvChange[]) => call<NvApplyOutcome>("ff_nv_apply", { profile, changes }),
+  createProfile: (name: string, exe: string | null) => call<NvApplyOutcome>("ff_nv_create_profile", { name, exe }),
+  deleteProfile: (name: string) => call<NvApplyOutcome>("ff_nv_delete_profile", { name }),
+  exportTo: (path: string, names: string[]) => call<number>("ff_nv_export", { path, names }),
+  importPreview: (path: string) => call<NvImportPreview>("ff_nv_import_preview", { path }),
+  preview: (file: NipFile) => call<NvImportPreview>("ff_nv_preview", { file }),
+  importFile: (file: NipFile, only: string[], mode: "replace" | "merge", label: string) => call<NvImportOutcome>("ff_nv_import", { file, only, mode, label }),
+  saveFile: (path: string, file: NipFile) => call<void>("ff_nv_save_file", { path, file }),
+  compare: (a: string, b: string) => call<NipDiff>("ff_nv_compare", { a, b }),
+  backups: () => call<NvBackup[]>("ff_nv_backups"),
+  backupNow: (names: string[], label: string) => call<NvBackup>("ff_nv_backup_now", { names, label }),
+  backupContents: (id: string) => call<NvImportPreview>("ff_nv_backup_contents", { id }),
+  restoreBackup: (id: string) => call<NvImportOutcome>("ff_nv_restore_backup", { id }),
+  deleteBackup: (id: string) => call<void>("ff_nv_delete_backup", { id }),
+  saveDatabase: (path: string) => call<void>("ff_nv_save_database", { path }),
+  npiImport: (path: string) => call<NpiRun>("ff_nv_npi_import", { path }),
+  npiExport: () => call<NpiRun>("ff_nv_npi_export"),
+  setNpi: (path: string | null) => call<FfConfig>("ff_nv_set_npi", { path }),
+  loadReference: () => call<number>("ff_nv_load_reference"),
+};
+
+/** Ask where to save a file. Returns null when the dialog is cancelled. */
+export async function pickSavePath(defaultName: string, filters: { name: string; extensions: string[] }[]): Promise<string | null> {
+  if (!inTauri) return `C:\\Users\\you\\Documents\\${defaultName}`;
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  return (await save({ defaultPath: defaultName, filters })) ?? null;
+}
 
 export async function pickFolder(): Promise<string | null> {
   if (!inTauri) return "C:\\Users\\you\\AppData\\Roaming\\PrismLauncher\\instances\\Fabulously Optimized";
