@@ -17,7 +17,6 @@ pub mod igcl_types;
 pub mod adlx;
 #[cfg(windows)]
 pub mod igcl;
-#[cfg(windows)]
 pub mod igcl_controls;
 pub mod nvapi;
 
