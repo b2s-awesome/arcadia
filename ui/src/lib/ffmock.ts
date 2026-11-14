@@ -6,6 +6,7 @@
 import { optMock } from "./ffmockOpt";
 import { nvMock } from "./ffmockNv";
 import { gpuMock } from "./ffmockGpu";
+import { profileMock } from "./ffmockProfiles";
 import type { FfConfig, FrameStats, GpuDevice, GpuSample, MonitorSnapshot, Overview, ProcessInfo, Sample } from "./fftypes";
 
 const GB = 1024 ** 3;
@@ -150,6 +151,9 @@ export const ffMockProcesses: ProcessInfo[] = [
 // ── monitor ──────────────────────────────────────────────────────────────
 
 let monitor: { pid: number; name: string; started: number; frames: number[]; history: Sample[] } | null = null;
+/** Frame count when the preview benchmark recording began; null when not recording. */
+let recordFrom: number | null = null;
+let recordStarted = 0;
 
 function stats(frames: number[]): FrameStats {
   const n = frames.length;
@@ -179,11 +183,25 @@ function snapshot(): MonitorSnapshot {
   return {
     state: "running", pid: monitor.pid, process: monitor.name, source: "service", sourceDetail: "PresentMon Service, API 3.1.0 (preview)", error: null, elapsedMs: Date.now() - monitor.started,
     totalFrames: monitor.frames.length, displayedFpsNow: now, presentedFpsNow: now, displayed: st, presented: st, latestFrameTimeMs: last[last.length - 1], cpuBusyMs: 6.1, cpuWaitMs: 7.5, gpuBusyMs: 13.1, gpuWaitMs: 0.5,
-    displayLatencyMs: 34, droppedPct: 0.2, generatedPct: 0, frameTimesMs: monitor.frames.slice(-240), telemetry: monitor.history[monitor.history.length - 1], telemetryHistory: monitor.history, recording: false, recordedFrames: 0, notes: [],
+    displayLatencyMs: 34, droppedPct: 0.2, generatedPct: 0, frameTimesMs: monitor.frames.slice(-240), telemetry: monitor.history[monitor.history.length - 1], telemetryHistory: monitor.history, recording: recordFrom !== null, recordedFrames: recordFrom === null ? 0 : Math.round((Date.now() - recordStarted) * 0.0735), notes: [],
   };
 }
 
-export const ffMockExtra: Record<string, (args: Record<string, unknown>) => unknown> = { ...optMock, ...nvMock, ...gpuMock(gpus, optMock.ff_opt_apply) };
+const gpuHandlers = gpuMock(gpus, optMock.ff_opt_apply);
+export const ffMockExtra: Record<string, (args: Record<string, unknown>) => unknown> = {
+  ...optMock, ...nvMock, ...gpuHandlers,
+  ...profileMock({
+    processes: () => ffMockProcesses,
+    presets: () => gpuHandlers.ff_presets({}) as { id: string; name: string }[],
+    actions: () => optMock.ff_opt_list({}) as { id: string; params: unknown; name: string; label: string | null; level: number; state: string }[],
+    monitor: () => (monitor ? { pid: monitor.pid, name: monitor.name } : null),
+    recording: () => recordFrom !== null,
+    record: (on) => { recordFrom = on && monitor ? monitor.frames.length : null; if (on) recordStarted = Date.now(); },
+    recordedMs: () => Date.now() - recordStarted,
+    stats,
+    inventory: () => overview().inventory,
+  }),
+};
 
 export function ffMock(cmd: string, args: Record<string, unknown>): unknown {
   switch (cmd) {
@@ -195,7 +213,7 @@ export function ffMock(cmd: string, args: Record<string, unknown>): unknown {
     case "ff_config_get": return structuredClone(config);
     case "ff_config_set": config = JSON.parse(JSON.stringify(args.config)) as FfConfig; return structuredClone(config);
     case "ff_monitor_start": monitor = { pid: args.pid as number, name: args.name as string, started: Date.now(), frames: [], history: [] }; return;
-    case "ff_monitor_stop": monitor = null; return;
+    case "ff_monitor_stop": if (recordFrom !== null) ffMockExtra.ff_bench_stop({}); monitor = null; return;
     case "ff_monitor_snapshot": return snapshot();
     default: {
       const f = ffMockExtra[cmd];

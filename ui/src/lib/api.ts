@@ -7,6 +7,7 @@ import type {
   ActionView, ApplyRequest, Diagnosis, FfConfig, MonitorSnapshot, NipDiff, NipFile, NpiRun, NvApplyOutcome, NvBackup, NvChange, NvDiffLine, NvImportOutcome,
   NvImportPreview, NvProfileDetail, NvProfileSummary, NvStatus, OptSession, Overview, PresentMonAvailability, ProcessInfo, Sample,
   GpuControlsView, GpuPreset, PresetCheck, PresetOutcome,
+  GameProfile, ProfileView, GameChoice, ProfileRun, LifecycleEvent, BenchSession, BenchComparison,
 } from "./fftypes";
 import { mockInvoke, mockListen } from "./mock";
 
@@ -162,6 +163,23 @@ export const ff = {
   presetImport: (path: string) => call<GpuPreset>("ff_preset_import", { path }),
   presetExport: (id: string, path: string) => call<void>("ff_preset_export", { id, path }),
   presetDelete: (id: string) => call<void>("ff_preset_delete", { id }),
+  profiles: () => call<ProfileView[]>("ff_profiles"),
+  profileGames: () => call<GameChoice[]>("ff_profile_games"),
+  profileSave: (profile: GameProfile, level: number) => call<GameProfile>("ff_profile_save", { profile, level }),
+  profileDelete: (id: string) => call<void>("ff_profile_delete", { id }),
+  profileDuplicate: (id: string) => call<GameProfile>("ff_profile_duplicate", { id }),
+  profileApply: (id: string, level: number) => call<ProfileRun>("ff_profile_apply", { id, level }),
+  profileRevert: (id: string) => call<string[]>("ff_profile_revert", { id }),
+  profileExport: (id: string, path: string) => call<void>("ff_profile_export", { id, path }),
+  profileImport: (path: string) => call<GameProfile>("ff_profile_import", { path }),
+  profileEvents: () => call<LifecycleEvent[]>("ff_profile_events"),
+  benchStart: (label: string) => call<void>("ff_bench_start", { label }),
+  benchStop: () => call<BenchSession>("ff_bench_stop"),
+  benchList: () => call<BenchSession[]>("ff_bench_list"),
+  benchRename: (id: string, label: string) => call<BenchSession>("ff_bench_rename", { id, label }),
+  benchDelete: (id: string) => call<void>("ff_bench_delete", { id }),
+  benchCompare: (ids: string[]) => call<BenchComparison>("ff_bench_compare", { ids }),
+  benchExport: (ids: string[], path: string) => call<void>("ff_bench_export", { ids, path }),
 };
 
 /** NVIDIA driver profiles. Every write goes through snapshot, apply, save, read-back in the backend. */

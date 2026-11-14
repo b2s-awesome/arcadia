@@ -68,6 +68,26 @@
     }
   }
 
+  /** Record what is being measured as a benchmark session (saved to Benchmark History). */
+  async function record() {
+    try {
+      await ff.benchStart("");
+      ffs.snapshot = await ff.monitorSnapshot();
+    } catch (e) {
+      toast(String(e), "error");
+    }
+  }
+
+  async function saveRecording() {
+    try {
+      const b = await ff.benchStop();
+      toast(`Benchmark saved: ${(b.durationMs / 1000).toFixed(0)} s, ${b.presented.frames} frames. Name and compare it in Benchmark History.`);
+      ffs.snapshot = await ff.monitorSnapshot();
+    } catch (e) {
+      toast(String(e), "error");
+    }
+  }
+
   async function stop() {
     await ff.monitorStop().catch((e) => toast(String(e), "error"));
     ffs.snapshot = await ff.monitorSnapshot();
@@ -131,6 +151,11 @@
       </label>
       {#if active}
         <button class="danger" onclick={stop}><Icon name="stop" size={15} /> Stop</button>
+        {#if snap?.recording}
+          <button onclick={saveRecording} title="Stop recording and add the session to Benchmark History"><span class="rec"></span> Save benchmark ({snap.recordedFrames} frames)</button>
+        {:else}
+          <button class="ghost" onclick={record} title="Record the frames being measured as a benchmark session">Record benchmark</button>
+        {/if}
       {:else}
         <button class="ghost" onclick={refreshProcesses} title="Refresh the process list"><Icon name="refresh" size={15} /></button>
         <button class="play start" disabled={pid === null || busy} onclick={start}>{busy ? "Starting…" : "Start monitoring"}</button>
@@ -205,6 +230,7 @@
 </div>
 
 <style>
+  .rec { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--rose); margin-right: 0.15rem; }
   .setup p, .setup li { color: var(--muted); font-size: 0.9rem; }
   .setup ol { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.3rem; }
   .controls { display: flex; align-items: flex-end; gap: 0.6rem; margin-bottom: 1rem; flex-wrap: wrap; }

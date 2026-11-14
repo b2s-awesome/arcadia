@@ -30,7 +30,14 @@ async function open(query) {
   await page.setViewport({ width: 1500, height: 1000 });
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
-  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  page.on("console", (m) => {
+    if (m.type() !== "error") return;
+    // Cover art and other remote files that the existing pages fetch are not reachable
+    // from a sandboxed test machine. Only failures of the app's own files count.
+    const url = m.location()?.url ?? "";
+    if (m.text().startsWith("Failed to load resource") && url && !url.startsWith(BASE)) return;
+    errors.push(m.text());
+  });
   for (let i = 0; ; i++) {
     try {
       await page.goto(`${BASE}?splash=0&page=performance&${query}`, { waitUntil: "networkidle0" });
@@ -319,15 +326,92 @@ await check("GPU Control: locked until the level allows it, then stage, review, 
   return page;
 });
 
-await check("Game Profiles: create, edit, duplicate", async () => {
+await check("Game Profiles: automation is off by default; create, edit, duplicate, apply, revert", async () => {
   const page = await open("perftab=profiles");
   await waitText(page, "Game Profiles");
+  await waitText(page, "Preview: Competitive");
+  const toggles = await page.evaluate(() => [...document.querySelectorAll('[aria-label="Apply profiles when their game starts"], [aria-label="Start Live Monitor when a library game starts"]')].map((t) => t.getAttribute("aria-checked") ?? String(t.checked)));
+  if (toggles.length !== 2 || toggles.some((t) => t !== "false")) throw new Error(`automatic activation is not off by default: ${toggles}`);
+  // Create a profile for the running game.
+  await click(page, "New profile");
+  if ((await dialogTitle(page)) !== "New profile") throw new Error("the editor did not open");
+  const exe = await page.evaluate(() => document.querySelector('dialog[open] input[placeholder="game.exe"]').value);
+  if (exe !== "Cyberpunk2077.exe") throw new Error(`the running game's executable was not filled in: ${exe}`);
+  if (await page.evaluate(() => [...document.querySelectorAll("dialog[open] option")].some((o) => /realtime/i.test(o.textContent)))) throw new Error("Realtime priority is offered");
+  await page.evaluate(() => {
+    const set = (el, v) => { el.value = v; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); };
+    set(document.querySelector('dialog[open] input[placeholder="e.g. Competitive"]'), "UI test profile");
+    set([...document.querySelectorAll("dialog[open] select")].find((s) => [...s.options].some((o) => o.value === "High")), "High");
+  });
+  await waitText(page, "approves this profile up to the Advanced level");
+  await click(page, "Save profile", { dialog: true });
+  await waitText(page, "UI test profile");
+  await waitText(page, "Priority: High");
+  // A protected executable is refused.
+  await click(page, "New profile");
+  await page.evaluate(() => {
+    const set = (el, v) => { el.value = v; el.dispatchEvent(new Event("input", { bubbles: true })); };
+    set(document.querySelector('dialog[open] input[placeholder="e.g. Competitive"]'), "Bad");
+    set(document.querySelector('dialog[open] input[placeholder="game.exe"]'), "lsass.exe");
+  });
+  await click(page, "Save profile", { dialog: true });
+  await waitText(page, "cannot have a profile");
+  await click(page, "Cancel", { dialog: true });
+  // Duplicate, then apply at the Safe level: the Advanced priority is left out and listed.
+  await click(page, "Duplicate");
+  await waitText(page, "(copy)");
+  await click(page, "Apply now");
+  await click(page, "Apply", { dialog: true });
+  await waitText(page, "Left out");
+  await waitText(page, "needs the Advanced level");
+  await click(page, "Done", { dialog: true });
+  await waitText(page, "Applied");
+  await click(page, "Revert");
+  await waitText(page, "Restored");
   return page;
 });
 
-await check("Benchmark History: sessions listed and comparable", async () => {
+await check("Benchmark History: record, list, compare with deltas and warnings", async () => {
   const page = await open("perftab=benchmarks");
   await waitText(page, "Benchmark History");
+  await waitText(page, "Preview: baseline");
+  await waitText(page, "Start Live Monitor on a game first");
+  if (!(await page.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.innerText.trim().startsWith("Compare")).disabled))) throw new Error("Compare is enabled with nothing selected");
+  const tick = (name) => page.evaluate((n) => document.querySelector(`input[aria-label="Select ${n}"]`).click(), name);
+  await tick("Preview: baseline");
+  await tick("Preview: after tuning");
+  await click(page, "Compare (2)");
+  await waitText(page, "Baseline: Preview: baseline");
+  await waitText(page, "Average FPS");
+  const cmp = await page.evaluate(() => document.querySelector('section[aria-label="Comparison"]').innerText);
+  if (!/[+-]\d+\.\d FPS \([+-]\d+\.\d%\)/.test(cmp)) throw new Error("no absolute and percentage difference shown");
+  if (!/does not prove what caused/i.test(cmp)) throw new Error("the comparison does not say it is not proof of cause");
+  if (!/same scene/i.test(cmp)) throw new Error("no scene caveat");
+  // Adding the short run flags the comparison as unreliable.
+  await tick("Preview: short test");
+  await click(page, "Compare (3)");
+  await waitText(page, "is a short capture");
+  await waitText(page, "cannot be attributed");
+  // Details open with the frame-time chart and the conditions.
+  await click(page, "Preview: baseline");
+  await waitText(page, "Frame time over the run");
+  await waitText(page, "Optimisations active");
+  // Record a run through Live Monitor.
+  await click(page, "Open Live Monitor");
+  await click(page, "Start monitoring");
+  await waitText(page, "Record benchmark");
+  await click(page, "Benchmark History");
+  await waitText(page, "Start recording");
+  await page.evaluate(() => {
+    const el = document.querySelector('input[aria-label="Benchmark name"]');
+    el.value = "UI test run";
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await click(page, "Start recording");
+  await waitText(page, "Stop and save");
+  await click(page, "Stop and save");
+  await waitText(page, "UI test run");
+  await waitText(page, "Short capture");
   return page;
 });
 

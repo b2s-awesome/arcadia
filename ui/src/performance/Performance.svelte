@@ -7,13 +7,17 @@
   import Optimizer from "./Optimizer.svelte";
   import NvidiaProfiles from "./NvidiaProfiles.svelte";
   import GpuControl from "./GpuControl.svelte";
+  import GameProfiles from "./GameProfiles.svelte";
+  import BenchmarkHistory from "./BenchmarkHistory.svelte";
 
   const tabs: { id: PerfTab; label: string }[] = [
     { id: "dashboard", label: "Dashboard" },
     { id: "optimizer", label: "Optimizer" },
     { id: "monitor", label: "Live Monitor" },
+    { id: "profiles", label: "Game Profiles" },
     { id: "gpu", label: "GPU Control" },
     { id: "nvidia", label: "NVIDIA Profiles" },
+    { id: "benchmarks", label: "Benchmark History" },
   ];
 
   onMount(() => {
@@ -43,7 +47,9 @@
   <div class="body">
     {#if ffs.tab === "monitor"}<LiveMonitor />
     {:else if ffs.tab === "optimizer"}<Optimizer />
+    {:else if ffs.tab === "profiles"}<GameProfiles />
     {:else if ffs.tab === "gpu"}<GpuControl />
+    {:else if ffs.tab === "benchmarks"}<BenchmarkHistory />
     {:else if ffs.tab === "nvidia"}<NvidiaProfiles />
     {:else}<Dashboard />{/if}
   </div>

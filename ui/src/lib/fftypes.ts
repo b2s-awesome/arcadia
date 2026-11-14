@@ -509,3 +509,92 @@ export interface GpuPreset {
 export interface PresetSettingCheck { id: string; name: string; current: string | null; target: string; status: "change" | "same" | "skip"; reason: string | null }
 export interface PresetCheck { usable: boolean; problems: string[]; warnings: string[]; target: string; settings: PresetSettingCheck[]; level: number }
 export interface PresetOutcome { applied: number; skipped: PresetSettingCheck[]; verified: boolean; message: string; sessionId: string | null; backupId: string | null }
+
+// ── game profiles and launch lifecycle ───────────────────────────────────
+
+export interface ProfileAction { id: string; params: unknown }
+
+export interface GameProfile {
+  schema: number;
+  id: string;
+  name: string;
+  gameId: string | null;
+  gameName: string;
+  /** Executable file name: what identifies the game when it runs. */
+  exe: string;
+  enabled: boolean;
+  autoApply: boolean;
+  priority: string | null;
+  presetId: string | null;
+  actions: ProfileAction[];
+  monitor: boolean;
+  benchmark: boolean;
+  /** Highest optimiser level the user approved. 0: not reviewed yet. */
+  approvedLevel: number;
+  notes: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ProfileView extends GameProfile {
+  runningPid: number | null;
+  applied: boolean;
+  presetName: string | null;
+  presetMissing: boolean;
+  benchmarks: number;
+}
+
+export interface GameChoice { gameId: string | null; name: string; exe: string | null; runningPid: number | null }
+export interface ProfileRun { profileId: string; profileName: string; pid: number | null; applied: string[]; skipped: string[]; sessionId: string | null; preset: PresetOutcome | null; monitoring: boolean }
+export interface LifecycleEvent { at: number; kind: "applied" | "exited" | "monitor" | "skipped" | "error"; profile: string | null; process: string; pid: number | null; text: string }
+
+export const PRIORITY_LABEL: Record<string, string> = { Idle: "Idle", BelowNormal: "Below normal", Normal: "Normal", AboveNormal: "Above normal", High: "High" };
+
+// ── benchmarks ───────────────────────────────────────────────────────────
+
+export interface BenchSession {
+  schema: number;
+  id: string;
+  label: string;
+  gameId: string | null;
+  gameName: string;
+  exe: string;
+  pid: number;
+  startedAt: number;
+  durationMs: number;
+  source: string;
+  width: number | null;
+  height: number | null;
+  refreshHz: number | null;
+  cpu: string;
+  gpu: string | null;
+  gpuDriver: string | null;
+  os: string;
+  displayed: FrameStats;
+  presented: FrameStats;
+  cpuBusyMs: number | null;
+  cpuWaitMs: number | null;
+  gpuBusyMs: number | null;
+  gpuWaitMs: number | null;
+  displayLatencyMs: number | null;
+  droppedPct: number | null;
+  generatedPct: number | null;
+  cpuUtilPct: number | null;
+  cpuTempAvgC: number | null;
+  cpuTempMaxC: number | null;
+  gpuUtilPct: number | null;
+  gpuTempAvgC: number | null;
+  gpuTempMaxC: number | null;
+  gpuPowerAvgW: number | null;
+  vramUsedMaxBytes: number | null;
+  ramUsedAvgBytes: number | null;
+  activeOptimizations: string[];
+  profile: string | null;
+  truncated: boolean;
+  notes: string[];
+  frameTimesMs: number[];
+}
+
+export interface BenchMetric { key: string; name: string; unit: string; higherIsBetter: boolean | null; values: (number | null)[]; delta: (number | null)[]; deltaPct: (number | null)[] }
+export interface BenchFlag { severity: "warning" | "info"; text: string }
+export interface BenchComparison { ids: string[]; labels: string[]; metrics: BenchMetric[]; flags: BenchFlag[]; summary: string[]; comparable: boolean }
