@@ -67,6 +67,20 @@ On top of any look you can set a wallpaper (five built in, or your own image), i
 
 Press **Ctrl+K** anywhere for the launcher: a ring of quick actions, or type to search every installed game and action.
 
+## Performance (FrameForge)
+
+The **Performance** section is a gaming performance suite:
+
+- **Dashboard**: hardware, drivers, displays and which vendor APIs are available.
+- **Optimizer**: an analysis of what is limiting performance, and tiered (Safe, Advanced, Expert) system changes. Every change is checked first, recorded, read back and can be reverted. It never touches Defender, security features, services, boot settings, anti-cheat or game memory, and never sets Realtime priority.
+- **Live Monitor**: frame rate, frame times, 1% and 0.1% lows and hardware load for one game, measured by [Intel PresentMon](https://github.com/GameTechDev/PresentMon) (install it yourself; Arcadia does not bundle it).
+- **Game Profiles**: per-game sets of changes, applied by hand or, if you switch it on, when the game starts.
+- **GPU Control**: the driver controls AMD (ADLX) and Intel (IGCL) expose, and shareable GPU presets.
+- **NVIDIA Profiles**: a driver profile editor in the style of NVIDIA Profile Inspector, with `.nip` import, export, compare and automatic snapshots.
+- **Benchmark History**: recorded runs, comparisons that flag unlike conditions, CSV and JSON export.
+
+Vendor libraries are loaded from your installed drivers; nothing vendor-binary ships with Arcadia. AMD support needs a build with the `adlx` feature. Details, safety rules and the current verification status are in [docs/frameforge](docs/frameforge/README.md).
+
 ## How the proxy works
 
 Same approach as Fleasion's "Roblox Env Proxy" mode:
@@ -110,6 +124,7 @@ crates/core/          all logic, no GUI deps (testable headless)
   src/library/        Steam (VDF parser), Epic, Battle.net, GOG, EA, Ubisoft, custom
   src/roblox/         deploy (CDN install), fflags, mods, cache, activity (log watcher)
   src/proxy/          ca, rules, hooks (pure rewrites), server (MITM proxy), inspector
+  src/frameforge/     Performance section: hardware, GPU vendors, PresentMon, optimiser, profiles, benchmarks
   tests/              proxy_e2e.rs, install_e2e.rs
 src-tauri/            desktop shell: commands, tray, single-instance, protocol handling
 ui/                   Svelte 5 UI (runs in a browser with a mock backend: npm run dev)
