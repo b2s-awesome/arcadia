@@ -35,7 +35,7 @@ async function open(query) {
     // Cover art and other remote files that the existing pages fetch are not reachable
     // from a sandboxed test machine. Only failures of the app's own files count.
     const url = m.location()?.url ?? "";
-    if (m.text().startsWith("Failed to load resource") && url && !url.startsWith(BASE)) return;
+    if (m.text().startsWith("Failed to load resource") && url && (!url.startsWith(BASE) || url.endsWith("/favicon.ico"))) return;
     errors.push(m.text());
   });
   for (let i = 0; ; i++) {
@@ -398,6 +398,7 @@ await check("Benchmark History: record, list, compare with deltas and warnings",
   await waitText(page, "Optimisations active");
   // Record a run through Live Monitor.
   await click(page, "Open Live Monitor");
+  await page.waitForFunction(() => [...document.querySelectorAll("button")].some((b) => b.innerText.trim().startsWith("Start monitoring") && !b.disabled), { timeout: 5000 });
   await click(page, "Start monitoring");
   await waitText(page, "Record benchmark");
   await click(page, "Benchmark History");
