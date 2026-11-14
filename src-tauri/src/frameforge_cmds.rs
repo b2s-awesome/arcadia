@@ -400,3 +400,132 @@ pub async fn ff_preset_export(app: AppHandle, id: String, path: String) -> Res<(
 pub async fn ff_preset_delete(app: AppHandle, id: String) -> Res<()> {
     blocking(&app, move |f| f.presets().delete(&id)).await?.map_err(err)
 }
+
+// ── Game profiles, launch lifecycle, benchmarks ─────────────────────────
+
+use ff::benchmark::{BenchSession, Comparison};
+use ff::profiles::{GameChoice, GameProfile, LifecycleEvent, ProfileRun, ProfileView, MAX_PROFILE_BYTES};
+
+/// How often the launch watcher looks for games starting and exiting.
+const WATCH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// Watch for games starting and exiting, for users who opted in to
+/// automatic profiles or monitoring. Until they do (and until something
+/// else has created FrameForge), each pass only reads the small config
+/// file: no process listing, no driver library.
+pub(crate) fn start_watcher(app: AppHandle) {
+    let spawned = std::thread::Builder::new().name("frameforge-watcher".into()).spawn(move || loop {
+        std::thread::sleep(WATCH_INTERVAL);
+        let created = app.state::<AppState>().ff.get().is_some();
+        if !created {
+            let cfg = ff::config::Config::load();
+            if !cfg.auto_profiles && !cfg.auto_monitor {
+                continue;
+            }
+        }
+        let events = forge(&app).lifecycle_tick();
+        if !events.is_empty() {
+            let _ = tauri::Emitter::emit(&app, "ff-lifecycle", &events);
+        }
+    });
+    if let Err(e) = spawned {
+        eprintln!("FrameForge launch watcher could not start: {e}");
+    }
+}
+
+#[tauri::command]
+pub async fn ff_profiles(app: AppHandle) -> Res<Vec<ProfileView>> {
+    blocking(&app, |f| f.profile_views()).await
+}
+
+#[tauri::command]
+pub async fn ff_profile_games(app: AppHandle) -> Res<Vec<GameChoice>> {
+    blocking(&app, |f| f.profile_games()).await
+}
+
+/// Save a profile. `level` is the optimiser level the user confirmed for it.
+#[tauri::command]
+pub async fn ff_profile_save(app: AppHandle, profile: GameProfile, level: u8) -> Res<GameProfile> {
+    blocking(&app, move |f| f.profile_save(profile, level)).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_profile_delete(app: AppHandle, id: String) -> Res<()> {
+    blocking(&app, move |f| f.profile_delete(&id)).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_profile_duplicate(app: AppHandle, id: String) -> Res<GameProfile> {
+    blocking(&app, move |f| f.profiles().duplicate(&id)).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_profile_apply(app: AppHandle, id: String, level: u8) -> Res<ProfileRun> {
+    blocking(&app, move |f| f.profile_apply(&id, level)).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_profile_revert(app: AppHandle, id: String) -> Res<Vec<String>> {
+    blocking(&app, move |f| f.profile_revert(&id)).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_profile_export(app: AppHandle, id: String, path: String) -> Res<()> {
+    blocking(&app, move |f| f.profile_export(&id, &PathBuf::from(path))).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_profile_import(app: AppHandle, path: String) -> Res<GameProfile> {
+    blocking(&app, move |f| {
+        let bytes = FrameForge::read_user_file(&PathBuf::from(path), MAX_PROFILE_BYTES as u64)?;
+        f.profile_import(&bytes)
+    })
+    .await?
+    .map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_profile_events(app: AppHandle) -> Res<Vec<LifecycleEvent>> {
+    blocking(&app, |f| f.lifecycle_events()).await
+}
+
+#[tauri::command]
+pub async fn ff_bench_start(app: AppHandle, label: String) -> Res<()> {
+    blocking(&app, move |f| f.bench_start(&label)).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_bench_stop(app: AppHandle) -> Res<BenchSession> {
+    blocking(&app, |f| f.bench_stop()).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_bench_list(app: AppHandle) -> Res<Vec<BenchSession>> {
+    blocking(&app, |f| f.benchmarks().list()).await
+}
+
+#[tauri::command]
+pub async fn ff_bench_rename(app: AppHandle, id: String, label: String) -> Res<BenchSession> {
+    blocking(&app, move |f| f.benchmarks().rename(&id, &label)).await?.map_err(err)
+}
+
+#[tauri::command]
+pub async fn ff_bench_delete(app: AppHandle, id: String) -> Res<()> {
+    blocking(&app, move |f| f.benchmarks().delete(&id)).await?.map_err(err)
+}
+
+fn bench_sessions(f: &FrameForge, ids: &[String]) -> anyhow::Result<Vec<BenchSession>> {
+    ids.iter().map(|id| f.benchmarks().get(id)).collect()
+}
+
+/// Compare sessions against the first id given.
+#[tauri::command]
+pub async fn ff_bench_compare(app: AppHandle, ids: Vec<String>) -> Res<Comparison> {
+    blocking(&app, move |f| ff::benchmark::compare(&bench_sessions(&f, &ids)?)).await?.map_err(err)
+}
+
+/// Write a CSV or JSON report (by file extension) for the chosen sessions.
+#[tauri::command]
+pub async fn ff_bench_export(app: AppHandle, ids: Vec<String>, path: String) -> Res<()> {
+    blocking(&app, move |f| ff::benchmark::export(&bench_sessions(&f, &ids)?, &PathBuf::from(path))).await?.map_err(err)
+}

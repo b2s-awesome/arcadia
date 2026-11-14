@@ -1071,8 +1071,10 @@ mod tests {
 
         // Revert by hand undoes the driver change as well.
         w.ff.set_process_list(Some(vec![proc(GAME_PID, "game.exe", Some("steam:1"))]));
-        // (The user turned the setting off again in the meantime.)
-        w.ff.gpus().set_control(&w.ff.inventory(false).gpus[0], "adlx.antilag", 0.0).unwrap();
+        // (The user undid the earlier change from Optimizer, History in the meantime.)
+        for s in w.ff.optimizer_history() {
+            let _ = w.ff.optimizer_revert_session(&s.id);
+        }
         w.amd.applied.lock().clear();
         w.ff.profile_apply(&p.id, 2).unwrap();
         w.ff.profile_revert(&p.id).unwrap();

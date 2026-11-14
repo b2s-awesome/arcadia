@@ -531,6 +531,7 @@ fn main() {
         })
         .setup(|app| {
             let h = app.handle().clone();
+            frameforge_cmds::start_watcher(h.clone());
             let show = MenuItem::with_id(app, "show", "Open Arcadia", true, None::<&str>)?;
             let play = MenuItem::with_id(app, "roblox", "Launch Roblox", true, None::<&str>)?;
             let cache_item =
@@ -716,6 +717,23 @@ fn main() {
             frameforge_cmds::ff_preset_import,
             frameforge_cmds::ff_preset_export,
             frameforge_cmds::ff_preset_delete,
+            frameforge_cmds::ff_profiles,
+            frameforge_cmds::ff_profile_games,
+            frameforge_cmds::ff_profile_save,
+            frameforge_cmds::ff_profile_delete,
+            frameforge_cmds::ff_profile_duplicate,
+            frameforge_cmds::ff_profile_apply,
+            frameforge_cmds::ff_profile_revert,
+            frameforge_cmds::ff_profile_export,
+            frameforge_cmds::ff_profile_import,
+            frameforge_cmds::ff_profile_events,
+            frameforge_cmds::ff_bench_start,
+            frameforge_cmds::ff_bench_stop,
+            frameforge_cmds::ff_bench_list,
+            frameforge_cmds::ff_bench_rename,
+            frameforge_cmds::ff_bench_delete,
+            frameforge_cmds::ff_bench_compare,
+            frameforge_cmds::ff_bench_export,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Arcadia");
