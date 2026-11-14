@@ -18,6 +18,7 @@
 //! cache\               disposable monitoring data
 //! ```
 
+pub mod benchmark;
 pub mod config;
 pub mod diagnostics;
 pub mod ffi;
@@ -31,6 +32,7 @@ pub mod optimizer;
 pub mod presentmon;
 pub mod presets;
 pub mod processes;
+pub mod profiles;
 pub mod service;
 pub mod stats;
 pub mod telemetry;

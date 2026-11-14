@@ -179,6 +179,11 @@ impl GameIndex {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+
+    /// Every library game as `(id, name, executable file name when the library knows it)`.
+    pub fn games(&self) -> Vec<(String, String, Option<String>)> {
+        self.entries.iter().map(|(id, name, _, exe)| (id.clone(), name.clone(), exe.as_deref().and_then(|e| e.rsplit('\\').next()).map(String::from))).collect()
+    }
 }
 
 /// Executables inside a game's folder that are not the game itself.

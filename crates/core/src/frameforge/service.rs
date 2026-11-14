@@ -93,7 +93,18 @@ pub struct FrameForge {
     ops: Arc<dyn SystemOps>,
     procs: Arc<dyn ProcessOps>,
     nvidia: super::nvidia::NvidiaProfiles,
+    /// Applied game profiles and what the launch watcher has seen.
+    pub(super) runs: Mutex<super::profiles::RunState>,
+    /// Label and conditions of the benchmark being recorded.
+    pub(super) bench: Mutex<Option<super::benchmark::CaptureContext>>,
+    /// Stand-in process list (tests): the real lister is not consulted when set.
+    process_override: Mutex<Option<Vec<ProcessInfo>>>,
+    /// Stand-in frame source (tests): PresentMon is not opened when set.
+    source_factory: Mutex<Option<SourceFactory>>,
 }
+
+/// Opens a frame source for a process id.
+pub type SourceFactory = Arc<dyn Fn(u32) -> anyhow::Result<Box<dyn presentmon::FrameSource>> + Send + Sync>;
 
 impl FrameForge {
     /// Detect real hardware. Cheap enough to run at start-up: adapters are
@@ -115,6 +126,10 @@ impl FrameForge {
             ops,
             procs,
             nvidia: super::nvidia::NvidiaProfiles::system(),
+            runs: Mutex::new(Default::default()),
+            bench: Mutex::new(None),
+            process_override: Mutex::new(None),
+            source_factory: Mutex::new(None),
             sampler: Arc::new(Sampler::new(gpus.clone())),
             gpus,
             inventory: Mutex::new(None),
@@ -129,6 +144,16 @@ impl FrameForge {
     pub fn with_nvidia(mut self, nvidia: super::nvidia::NvidiaProfiles) -> Self {
         self.nvidia = nvidia;
         self
+    }
+
+    /// Use a fixed process list instead of the system's (tests).
+    pub fn set_process_list(&self, list: Option<Vec<ProcessInfo>>) {
+        *self.process_override.lock() = list;
+    }
+
+    /// Use a custom frame source instead of PresentMon (tests, replays).
+    pub fn set_source_factory(&self, factory: Option<SourceFactory>) {
+        *self.source_factory.lock() = factory;
     }
 
     pub fn gpus(&self) -> &GpuRegistry {
@@ -384,6 +409,9 @@ impl FrameForge {
     }
 
     pub fn processes(&self) -> Vec<ProcessInfo> {
+        if let Some(list) = self.process_override.lock().clone() {
+            return list;
+        }
         let gpu = self.gpus.process_usage();
         let games = self.games.lock().clone();
         match self.lister.lock().as_mut() {
@@ -393,6 +421,9 @@ impl FrameForge {
     }
 
     pub fn is_running(&self, pid: u32) -> bool {
+        if let Some(list) = self.process_override.lock().as_ref() {
+            return list.iter().any(|p| p.pid == pid);
+        }
         self.lister.lock().as_mut().map(|l| l.is_running(pid)).unwrap_or(false)
     }
 
@@ -403,7 +434,13 @@ impl FrameForge {
         }
         let cli = self.config.lock().presentmon_cli.clone();
         let primary = self.inventory(false).primary_gpu().cloned();
-        let source = presentmon::open(pid, cli.as_deref(), primary.as_ref().and_then(|g| g.luid.as_deref()))?;
+        let factory = self.source_factory.lock().clone();
+        let source = match factory {
+            Some(f) => f(pid)?,
+            None => presentmon::open(pid, cli.as_deref(), primary.as_ref().and_then(|g| g.luid.as_deref()))?,
+        };
+        // A benchmark still being recorded belongs to the session that is about to end.
+        self.bench_finish_quietly();
         let monitor = Monitor::start(source, pid, name, Some(self.sampler.clone()), primary.map(|g| g.id));
         let mut slot = self.monitor.lock();
         if let Some(mut old) = slot.take() {
@@ -425,6 +462,8 @@ impl FrameForge {
     }
 
     pub fn monitor_stop(&self) {
+        // Stopping the monitor ends any benchmark with it; what was captured is kept.
+        self.bench_finish_quietly();
         if let Some(mut m) = self.monitor.lock().take() {
             m.stop();
         }
