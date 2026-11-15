@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "check": "svelte-check --tsconfig ./tsconfig.json"
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test:ui": "node tests/performance.ui.mjs"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
     "@tsconfig/svelte": "^5.0.8",
+    "puppeteer-core": "^25.17.0",
     "svelte": "^5.57.3",
     "svelte-check": "^4.7.7",
     "typescript": "^5.9.3",

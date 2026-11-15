@@ -15,6 +15,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
+mod frameforge_cmds;
 mod minecraft_cmds;
 
 pub(crate) struct AppState {
@@ -26,6 +27,8 @@ pub(crate) struct AppState {
     exe: String,
     /// Running Minecraft instances: instance id → process id.
     mc_running: Mutex<std::collections::HashMap<String, u32>>,
+    /// FrameForge (Performance section), created on first use.
+    pub(crate) ff: std::sync::OnceLock<Arc<arcadia_core::frameforge::FrameForge>>,
 }
 
 pub(crate) type Res<T> = Result<T, String>;
@@ -61,6 +64,10 @@ async fn save_settings(st: State<'_, AppState>, settings: Settings) -> Res<()> {
 async fn scan_library(st: State<'_, AppState>) -> Res<library::ScanReport> {
     let report = tauri::async_runtime::spawn_blocking(library::scan).await.map_err(err)?;
     *st.games.lock() = report.games.clone();
+    // Keep FrameForge's process-to-game matching in step with the library.
+    if let Some(f) = st.ff.get() {
+        f.set_games(&report.games);
+    }
     Ok(report)
 }
 
@@ -492,9 +499,11 @@ fn main() {
             sessions: Arc::new(AtomicUsize::new(0)),
             exe,
             mc_running: Mutex::new(Default::default()),
+            ff: std::sync::OnceLock::new(),
         })
         .setup(|app| {
             let h = app.handle().clone();
+            frameforge_cmds::start_watcher(h.clone());
             let show = MenuItem::with_id(app, "show", "Open Arcadia", true, None::<&str>)?;
             let play = MenuItem::with_id(app, "roblox", "Launch Roblox", true, None::<&str>)?;
             let cache_item = MenuItem::with_id(app, "cache", "Clear Roblox cache", true, None::<&str>)?;
@@ -623,6 +632,71 @@ fn main() {
             minecraft_cmds::open_url,
             inspector_snapshot,
             inspector_clear,
+            frameforge_cmds::ff_overview,
+            frameforge_cmds::ff_telemetry,
+            frameforge_cmds::ff_processes,
+            frameforge_cmds::ff_running_game,
+            frameforge_cmds::ff_presentmon,
+            frameforge_cmds::ff_config_get,
+            frameforge_cmds::ff_config_set,
+            frameforge_cmds::ff_monitor_start,
+            frameforge_cmds::ff_monitor_stop,
+            frameforge_cmds::ff_monitor_snapshot,
+            frameforge_cmds::ff_diagnose,
+            frameforge_cmds::ff_opt_list,
+            frameforge_cmds::ff_opt_apply,
+            frameforge_cmds::ff_opt_revert_change,
+            frameforge_cmds::ff_opt_revert_session,
+            frameforge_cmds::ff_opt_history,
+            frameforge_cmds::ff_open_settings,
+            frameforge_cmds::ff_nv_status,
+            frameforge_cmds::ff_nv_profiles,
+            frameforge_cmds::ff_nv_profile,
+            frameforge_cmds::ff_nv_plan,
+            frameforge_cmds::ff_nv_apply,
+            frameforge_cmds::ff_nv_create_profile,
+            frameforge_cmds::ff_nv_delete_profile,
+            frameforge_cmds::ff_nv_export,
+            frameforge_cmds::ff_nv_import_preview,
+            frameforge_cmds::ff_nv_preview,
+            frameforge_cmds::ff_nv_import,
+            frameforge_cmds::ff_nv_save_file,
+            frameforge_cmds::ff_nv_compare,
+            frameforge_cmds::ff_nv_backups,
+            frameforge_cmds::ff_nv_backup_now,
+            frameforge_cmds::ff_nv_backup_contents,
+            frameforge_cmds::ff_nv_restore_backup,
+            frameforge_cmds::ff_nv_delete_backup,
+            frameforge_cmds::ff_nv_save_database,
+            frameforge_cmds::ff_nv_npi_import,
+            frameforge_cmds::ff_nv_npi_export,
+            frameforge_cmds::ff_nv_set_npi,
+            frameforge_cmds::ff_nv_load_reference,
+            frameforge_cmds::ff_gpu_controls,
+            frameforge_cmds::ff_presets,
+            frameforge_cmds::ff_preset_capture,
+            frameforge_cmds::ff_preset_check,
+            frameforge_cmds::ff_preset_apply,
+            frameforge_cmds::ff_preset_import,
+            frameforge_cmds::ff_preset_export,
+            frameforge_cmds::ff_preset_delete,
+            frameforge_cmds::ff_profiles,
+            frameforge_cmds::ff_profile_games,
+            frameforge_cmds::ff_profile_save,
+            frameforge_cmds::ff_profile_delete,
+            frameforge_cmds::ff_profile_duplicate,
+            frameforge_cmds::ff_profile_apply,
+            frameforge_cmds::ff_profile_revert,
+            frameforge_cmds::ff_profile_export,
+            frameforge_cmds::ff_profile_import,
+            frameforge_cmds::ff_profile_events,
+            frameforge_cmds::ff_bench_start,
+            frameforge_cmds::ff_bench_stop,
+            frameforge_cmds::ff_bench_list,
+            frameforge_cmds::ff_bench_rename,
+            frameforge_cmds::ff_bench_delete,
+            frameforge_cmds::ff_bench_compare,
+            frameforge_cmds::ff_bench_export,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Arcadia");

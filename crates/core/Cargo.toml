@@ -36,11 +36,47 @@ sha1 = "0.10"
 sha2 = "0.10"
 toml = "0.8"
 hex = "0.4"
+# FrameForge
+sysinfo = { version = "0.40", default-features = false, features = ["system", "disk", "gpu", "user"] }
+quick-xml = "0.42"
+base64 = "0.22"
+libloading = "0.8"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
 keyring = { version = "3", features = ["windows-native"] }
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_Security"] }
+# FrameForge: DXGI, display, power and process APIs, plus WMI for memory modules and disks.
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dxgi",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_Graphics_Gdi",
+    "Win32_Devices_Display",
+    "Win32_System_Power",
+    "Win32_System_Threading",
+    "Win32_System_Performance",
+    "Win32_System_SystemInformation",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Registry",
+    "Win32_System_RestartManager",
+    "Win32_Security",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Shell",
+    "Win32_Storage_FileSystem",
+] }
+wmi = { version = "0.18", default-features = false }
 
 [dev-dependencies]
 tempfile = "3"
+
+[build-dependencies]
+# Only compiled for the `adlx` feature (see build.rs).
+bindgen = { version = "0.72", optional = true, default-features = false, features = ["runtime"] }
+
+[features]
+# AMD ADLX support. Off by default: AMD's SDK licence does not allow its
+# headers (or code generated from them) to be published as source, so the
+# bindings are generated at build time from an SDK checkout you supply in
+# ADLX_SDK_DIR. See build.rs and docs/frameforge/vendor-apis.md.
+adlx = ["dep:bindgen"]

@@ -3,6 +3,12 @@
 import type {
   DeviceCode, FoundInstance, Hit, ImportResult, Incident, LoaderVersion, McAccount, McInstance, McLoader, McVersion, ModFile, SecurityReport, Verified,
   Entry, Game, LaunchTarget, Preset, ProxyStatus, RobloxStatus, RuleConfig, ScanReport, Settings, RulesImported } from "./types";
+import type {
+  ActionView, ApplyRequest, Diagnosis, FfConfig, MonitorSnapshot, NipDiff, NipFile, NpiRun, NvApplyOutcome, NvBackup, NvChange, NvDiffLine, NvImportOutcome,
+  NvImportPreview, NvProfileDetail, NvProfileSummary, NvStatus, OptSession, Overview, PresentMonAvailability, ProcessInfo, Sample,
+  GpuControlsView, GpuPreset, PresetCheck, PresetOutcome,
+  GameProfile, ProfileView, GameChoice, ProfileRun, LifecycleEvent, BenchSession, BenchComparison,
+} from "./fftypes";
 import { mockInvoke, mockListen } from "./mock";
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -129,6 +135,86 @@ export const mc = {
   dock: () => call<void>("minecraft_dock"),
   createShortcut: (name: string) => call<string[]>("create_minecraft_shortcut", { name }),
 };
+
+/** FrameForge: the Performance section. */
+export const ff = {
+  overview: (rescan = false) => call<Overview>("ff_overview", { rescan }),
+  telemetry: () => call<Sample>("ff_telemetry"),
+  processes: () => call<ProcessInfo[]>("ff_processes"),
+  runningGame: () => call<ProcessInfo | null>("ff_running_game"),
+  presentmon: () => call<PresentMonAvailability>("ff_presentmon"),
+  configGet: () => call<FfConfig>("ff_config_get"),
+  configSet: (config: FfConfig) => call<FfConfig>("ff_config_set", { config }),
+  monitorStart: (pid: number, name: string) => call<void>("ff_monitor_start", { pid, name }),
+  monitorStop: () => call<void>("ff_monitor_stop"),
+  monitorSnapshot: () => call<MonitorSnapshot>("ff_monitor_snapshot"),
+  diagnose: () => call<Diagnosis>("ff_diagnose"),
+  optList: () => call<ActionView[]>("ff_opt_list"),
+  optApply: (requests: ApplyRequest[], level: number, label: string) => call<OptSession>("ff_opt_apply", { requests, level, label }),
+  optRevertChange: (sessionId: string, changeId: number) => call<OptSession>("ff_opt_revert_change", { sessionId, changeId }),
+  optRevertSession: (sessionId: string) => call<OptSession>("ff_opt_revert_session", { sessionId }),
+  optHistory: () => call<OptSession[]>("ff_opt_history"),
+  openSettings: (uri: string) => call<void>("ff_open_settings", { uri }),
+  gpuControls: () => call<GpuControlsView[]>("ff_gpu_controls"),
+  presets: () => call<GpuPreset[]>("ff_presets"),
+  presetCapture: (gpu: string, name: string, gameExe: string | null, notes: string) => call<GpuPreset>("ff_preset_capture", { gpu, name, gameExe, notes }),
+  presetCheck: (id: string) => call<PresetCheck>("ff_preset_check", { id }),
+  presetApply: (id: string, level: number) => call<PresetOutcome>("ff_preset_apply", { id, level }),
+  presetImport: (path: string) => call<GpuPreset>("ff_preset_import", { path }),
+  presetExport: (id: string, path: string) => call<void>("ff_preset_export", { id, path }),
+  presetDelete: (id: string) => call<void>("ff_preset_delete", { id }),
+  profiles: () => call<ProfileView[]>("ff_profiles"),
+  profileGames: () => call<GameChoice[]>("ff_profile_games"),
+  profileSave: (profile: GameProfile, level: number) => call<GameProfile>("ff_profile_save", { profile, level }),
+  profileDelete: (id: string) => call<void>("ff_profile_delete", { id }),
+  profileDuplicate: (id: string) => call<GameProfile>("ff_profile_duplicate", { id }),
+  profileApply: (id: string, level: number) => call<ProfileRun>("ff_profile_apply", { id, level }),
+  profileRevert: (id: string) => call<string[]>("ff_profile_revert", { id }),
+  profileExport: (id: string, path: string) => call<void>("ff_profile_export", { id, path }),
+  profileImport: (path: string) => call<GameProfile>("ff_profile_import", { path }),
+  profileEvents: () => call<LifecycleEvent[]>("ff_profile_events"),
+  benchStart: (label: string) => call<void>("ff_bench_start", { label }),
+  benchStop: () => call<BenchSession>("ff_bench_stop"),
+  benchList: () => call<BenchSession[]>("ff_bench_list"),
+  benchRename: (id: string, label: string) => call<BenchSession>("ff_bench_rename", { id, label }),
+  benchDelete: (id: string) => call<void>("ff_bench_delete", { id }),
+  benchCompare: (ids: string[]) => call<BenchComparison>("ff_bench_compare", { ids }),
+  benchExport: (ids: string[], path: string) => call<void>("ff_bench_export", { ids, path }),
+};
+
+/** NVIDIA driver profiles. Every write goes through snapshot, apply, save, read-back in the backend. */
+export const nv = {
+  status: () => call<NvStatus>("ff_nv_status"),
+  profiles: (refresh = false) => call<NvProfileSummary[]>("ff_nv_profiles", { refresh }),
+  profile: (name: string) => call<NvProfileDetail>("ff_nv_profile", { name }),
+  plan: (profile: string, changes: NvChange[]) => call<NvDiffLine[]>("ff_nv_plan", { profile, changes }),
+  apply: (profile: string, changes: NvChange[]) => call<NvApplyOutcome>("ff_nv_apply", { profile, changes }),
+  createProfile: (name: string, exe: string | null) => call<NvApplyOutcome>("ff_nv_create_profile", { name, exe }),
+  deleteProfile: (name: string) => call<NvApplyOutcome>("ff_nv_delete_profile", { name }),
+  exportTo: (path: string, names: string[]) => call<number>("ff_nv_export", { path, names }),
+  importPreview: (path: string) => call<NvImportPreview>("ff_nv_import_preview", { path }),
+  preview: (file: NipFile) => call<NvImportPreview>("ff_nv_preview", { file }),
+  importFile: (file: NipFile, only: string[], mode: "replace" | "merge", label: string) => call<NvImportOutcome>("ff_nv_import", { file, only, mode, label }),
+  saveFile: (path: string, file: NipFile) => call<void>("ff_nv_save_file", { path, file }),
+  compare: (a: string, b: string) => call<NipDiff>("ff_nv_compare", { a, b }),
+  backups: () => call<NvBackup[]>("ff_nv_backups"),
+  backupNow: (names: string[], label: string) => call<NvBackup>("ff_nv_backup_now", { names, label }),
+  backupContents: (id: string) => call<NvImportPreview>("ff_nv_backup_contents", { id }),
+  restoreBackup: (id: string) => call<NvImportOutcome>("ff_nv_restore_backup", { id }),
+  deleteBackup: (id: string) => call<void>("ff_nv_delete_backup", { id }),
+  saveDatabase: (path: string) => call<void>("ff_nv_save_database", { path }),
+  npiImport: (path: string) => call<NpiRun>("ff_nv_npi_import", { path }),
+  npiExport: () => call<NpiRun>("ff_nv_npi_export"),
+  setNpi: (path: string | null) => call<FfConfig>("ff_nv_set_npi", { path }),
+  loadReference: () => call<number>("ff_nv_load_reference"),
+};
+
+/** Ask where to save a file. Returns null when the dialog is cancelled. */
+export async function pickSavePath(defaultName: string, filters: { name: string; extensions: string[] }[]): Promise<string | null> {
+  if (!inTauri) return `C:\\Users\\you\\Documents\\${defaultName}`;
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  return (await save({ defaultPath: defaultName, filters })) ?? null;
+}
 
 export async function pickFolder(): Promise<string | null> {
   if (!inTauri) return "C:\\Users\\you\\AppData\\Roaming\\PrismLauncher\\instances\\Fabulously Optimized";

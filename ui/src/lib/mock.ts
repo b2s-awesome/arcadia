@@ -1,5 +1,6 @@
 // A fake backend so the UI can be developed and previewed in a browser.
 import type { Entry, Game, RuleConfig, Settings } from "./types";
+import { ffMock } from "./ffmock";
 
 const listeners = new Map<string, Set<(p: unknown) => void>>();
 export function mockListen(event: string, cb: (p: unknown) => void): () => void {
@@ -213,6 +214,6 @@ export async function mockInvoke(cmd: string, args: Record<string, unknown> = {}
       pipeblockerAdvised: ["RLCraft"],
       checkedInstances: 4,
     };
-    default: return;
+    default: return cmd.startsWith("ff_") ? ffMock(cmd, args) : undefined;
   }
 }
