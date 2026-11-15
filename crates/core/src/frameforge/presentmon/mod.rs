@@ -216,9 +216,14 @@ mod tests {
 
     #[test]
     fn a_bad_cli_path_is_explained() {
-        let a = availability(Some("/definitely/not/here/PresentMon.exe"));
+        // An absolute path on whichever system runs the test ("/x" has no drive on Windows).
+        let missing = std::env::temp_dir().join("arcadia-definitely-not-here").join("PresentMon.exe");
+        let a = availability(Some(missing.to_str().unwrap()));
         assert!(!a.cli_ready);
-        assert!(a.cli_detail.contains("not found") || a.cli_detail.contains("doesn't exist"));
+        assert!(a.cli_detail.contains("not found"), "{}", a.cli_detail);
+        // A relative path is refused with its own explanation.
+        let a = availability(Some("PresentMon.exe"));
+        assert!(!a.cli_ready && a.cli_detail.contains("full path"), "{}", a.cli_detail);
     }
 
     #[test]
